@@ -1,0 +1,42 @@
+*.iws
+out
+*.avsc
+*.swp
+checkpoint
+*.log
+ignore
+.vagrant
+logs
+project/project/target
+project/target
+target
+.idea
+*.iml
+/out
+.idea_modules
+.classpath
+.project
+/RUNNING_PID
+.settings
+.DS_Store
+integration/project/build.properties
+
+# hidden cross project folders
+shared/.js
+shared/.jvm
+
+
+# eclipse
+.scala_dependencies
+.buildpath
+.target
+bin/
+journal
+snapshots
+*.sc
+
+# no need to keep html output
+build
+.vscode*
+.vscode
+file:
