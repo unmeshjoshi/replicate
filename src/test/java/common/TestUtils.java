@@ -1,7 +1,9 @@
 package common;
 
-import net.InetAddressAndPort;
-import net.Networks;
+import distrib.patterns.common.Config;
+import distrib.patterns.common.Peer;
+import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.net.Networks;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +17,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class TestUtils {
@@ -126,11 +127,15 @@ public class TestUtils {
     }
 
     public static List<InetAddressAndPort> createNAddresses(int clusterSize) {
-        var localhost = new Networks().ipv4Address().getHostAddress();
         List<InetAddressAndPort> addresses = new ArrayList<>();
         for (int i = 0; i < clusterSize; i++) {
-            addresses.add(InetAddressAndPort.create(localhost, getRandomPort()));
+            addresses.add(randomLocalAddress());
         }
         return addresses;
+    }
+
+    public static InetAddressAndPort randomLocalAddress() {
+        var localhost = new Networks().ipv4Address().getHostAddress();
+        return InetAddressAndPort.create(localhost, getRandomPort());
     }
 }
