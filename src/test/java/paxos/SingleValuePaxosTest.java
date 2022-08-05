@@ -8,7 +8,6 @@ import distrib.patterns.paxos.SingleValuePaxosClusterNode;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
 import org.junit.Test;
-import org.junit.runner.Request;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,7 +18,7 @@ public class SingleValuePaxosTest {
 
     @Test
     public void singleValuePaxosTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster();
+        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
         RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
 
@@ -31,7 +30,7 @@ public class SingleValuePaxosTest {
 
     @Test
     public void singleValueNullPaxosGetTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster();
+        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
         RequestOrResponse setValueRequest = createGetValueRequest("key");
         SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
@@ -42,7 +41,7 @@ public class SingleValuePaxosTest {
 
     @Test
     public void singleValuePaxosGetTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster();
+        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
         RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
         SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
@@ -58,7 +57,7 @@ public class SingleValuePaxosTest {
 
 
     private RequestOrResponse createSetValueRequest(String key, String value) {
-        SetValueRequest setValueRequest = new SetValueRequest(key, value, "");
+        SetValueRequest setValueRequest = new SetValueRequest(key, value);
         RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.SetValueRequest.getId(),
                 JsonSerDes.serialize(setValueRequest), 1);
         return requestOrResponse;
@@ -71,9 +70,9 @@ public class SingleValuePaxosTest {
         return requestOrResponse;
     }
 
-    private List<InetAddressAndPort> startCluster() throws IOException {
+
+    private List<InetAddressAndPort> startCluster(int clusterSize) throws IOException {
         SystemClock clock = new SystemClock();
-        int clusterSize = 3;
         List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
         List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
 

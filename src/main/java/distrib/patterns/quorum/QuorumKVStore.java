@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,43 @@ public class QuorumKVStore {
     private SocketListener listener;
 
     Map<String, StoredValue> kv = new HashMap<>();
+
+    public void dropMessagesTo(QuorumKVStore clusterNode) {
+        network.dropMessagesTo(clusterNode.peerConnectionAddress);
+    }
+
+    public StoredValue getStoredValue(String key) {
+        StoredValue storedValue = kv.get(key);
+        if (storedValue == null) {
+            return StoredValue.EMPTY;
+        }
+        return storedValue;
+    }
+
+    public void reconnectTo(QuorumKVStore clusterNode) {
+        network.reconnectTo(clusterNode.peerConnectionAddress);
+    }
+
+    static class Network {
+        List<InetAddressAndPort> dropRequestsTo = new ArrayList<>();
+        public void sendOneWay(InetAddressAndPort address, RequestOrResponse message) throws IOException {
+            if (dropRequestsTo.contains(address)) {
+                return;
+            }
+            SocketClient socketClient = new SocketClient(address);
+            socketClient.sendOneway(message);
+        }
+
+        public void dropMessagesTo(InetAddressAndPort address) {
+            dropRequestsTo.add(address);
+        }
+
+        public void reconnectTo(InetAddressAndPort address) {
+            dropRequestsTo.remove(address);
+        }
+    }
+
+    Network network = new Network();
     WalBackedKVStore systemStorage;
 
     public QuorumKVStore(SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
@@ -79,8 +117,7 @@ public class QuorumKVStore {
             int correlationId = nextRequestId();
             requestWaitingList.add(correlationId, requestCallback);
             try {
-                SocketClient client = new SocketClient(replica);
-                client.sendOneway(new RequestOrResponse(generation, requestId.getId(), clientRequest.getMessageBodyJson(), correlationId, peerConnectionAddress));
+                network.sendOneWay(replica, new RequestOrResponse(generation, requestId.getId(), clientRequest.getMessageBodyJson(), correlationId, peerConnectionAddress));
             } catch (IOException e) {
                 requestWaitingList.handleError(correlationId, e);
             }
@@ -111,7 +148,7 @@ public class QuorumKVStore {
 
     private void handleGetValueRequest(RequestOrResponse request) {
         GetValueRequest getValueRequest = deserialize(request, GetValueRequest.class);
-        sendResponseMessage(new RequestOrResponse(request.getGeneration(), RequestId.GetValueResponse.getId(), JsonSerDes.serialize(kv.get(getValueRequest.getKey())), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
+        sendResponseMessage(new RequestOrResponse(request.getGeneration(), RequestId.GetValueResponse.getId(), JsonSerDes.serialize(getStoredValue(getValueRequest.getKey())), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
     }
 
     private void handleResponse(RequestOrResponse response) {
@@ -139,8 +176,7 @@ public class QuorumKVStore {
 
     private void sendResponseMessage(RequestOrResponse message, InetAddressAndPort fromAddress) {
         try {
-            SocketClient socketClient = new SocketClient(fromAddress);
-            socketClient.sendOneway(message);
+            network.sendOneWay(fromAddress, message);
         } catch (IOException e) {
             logger.error("Communication failure sending request to " + fromAddress);
         }

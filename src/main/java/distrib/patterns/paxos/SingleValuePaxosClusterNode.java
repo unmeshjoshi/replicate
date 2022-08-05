@@ -302,6 +302,22 @@ public class SingleValuePaxosClusterNode {
         sendMessage(new RequestOrResponse(request.getGeneration(), RequestId.SetValueResponse.getId(), setValueRequest.getValue().getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
     }
 
+//    static class Network {
+//        List<InetAddressAndPort> dropMessagesTo = new ArrayList<>();
+//        public void dropMessagesTo(InetAddressAndPort address) {
+//            dropMessagesTo.add(address);
+//        }
+//        public void sendOneWay(InetAddressAndPort address, RequestOrResponse requestOrResponse) {
+//            if (dropMessagesTo.contains(address)) {
+//                return;
+//            }
+//            try {
+//
+//                SocketClient socketClient = new SocketClient(address);
+//            socketClient.sendOneway(requestOrResponse);
+//        }
+//    }
+
     private void sendMessage(RequestOrResponse message, InetAddressAndPort toAddress) {
         try {
             if (toAddress.equals(peerConnectionAddress)) {

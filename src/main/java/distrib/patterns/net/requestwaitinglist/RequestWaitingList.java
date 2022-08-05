@@ -20,7 +20,7 @@ public class RequestWaitingList<Key, Response> {
 
     private SystemClock clock;
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-    private long expirationIntervalMillis = Long.MAX_VALUE; //do not expire for now.
+    private long expirationIntervalMillis = 5000; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
         this.clock = clock;
         executor.scheduleWithFixedDelay(this::expire, expirationIntervalMillis, expirationIntervalMillis, MILLISECONDS);

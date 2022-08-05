@@ -23,8 +23,8 @@ public class SetValueRequest {
         this.requestNumber = requestNumber;
     }
 
-    public SetValueRequest(String key, String value, String attachedLease) {
-        this(key, value, attachedLease, -1, -1);
+    public SetValueRequest(String key, String value) {
+        this(key, value, "", -1, -1);
     }
 
     public String getKey() {

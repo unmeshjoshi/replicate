@@ -15,6 +15,7 @@ public class WalBackedKVStore {
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
+        appendLog(key, value);
         kv.put(key, value);
     }
 
