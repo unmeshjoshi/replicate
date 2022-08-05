@@ -40,7 +40,8 @@ class ReadQuorumCallback implements RequestCallback<RequestOrResponse> {
             responses.put(response.getFromAddress(), kvResponse);
             if (receivedResponses == quorum && !done) {
                 respondToClient(pickLatestValue()); // homework do possible read-repair.
-                readRepair();
+                //TODO:Assignment 4 call readRepair.
+                //readRepair();
                 done = true;
             }
         } catch (Exception e) {

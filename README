@@ -4,6 +4,7 @@ For building, just run './gradlew clean test'
 1. Make KVStore durable with write ahead log.
 2. Pass the WalBackedKVStoreTest
    Append the key values added to the kv store into write ahead log
-2. Make quorum test pass.
+2. Make quorum test pass. Complete WriteQuorumCallback
+3. Make readRepair pass. Complete ReadQuorumCallback
 3. Pass QuorumReadWriteTest#nodesShouldRejectRequestsFromPreviousGenerationNode
    Add logic to reject requests from older generation in QuorumKVStore#handleSetValueRequest
