@@ -9,7 +9,7 @@ import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
-import distrib.patterns.wal.WalBackedKVStore;
+import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,7 +68,7 @@ public class QuorumKVStore {
     }
 
     Network network = new Network();
-    WalBackedKVStore systemStorage;
+    DurableKVStore systemStorage;
 
     public QuorumKVStore(SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         this.clock = clock;
@@ -76,7 +76,7 @@ public class QuorumKVStore {
         this.clientConnectionAddress = clientAddress;
         this.peerConnectionAddress = peerConnectionAddress;
         this.peers = peers;
-        systemStorage = new WalBackedKVStore(config);
+        systemStorage = new DurableKVStore(config);
         generation = incrementAndGetGeneration();
         requestWaitingList = new RequestWaitingList(clock);
 

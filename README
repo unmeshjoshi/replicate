@@ -1,8 +1,9 @@
 This repo has example code for the distributed system workshop.
 For building, just run './gradlew clean test'
 #Assignments
-1. Pass the WalBackedKVStoreTest
+1. Make KVStore durable with write ahead log.
+2. Pass the WalBackedKVStoreTest
    Append the key values added to the kv store into write ahead log
-2. Pass QuorumReadWriteTest#nodesShouldRejectRequestsFromPreviousGenerationNode
+2. Make quorum test pass.
+3. Pass QuorumReadWriteTest#nodesShouldRejectRequestsFromPreviousGenerationNode
    Add logic to reject requests from older generation in QuorumKVStore#handleSetValueRequest
-3. Run and explore SingleValuePaxosTest

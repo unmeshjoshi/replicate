@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class WalBackedKVStore {
+public class DurableKVStore {
     private final Map<String, String> kv = new HashMap<>();
     public String get(String key) {
         return kv.get(key);
@@ -15,7 +15,6 @@ public class WalBackedKVStore {
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
-        appendLog(key, value);
         kv.put(key, value);
     }
 
@@ -27,10 +26,10 @@ public class WalBackedKVStore {
     final WriteAheadLog wal;
     private final Config config;
 
-    public WalBackedKVStore(Config config) {
+    public DurableKVStore(Config config) {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
-        this.applyLog();
+       //TODO: applyLog at startup.
     }
 
     public void applyLog() {
