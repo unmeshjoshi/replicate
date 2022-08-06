@@ -9,17 +9,21 @@ import java.util.Map;
 
 public class DurableKVStore {
     private final Map<String, String> kv = new HashMap<>();
+
     public String get(String key) {
         return kv.get(key);
     }
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
+        appendLog(key, value);
         kv.put(key, value);
     }
 
     private Long appendLog(String key, String value) {
-        return wal.writeEntry(new SetValueCommand(key, value).serialize());
+        Long aLong = wal.writeEntry(new SetValueCommand(key, value).serialize());
+        wal.flush();
+        return aLong;
     }
 
     //@VisibleForTesting
@@ -30,6 +34,7 @@ public class DurableKVStore {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
        //TODO: applyLog at startup.
+        applyLog();
     }
 
     public void applyLog() {

@@ -41,7 +41,7 @@ class ReadQuorumCallback implements RequestCallback<RequestOrResponse> {
             if (receivedResponses == quorum && !done) {
                 respondToClient(pickLatestValue()); // homework do possible read-repair.
                 //TODO:Assignment 4 call readRepair.
-                //readRepair();
+                readRepair();
                 done = true;
             }
         } catch (Exception e) {

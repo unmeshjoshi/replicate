@@ -52,6 +52,7 @@ public class QuorumReadWriteTest {
 
         assertEquals("Microservices", athens.getStoredValue("title").getValue());
         assertEquals("Microservices", cyrene.getStoredValue("title").getValue());
+        assertEquals("", byzantium.getStoredValue("title").getValue());
 
 
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
@@ -71,6 +72,7 @@ public class QuorumReadWriteTest {
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
+
 
         InetAddressAndPort athensAddress = athens.getClientConnectionAddress();
         KVClient kvClient = new KVClient();

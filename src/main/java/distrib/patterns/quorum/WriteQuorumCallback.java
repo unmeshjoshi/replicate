@@ -32,10 +32,10 @@ class WriteQuorumCallback implements RequestCallback<RequestOrResponse> {
         receivedResponses++;
         addResponseMessage(response);
         //TODO: Assignment 3. Complete client response handler.
-//        if (receivedResponses == quorum && !done) {
-//            respondToClient(prepareResponse());
-//            done = true;
-//        }
+        if (receivedResponses == quorum && !done) {
+            respondToClient(prepareResponse());
+            done = true;
+        }
     }
 
     private void addResponseMessage(RequestOrResponse response) {

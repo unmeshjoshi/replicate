@@ -17,6 +17,7 @@ public class DurableKVStoreTest {
         kv.put("key1", "value1");
         kv.put("key2", "value2");
         kv.put("key3", "value3");
+        //KV crashes.
         kv.close();
 
         //simulates process restart. A new instance is created at startup.

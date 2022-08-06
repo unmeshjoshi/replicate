@@ -26,7 +26,7 @@ public class QuorumKVStore {
     private InetAddressAndPort clientConnectionAddress;
     private InetAddressAndPort peerConnectionAddress;
     private List<InetAddressAndPort> peers;
-    private SocketListener listener;
+    private SocketListener peerListener;
 
     Map<String, StoredValue> kv = new HashMap<>();
 
@@ -59,7 +59,7 @@ public class QuorumKVStore {
         generation = incrementAndGetGeneration();
         requestWaitingList = new RequestWaitingList(clock);
 
-        this.listener = new SocketListener(this::handleServerMessage, peerConnectionAddress, config);
+        this.peerListener = new SocketListener(this::handleServerMessage, peerConnectionAddress, config);
         this.clientListener = new NIOSocketListener(message -> {
             handleClientRequest(message);
         }, clientAddress);
@@ -96,6 +96,7 @@ public class QuorumKVStore {
             int correlationId = nextRequestId();
             requestWaitingList.add(correlationId, requestCallback);
             try {
+                //GC Pause
                 network.sendOneWay(replica, new RequestOrResponse(generation, requestId.getId(), clientRequest.getMessageBodyJson(), correlationId, peerConnectionAddress));
             } catch (IOException e) {
                 requestWaitingList.handleError(correlationId, e);
@@ -104,7 +105,7 @@ public class QuorumKVStore {
     }
 
     public void start() {
-        listener.start();
+        peerListener.start();
         clientListener.start();
     }
 
