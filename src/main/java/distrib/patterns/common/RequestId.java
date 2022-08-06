@@ -42,7 +42,7 @@ public enum RequestId {
     Promise(35),
     Propose(36),
     Commit(37),
-    ProposeResponse(38);
+    ProposeResponse(38), CommitResponse(39);
 
     public static RequestId valueOf(Integer id) {
         return map.get(id);
