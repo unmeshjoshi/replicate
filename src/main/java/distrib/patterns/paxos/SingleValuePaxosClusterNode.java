@@ -169,7 +169,9 @@ public class SingleValuePaxosClusterNode {
     }
 
     static class PrepareCallback implements RequestCallback<RequestOrResponse> {
-        CountDownLatch latch = new CountDownLatch(3);
+        int clusterSize = 3; //TODO: make constructor param
+        int quorum = clusterSize / 2 + 1;
+        CountDownLatch latch = new CountDownLatch(clusterSize);
         List<PrepareResponse> promises = new ArrayList<>();
         private String proposedValue;
 
@@ -204,12 +206,8 @@ public class SingleValuePaxosClusterNode {
         }
 
         public boolean isQuorumPrepared() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return true;
+           Uninterruptibles.awaitUninterruptibly(latch);
+           return promises.stream().filter(p -> p.promised).count() >= quorum;
         }
     }
 
@@ -301,23 +299,6 @@ public class SingleValuePaxosClusterNode {
         SetValueRequest setValueRequest = deserialize(request);
         sendMessage(new RequestOrResponse(request.getGeneration(), RequestId.SetValueResponse.getId(), setValueRequest.getValue().getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
     }
-
-//    static class Network {
-//        List<InetAddressAndPort> dropMessagesTo = new ArrayList<>();
-//        public void dropMessagesTo(InetAddressAndPort address) {
-//            dropMessagesTo.add(address);
-//        }
-//        public void sendOneWay(InetAddressAndPort address, RequestOrResponse requestOrResponse) {
-//            if (dropMessagesTo.contains(address)) {
-//                return;
-//            }
-//            try {
-//
-//                SocketClient socketClient = new SocketClient(address);
-//            socketClient.sendOneway(requestOrResponse);
-//        }
-//    }
-
     private void sendMessage(RequestOrResponse message, InetAddressAndPort toAddress) {
         try {
             if (toAddress.equals(peerConnectionAddress)) {

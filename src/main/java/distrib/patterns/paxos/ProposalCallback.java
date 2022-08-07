@@ -1,5 +1,6 @@
 package distrib.patterns.paxos;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.JsonSerDes;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
@@ -10,7 +11,8 @@ import java.util.concurrent.CountDownLatch;
 
 public class ProposalCallback implements RequestCallback<RequestOrResponse> {
     private String proposedValue;
-
+    int clusterSize = 3; //TODO: make constructor param
+    int quorum = clusterSize / 2 + 1;
     public ProposalCallback(String proposedValue) {
         this.proposedValue = proposedValue;
     }
@@ -29,12 +31,7 @@ public class ProposalCallback implements RequestCallback<RequestOrResponse> {
     }
 
     public boolean isQuorumAccepted() {
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            //TODO
-            e.printStackTrace();
-        }
-        return true;
+        Uninterruptibles.awaitUninterruptibly(latch);
+        return proposalResponses.stream().filter(p -> p.success).count() >= quorum;
     }
 }

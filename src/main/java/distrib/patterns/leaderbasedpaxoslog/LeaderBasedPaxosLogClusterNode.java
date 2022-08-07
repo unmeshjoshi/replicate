@@ -326,7 +326,6 @@ public class LeaderBasedPaxosLogClusterNode {
                 sendMessage(message, replica);
 
             } catch (Exception e) {
-                e.printStackTrace();
                 requestWaitingList.handleError(correlationId, e);
             }
         }
