@@ -1,5 +1,7 @@
 package distrib.patterns.paxos;
 
+import distrib.patterns.common.MonotonicId;
+
 public class ProposalRequest {
     private MonotonicId monotonicId;
     private String proposedValue;

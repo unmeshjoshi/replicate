@@ -3,9 +3,7 @@ package distrib.patterns.wal;
 import distrib.patterns.common.Config;
 
 import java.io.ByteArrayInputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class DurableKVStore {
     private final Map<String, String> kv = new HashMap<>();
@@ -59,5 +57,9 @@ public class DurableKVStore {
     public void close() {
         wal.close();
         kv.clear();
+    }
+
+    public Collection<String> values() {
+        return kv.values();
     }
 }

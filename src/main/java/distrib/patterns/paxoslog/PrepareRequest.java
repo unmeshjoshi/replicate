@@ -1,6 +1,6 @@
 package distrib.patterns.paxoslog;
 
-import distrib.patterns.paxos.MonotonicId;
+import distrib.patterns.common.MonotonicId;
 
 public class PrepareRequest {
     public final Integer index;

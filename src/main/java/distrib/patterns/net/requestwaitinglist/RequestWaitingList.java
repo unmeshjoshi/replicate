@@ -22,7 +22,7 @@ public class RequestWaitingList<Key, Response> {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private long expirationIntervalMillis; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
-        this(clock, 5000);
+        this(clock, 2000);
     }
     public RequestWaitingList(SystemClock clock, long expirationIntervalMillis) {
         this.expirationIntervalMillis = expirationIntervalMillis;

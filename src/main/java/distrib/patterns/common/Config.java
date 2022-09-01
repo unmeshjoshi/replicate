@@ -17,6 +17,7 @@ public class Config {
     private long heartBeatIntervalMs = 100;
     private long followerTimeoutMs = 5000l;
     private boolean supportLogGroup = false;
+    private boolean doSyncReadRepair = false;
 
     public Config(String walDir) {
         this.walDir = walDir;
@@ -141,5 +142,13 @@ public class Config {
     public long getMaxBatchWaitTime() {
         return Duration.ofMillis(1).toNanos();
 
+    }
+
+    public void setSynchronousReadRepair() {
+        this.doSyncReadRepair = true;
+    }
+
+    public boolean doSyncReadRepair() {
+        return doSyncReadRepair;
     }
 }

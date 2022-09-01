@@ -3,7 +3,7 @@ package distrib.patterns.paxoskv;
 import distrib.patterns.common.JsonSerDes;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
-import distrib.patterns.paxos.MonotonicId;
+import distrib.patterns.common.MonotonicId;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -10,7 +10,7 @@ import distrib.patterns.requests.SetValueRequest;
 
 import java.io.IOException;
 
-class KVClient {
+public class KVClient {
     int correlationId;
     public String getValue(InetAddressAndPort cyreneAddress, String key) throws IOException {
         RequestOrResponse requestOrResponse1 = createGetValueRequest(key);

@@ -5,26 +5,22 @@ public class SetValueRequest {
     private int requestNumber;
     private String key;
     private String value;
-    private String attachedLease;
+    private long timestamp;
 
     //for jaxon
     private SetValueRequest() {
     }
 
-    public SetValueRequest(String key, String value, long clientId, int requestNumber) {
-        this(key, value, "", clientId, requestNumber);
-    }
-
-    public SetValueRequest(String key, String value, String attachedLease, long clientId, int requestNumber) {
+    public SetValueRequest(String key, String value, long clientId, int requestNumber, long timestamp) {
         this.key = key;
         this.value = value;
-        this.attachedLease = attachedLease;
         this.clientId = clientId;
         this.requestNumber = requestNumber;
+        this.timestamp = timestamp;
     }
 
     public SetValueRequest(String key, String value) {
-        this(key, value, "", -1, -1);
+        this(key, value, -1, -1, -1);
     }
 
     public String getKey() {
@@ -35,16 +31,16 @@ public class SetValueRequest {
         return value;
     }
 
-    public String getAttachedLease() {
-        return attachedLease;
-    }
-
     public long getClientId() {
         return clientId;
     }
 
     public int getRequestNumber() {
         return requestNumber;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
     }
 }
 

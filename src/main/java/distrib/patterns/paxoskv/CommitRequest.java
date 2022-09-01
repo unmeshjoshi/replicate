@@ -1,8 +1,6 @@
 package distrib.patterns.paxoskv;
 
-import distrib.patterns.paxos.MonotonicId;
-
-import java.util.Optional;
+import distrib.patterns.common.MonotonicId;
 
 public class CommitRequest {
     private String key;

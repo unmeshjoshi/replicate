@@ -1,6 +1,6 @@
 package distrib.patterns.paxoskv;
 
-import distrib.patterns.paxos.MonotonicId;
+import distrib.patterns.common.MonotonicId;
 
 public class ProposalRequest {
     private MonotonicId monotonicId;

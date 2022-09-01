@@ -33,7 +33,6 @@ public class SingleValuePaxosClusterNode {
 
     //Paxos State
     MonotonicId promisedGeneration = MonotonicId.empty();
-
     Optional<MonotonicId> acceptedGeneration = Optional.empty();
     Optional<String> acceptedValue = Optional.empty();
 
@@ -270,6 +269,8 @@ public class SingleValuePaxosClusterNode {
             this.acceptedGeneration = Optional.of(generation);
             this.acceptedValue = Optional.ofNullable(request.getProposedValue());
             sendMessage(new RequestOrResponse(RequestId.ProposeResponse.getId(), JsonSerDes.serialize(true), correlationId), requestOrResponse.getFromAddress());
+        } else {
+            sendMessage(new RequestOrResponse(RequestId.ProposeResponse.getId(), JsonSerDes.serialize(false), correlationId), requestOrResponse.getFromAddress());
         }
     }
 

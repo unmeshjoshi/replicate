@@ -5,69 +5,79 @@ import distrib.patterns.common.RequestId;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.ClientConnection;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.SocketClient;
-import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.requests.SetValueRequest;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-class ReadQuorumCallback implements RequestCallback<RequestOrResponse> {
-    private final int quorum;
-    private volatile int expectedNumberOfResponses;
-    private volatile int receivedResponses;
-    private volatile int receivedErrors;
-    private volatile boolean done;
+class ReadQuorumCallback extends QuorumCallback {
+    static Logger logger = LogManager.getLogger(ReadQuorumCallback.class);
 
-    private final RequestOrResponse request;
-    private final ClientConnection clientConnection;
     Map<InetAddressAndPort, StoredValue> responses = new HashMap<>();
-    private int correlationId;
+    private QuorumKVStore kvStore;
+    private Integer generation;
+    private boolean doSyncReadRepair;
 
-    public ReadQuorumCallback(int totalExpectedResponses, RequestOrResponse clientRequest, ClientConnection clientConnection) {
-        this.expectedNumberOfResponses = totalExpectedResponses;
-        this.quorum = expectedNumberOfResponses / 2 + 1;
-        this.request = clientRequest;
-        this.clientConnection = clientConnection;
+    public ReadQuorumCallback(QuorumKVStore kvStore, int totalExpectedResponses, ClientConnection clientConnection, Integer correlationId, Integer generation, boolean doSyncReadRepair) {
+        super(totalExpectedResponses, clientConnection, correlationId);
+        this.kvStore = kvStore;
+        this.generation = generation;
+        this.doSyncReadRepair = doSyncReadRepair;
     }
 
     @Override
     public void onResponse(RequestOrResponse response) {
-        receivedResponses++;
-        try {
-            StoredValue kvResponse = JsonSerDes.deserialize(response.getMessageBodyJson(), StoredValue.class);
-            responses.put(response.getFromAddress(), kvResponse);
-            if (receivedResponses == quorum && !done) {
-                respondToClient(pickLatestValue()); // homework do possible read-repair.
-                //TODO:Assignment 4 call readRepair.
-                readRepair();
-                done = true;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
+        mapResponsesFromReplicas(response);
+        super.onResponse(response);
     }
 
-    private void readRepair() {
+    private void mapResponsesFromReplicas(RequestOrResponse response) {
+        StoredValue kvResponse = JsonSerDes.deserialize(response.getMessageBodyJson(), StoredValue.class);
+        responses.put(response.getFromAddress(), kvResponse);
+    }
+
+    @Override
+    CompletableFuture<String> processQuorumResponses() {
+        return readRepair();
+    }
+
+    private CompletableFuture readRepair() {
         StoredValue latestStoredValue = getLatestStoredValue();
+        return readRepair(latestStoredValue);
+    }
+
+    private CompletableFuture<String> readRepair(StoredValue latestStoredValue) {
         List<InetAddressAndPort> nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.getTimestamp());
+        RequestOrResponse writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp(), generation);
+        WaitingRequestCallback requestCallback = new WaitingRequestCallback(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
-            try {
-                SocketClient client = new SocketClient(nodesHavingStaleValue);
-                client.sendOneway(createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue()));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
+            kvStore.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
+        }
+
+        if (doSyncReadRepair) {
+            logger.info("Waiting for read repair");
+            return CompletableFuture.supplyAsync(()->{
+                if (requestCallback.await(Duration.ofSeconds(2))){
+                    return latestStoredValue.getValue();
+                };
+                return "Error";//FIXME
+            });
+
+        } else {
+            return CompletableFuture.completedFuture(latestStoredValue.getValue());
         }
     }
 
-
-    private RequestOrResponse createSetValueRequest(String key, String value) {
-        SetValueRequest setValueRequest = new SetValueRequest(key, value);
-        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.SetValueRequest.getId(),
-                JsonSerDes.serialize(setValueRequest), correlationId++);
+    int requestId;
+    private RequestOrResponse createSetValueRequest(String key, String value, long timestamp, Integer generation) {
+        SetValueRequest setValueRequest = new SetValueRequest(key, value, -1, -1, timestamp);
+        RequestOrResponse requestOrResponse = new RequestOrResponse(generation, RequestId.SetValueRequest.getId(),
+                JsonSerDes.serialize(setValueRequest), requestId++, kvStore.getPeerConnectionAddress());
         return requestOrResponse;
     }
 
@@ -83,17 +93,4 @@ class ReadQuorumCallback implements RequestCallback<RequestOrResponse> {
         return this.responses.values().stream().max(Comparator.comparingLong(StoredValue::getTimestamp)).orElse(StoredValue.EMPTY);
     }
 
-    @Override
-    public void onError(Throwable t) {
-        receivedErrors++;
-        if (receivedErrors == quorum && !done) {
-            respondToClient("Error");
-            done = true;
-        }
-    }
-
-
-    private void respondToClient(String response) {
-        clientConnection.write(new RequestOrResponse(RequestId.SetValueResponse.getId(), response.getBytes(), request.getCorrelationId()));
-    }
 }

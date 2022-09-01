@@ -1,5 +1,7 @@
 package distrib.patterns.paxos;
 
+import distrib.patterns.common.MonotonicId;
+
 import java.util.Optional;
 
 public class PrepareResponse {

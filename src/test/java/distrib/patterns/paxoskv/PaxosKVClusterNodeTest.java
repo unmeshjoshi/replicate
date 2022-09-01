@@ -19,12 +19,12 @@ public class PaxosKVClusterNodeTest {
     public void singleValuePaxosTest() throws IOException {
         List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
-        RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
-
         SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
-        RequestOrResponse response = client.blockingSend(requestOrResponse);
 
-        assertEquals("value", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
+        assertEquals("Nicroservices", JsonSerDes.deserialize(client.blockingSend(createSetValueRequest("title", "Nicroservices")).getMessageBodyJson(), String.class));
+//        assertEquals("Microservices", JsonSerDes.deserialize(client.blockingSend(createSetValueRequest("title", "Microservices")).getMessageBodyJson(), String.class));
+//
+//        assertEquals("Martin", JsonSerDes.deserialize(client.blockingSend(createSetValueRequest("author", "Martin")).getMessageBodyJson(), String.class));
     }
 
     @Test

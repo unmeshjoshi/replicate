@@ -1,6 +1,6 @@
 package distrib.patterns.leaderbasedpaxoslog;
 
-import distrib.patterns.paxos.MonotonicId;
+import distrib.patterns.common.MonotonicId;
 import distrib.patterns.wal.WALEntry;
 
 public class ProposalRequest {

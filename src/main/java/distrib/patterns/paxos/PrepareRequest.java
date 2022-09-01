@@ -1,5 +1,7 @@
 package distrib.patterns.paxos;
 
+import distrib.patterns.common.MonotonicId;
+
 public class PrepareRequest {
     public final MonotonicId monotonicId;
 

@@ -1,6 +1,7 @@
 package distrib.patterns.paxos;
 
 import distrib.patterns.common.JsonSerDes;
+import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 

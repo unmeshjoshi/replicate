@@ -1,4 +1,4 @@
-package distrib.patterns.paxos;
+package distrib.patterns.common;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -67,6 +67,9 @@ public class MonotonicId implements Comparable<MonotonicId> {
 
     //for jackson
     private MonotonicId() {
+    }
 
+    public boolean isEmpty() {
+        return this.equals(empty());
     }
 }

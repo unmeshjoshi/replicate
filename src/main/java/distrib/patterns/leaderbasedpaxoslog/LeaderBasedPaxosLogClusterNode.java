@@ -8,7 +8,7 @@ import distrib.patterns.net.SocketClient;
 import distrib.patterns.net.SocketListener;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
-import distrib.patterns.paxos.MonotonicId;
+import distrib.patterns.common.MonotonicId;
 import distrib.patterns.paxos.WriteTimeoutException;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;

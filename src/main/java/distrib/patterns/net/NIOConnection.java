@@ -75,6 +75,7 @@ public class NIOConnection implements ClientConnection, Logging {
             //TODO:submit request
             //requestChannel.sendRequest(new RequestWrapper(id, request, key));
             RequestId requestId = RequestId.valueOf(request.getRequestId());
+
             requestConsumer.accept(new Message<RequestOrResponse>(request, request.getGeneration(), requestId, this));
             receive = null; //ready to read next request.
         } else {
