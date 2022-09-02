@@ -55,7 +55,7 @@ class ReadQuorumCallback extends QuorumCallback {
         RequestOrResponse writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp(), generation);
         WaitingRequestCallback requestCallback = new WaitingRequestCallback(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
-            logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
+            System.out.println("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue() + ", timestamp=" + latestStoredValue.getTimestamp());
             kvStore.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
 

@@ -103,7 +103,16 @@ class PeerMessagingService {
 
         //TODO: Assignment 3 Add check for generation while handling requests.
         SetValueRequest setValueRequest = deserialize(request, SetValueRequest.class);
-        kvStore.put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getTimestamp(), requestGeneration));
+
+        StoredValue storedValue = kvStore.get(setValueRequest.getKey());
+
+        if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.
+            logger.info("Setting newer value " + setValueRequest.getValue());
+            kvStore.put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getTimestamp(), requestGeneration));
+        } else {
+            logger.info("Not setting value " + setValueRequest.getValue() + " because timestamp higher " + storedValue.getTimestamp() + " than request " + setValueRequest.getTimestamp());
+
+        }
         sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), "Success".getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
     }
 
@@ -121,5 +130,9 @@ class PeerMessagingService {
 
     public void dropMessagesAfter(QuorumKVStore byzantium, int dropAfterNoOfMessages) {
         network.dropMessagesAfter(byzantium.getPeerConnectionAddress(), dropAfterNoOfMessages);
+    }
+
+    public void addDelayForMessagesTo(QuorumKVStore cyrene) {
+        network.addDelayForMessagesTo(cyrene.getPeerConnectionAddress());
     }
 }

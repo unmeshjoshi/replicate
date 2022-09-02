@@ -17,7 +17,7 @@ public class SocketClient<T> {
 
     public SocketClient(InetAddressAndPort address) throws IOException {
         this.clientSocket = new Socket(address.getAddress(), address.getPort());
-        clientSocket.setSoTimeout(5000);
+//        clientSocket.setSoTimeout(5000);
     }
 
     public void sendOneway(T message) {

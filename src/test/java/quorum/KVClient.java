@@ -14,7 +14,9 @@ public class KVClient {
     int correlationId;
     public String getValue(InetAddressAndPort cyreneAddress, String key) throws IOException {
         RequestOrResponse requestOrResponse1 = createGetValueRequest(key);
-        RequestOrResponse getResponse = new SocketClient<>(cyreneAddress).blockingSend(requestOrResponse1);
+        SocketClient<Object> client = new SocketClient<>(cyreneAddress);
+        RequestOrResponse getResponse = client.blockingSend(requestOrResponse1);
+        client.close();
         return new String(getResponse.getMessageBodyJson());
     }
 
@@ -22,6 +24,7 @@ public class KVClient {
         SocketClient client = new SocketClient(primaryNodeAddress);
         RequestOrResponse requestOrResponse = createSetValueRequest(title, microservices);
         RequestOrResponse setResponse = client.blockingSend(requestOrResponse);
+        client.close();
         return new String(setResponse.getMessageBodyJson());
     }
 

@@ -122,7 +122,10 @@ class PeerMessagingService {
 
         //TODO: Assignment 3 Add check for generation while handling requests.
         VersionedSetValueRequest setValueRequest = deserialize(request, VersionedSetValueRequest.class);
-        kvStore.put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion(), requestGeneration));
+        StoredValue storedValue = kvStore.get(setValueRequest.getKey());
+        if (setValueRequest.getVersion().isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
+            kvStore.put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion(), requestGeneration));
+        }
         sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), "Success".getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
     }
 

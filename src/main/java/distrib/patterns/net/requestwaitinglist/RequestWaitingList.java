@@ -1,6 +1,8 @@
 package distrib.patterns.net.requestwaitinglist;
 
 import distrib.patterns.common.SystemClock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -13,6 +15,8 @@ import java.util.stream.Collectors;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class RequestWaitingList<Key, Response> {
+    private static Logger logger = LogManager.getLogger(RequestWaitingList.class);
+
     private Map<Key, CallbackDetails> pendingRequests = new ConcurrentHashMap<>();
     public void add(Key key, RequestCallback<Response> callback) {
         pendingRequests.put(key, new CallbackDetails(callback, clock.nanoTime()));
@@ -33,6 +37,10 @@ public class RequestWaitingList<Key, Response> {
     private void expire() {
         long now = clock.nanoTime();
         List<Key> expiredRequestKeys = getExpiredRequestKeys(now);
+        if (expiredRequestKeys.isEmpty()) {
+            return;
+        }
+        logger.info("Expiring " + expiredRequestKeys);
         expiredRequestKeys.stream().forEach(expiredRequestKey -> {
             CallbackDetails request = pendingRequests.remove(expiredRequestKey);
             request.requestCallback.onError(new TimeoutException("Request expired"));

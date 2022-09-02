@@ -64,7 +64,7 @@ public class QuorumReadWriteTest {
     }
 
     @Test
-    public void quorumReadDoesReadRepairSynchronously() throws IOException {
+    public void quorumSynchronousReadRepair() throws IOException {
         List<QuorumKVStore> clusterNodes = startCluster(3, true);
         QuorumKVStore athens = clusterNodes.get(0);
         QuorumKVStore byzantium = clusterNodes.get(1);
@@ -81,8 +81,9 @@ public class QuorumReadWriteTest {
         assertEquals("", byzantium.get("title").getValue());
 
         cyrene.dropMessagesTo(athens);
-        cyrene.dropMessagesToAfter(byzantium, 1);
+        cyrene.dropMessagesToAfterNoOfCalls(byzantium, 1);
         //cyrene will read from itself and byzantium. byzantium has stale value, so it will try read-repair.
+        //but read-repair call fails.
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Error", value);
         assertEquals("", byzantium.get("title").getValue());
@@ -106,7 +107,7 @@ public class QuorumReadWriteTest {
         assertEquals("", byzantium.get("title").getValue());
 
         cyrene.dropMessagesTo(athens);
-        cyrene.dropMessagesToAfter(byzantium, 1);
+        cyrene.dropMessagesToAfterNoOfCalls(byzantium, 1);
         //cyrene will read from itself and byzantium. byzantium has stale value, so it will try read-repair.
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Error", value);
@@ -114,7 +115,7 @@ public class QuorumReadWriteTest {
     }
 
     @Test
-    public void quorumIncompleteWriteTest() throws IOException {
+    public void quorumsHaveIncompletelyWrittenValues() throws IOException {
         List<QuorumKVStore> clusterNodes = startCluster(3);
         QuorumKVStore athens = clusterNodes.get(0);
         QuorumKVStore byzantium = clusterNodes.get(1);
@@ -130,10 +131,44 @@ public class QuorumReadWriteTest {
 
         athens.reconnectTo(cyrene);
         cyrene.dropMessagesTo(byzantium);
+
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
 
         assertEquals("Microservices", athens.get("title").getValue());
+    }
+
+    //With async read-repair, a client reading after another client can see older values.
+    @Test
+    public void laterReadsGetOlderValue() throws IOException {
+        List<QuorumKVStore> clusterNodes = startCluster(3);
+        QuorumKVStore athens = clusterNodes.get(0);
+        QuorumKVStore byzantium = clusterNodes.get(1);
+        QuorumKVStore cyrene = clusterNodes.get(2);
+
+        KVClient kvClient = new KVClient();
+        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Nicroservices");
+        assertEquals("Success", response);
+
+        athens.dropMessagesTo(byzantium);
+        athens.dropMessagesTo(cyrene);
+
+        response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        assertEquals("Error", response);
+
+
+        assertEquals("Microservices", athens.get("title").getValue());
+        assertEquals("Nicroservices", byzantium.get("title").getValue());
+        assertEquals("Nicroservices", cyrene.get("title").getValue());
+
+        athens.reconnectTo(cyrene);
+
+        String value = kvClient.getValue(athens.getClientConnectionAddress(), "title");
+        assertEquals("Microservices", value);
+
+        //there is a possibility of this happening.
+        value = kvClient.getValue(byzantium.getClientConnectionAddress(), "title");
+        assertEquals("Nicroservices", value);
     }
 
     private List<QuorumKVStore> startCluster(int clusterSize) throws IOException {

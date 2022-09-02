@@ -9,6 +9,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class NIOConnection implements ClientConnection, Logging {
@@ -54,11 +56,12 @@ public class NIOConnection implements ClientConnection, Logging {
         } catch (CancelledKeyException e) {
             close();
         } catch (Exception e) {
-            e.printStackTrace();
             // LOG.error("FIXMSG",e);
             close();
         }
     }
+
+    Executor executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
     private void read(SelectionKey key) throws Exception {
         var socketChannel = (SocketChannel)key.channel();
@@ -75,8 +78,8 @@ public class NIOConnection implements ClientConnection, Logging {
             //TODO:submit request
             //requestChannel.sendRequest(new RequestWrapper(id, request, key));
             RequestId requestId = RequestId.valueOf(request.getRequestId());
-
-            requestConsumer.accept(new Message<RequestOrResponse>(request, request.getGeneration(), requestId, this));
+            //submit for execution.
+            executor.execute(()-> requestConsumer.accept(new Message<RequestOrResponse>(request, request.getGeneration(), requestId, this)));
             receive = null; //ready to read next request.
         } else {
             // more reading to be done

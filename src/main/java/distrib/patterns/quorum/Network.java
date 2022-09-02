@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 class Network {
     List<InetAddressAndPort> dropRequestsTo = new ArrayList<>();
@@ -18,6 +20,11 @@ class Network {
         if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
             return;
         }
+
+        sendMessage(address, message);
+    }
+
+    private void sendMessage(InetAddressAndPort address, RequestOrResponse message) throws IOException {
         SocketClient socketClient = new SocketClient(address);
         socketClient.sendOneway(message);
         Integer integer = noOfMessages.get(address);
@@ -43,5 +50,10 @@ class Network {
 
     public void dropMessagesAfter(InetAddressAndPort address, int dropAfterNoOfMessages) {
         dropAfter.put(address, dropAfterNoOfMessages);
+    }
+
+    List<InetAddressAndPort> delayMessagesTo = new ArrayList<>();
+    public void addDelayForMessagesTo(InetAddressAndPort peerConnectionAddress) {
+        delayMessagesTo.add(peerConnectionAddress);
     }
 }

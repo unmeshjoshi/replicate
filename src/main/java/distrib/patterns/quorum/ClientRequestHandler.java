@@ -38,7 +38,7 @@ class ClientRequestHandler {
         } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
             byte[] messageBodyJson = request.getMessageBodyJson();
             GetValueRequest clientGetValueRequest = JsonSerDes.deserialize(messageBodyJson, GetValueRequest.class);
-            handleGetValueRequest(message.getClientConnection(), request.getCorrelationId(), request.getGeneration(), RequestId.GetValueRequest, clientGetValueRequest);
+            handleGetValueRequest(message.getClientConnection(), request.getCorrelationId(), kvStore.getGeneration(), RequestId.GetValueRequest, clientGetValueRequest);
         }
     }
 
