@@ -51,7 +51,7 @@ class Network {
     }
 
     Map<InetAddressAndPort, Integer> delayMessagesTo = new HashMap<>();
-    public void addDelayForMessagesToAfterNMessages(InetAddressAndPort peerConnectionAddress) {
-        delayMessagesTo.add(peerConnectionAddress);
+    public void addDelayForMessagesToAfterNMessages(InetAddressAndPort peerConnectionAddress, int noOfMessages) {
+        delayMessagesTo.put(peerConnectionAddress, noOfMessages);
     }
 }

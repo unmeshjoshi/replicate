@@ -32,7 +32,7 @@ public class DurableKVStore {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
        //TODO: applyLog at startup.
-        applyLog();
+
     }
 
     public void applyLog() {

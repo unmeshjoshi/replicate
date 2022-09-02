@@ -113,7 +113,7 @@ public class QuorumKVStore {
         peerMessagingService.dropMessagesAfter(byzantium, dropAfterNoOfMessages);
     }
 
-    public void delayMessagesTo(QuorumKVStore cyrene) {
-        peerMessagingService.addDelayForMessagesTo(cyrene);
+    public void delayMessagesTo(QuorumKVStore cyrene, int noOfMessages) {
+        peerMessagingService.addDelayForMessagesTo(cyrene, noOfMessages);
     }
 }

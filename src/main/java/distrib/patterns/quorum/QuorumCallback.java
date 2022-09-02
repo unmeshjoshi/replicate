@@ -33,13 +33,13 @@ abstract class QuorumCallback implements RequestCallback<RequestOrResponse> {
         receivedResponses++;
         addResponseMessage(response);
         //TODO: Assignment 3. Complete client response handler.
-        if (receivedResponses == quorum && !done) {
-            CompletableFuture<String> clientResponse = processQuorumResponses();
-            clientResponse.whenComplete((r, e) -> {
-                respondToClient(r);
-                done = true;
-            });
-        }
+//        if (receivedResponses == quorum && !done) {
+//            CompletableFuture<String> clientResponse = processQuorumResponses();
+//            clientResponse.whenComplete((r, e) -> {
+//                respondToClient(r);
+//                done = true;
+//            });
+//        }
     }
 
     private void addResponseMessage(RequestOrResponse response) {

@@ -95,13 +95,15 @@ class PeerMessagingService {
     private void handleSetValueRequest(RequestOrResponse request) {
         int maxKnownGeneration = kvStore.maxKnownGeneration();
         Integer requestGeneration = request.getGeneration();
-        if (requestGeneration < maxKnownGeneration) {
-            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
-            sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
-            return;
-        }
 
         //TODO: Assignment 3 Add check for generation while handling requests.
+
+//        if (requestGeneration < maxKnownGeneration) {
+//            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
+//            sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
+//            return;
+//        }
+
         SetValueRequest setValueRequest = deserialize(request, SetValueRequest.class);
 
         StoredValue storedValue = kvStore.get(setValueRequest.getKey());
@@ -132,7 +134,7 @@ class PeerMessagingService {
         network.dropMessagesAfter(byzantium.getPeerConnectionAddress(), dropAfterNoOfMessages);
     }
 
-    public void addDelayForMessagesTo(QuorumKVStore cyrene) {
-        network.addDelayForMessagesToAfterNMessages(cyrene.getPeerConnectionAddress());
+    public void addDelayForMessagesTo(QuorumKVStore cyrene, int noOfMessages) {
+        network.addDelayForMessagesToAfterNMessages(cyrene.getPeerConnectionAddress(), noOfMessages);
     }
 }
