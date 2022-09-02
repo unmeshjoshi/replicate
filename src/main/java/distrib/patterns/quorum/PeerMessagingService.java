@@ -133,6 +133,6 @@ class PeerMessagingService {
     }
 
     public void addDelayForMessagesTo(QuorumKVStore cyrene) {
-        network.addDelayForMessagesTo(cyrene.getPeerConnectionAddress());
+        network.addDelayForMessagesToAfterNMessages(cyrene.getPeerConnectionAddress());
     }
 }

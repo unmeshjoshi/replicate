@@ -9,8 +9,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 class Network {
     List<InetAddressAndPort> dropRequestsTo = new ArrayList<>();
@@ -52,8 +50,8 @@ class Network {
         dropAfter.put(address, dropAfterNoOfMessages);
     }
 
-    List<InetAddressAndPort> delayMessagesTo = new ArrayList<>();
-    public void addDelayForMessagesTo(InetAddressAndPort peerConnectionAddress) {
+    Map<InetAddressAndPort, Integer> delayMessagesTo = new HashMap<>();
+    public void addDelayForMessagesToAfterNMessages(InetAddressAndPort peerConnectionAddress) {
         delayMessagesTo.add(peerConnectionAddress);
     }
 }
