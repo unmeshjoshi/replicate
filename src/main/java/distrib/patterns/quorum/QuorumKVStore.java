@@ -20,17 +20,21 @@ public class QuorumKVStore {
     private final int generation;
     private final List<InetAddressAndPort> replicas;
 
+    //zookeeper/etcd
     private final DurableKVStore systemStorage;
+
+
     private final DurableKVStore durableStore;
 
     public QuorumKVStore(SystemClock clock, Config config, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> replicas) throws IOException {
         this.config = config;
         this.replicas = replicas;
 
+        //FIXME
         String systemWalDir = config.getWalDir() + "_System";
         new File(systemWalDir).mkdirs();
-
         this.systemStorage = new DurableKVStore(new Config(systemWalDir));
+
         this.durableStore = new DurableKVStore(config);
         this.generation = incrementAndGetGeneration();
         this.clientRequestHandler = new ClientRequestHandler(clientConnectionAddress, clock, this, config.doSyncReadRepair());
@@ -77,12 +81,16 @@ public class QuorumKVStore {
 
 
 
-    public void dropMessagesTo(QuorumKVStore byzantium) {
-        peerMessagingService.dropMessagesTo(byzantium);
+    public void dropMessagesTo(QuorumKVStore kvStore) {
+        peerMessagingService.dropMessagesTo(kvStore);
     }
 
-    public void reconnectTo(QuorumKVStore cyrene) {
-        peerMessagingService.reconnectTo(cyrene);
+    public void reconnectTo(QuorumKVStore kvStore) {
+        peerMessagingService.reconnectTo(kvStore);
+    }
+
+    public void addDelayForMessagesTo(QuorumKVStore kvstore, int afterNoOfMessages) {
+        peerMessagingService.addDelayForMessagesTo(kvstore, afterNoOfMessages);
     }
 
     public Config getConfig() {

@@ -28,8 +28,9 @@ public class QuorumReadWriteTest {
 
         InetAddressAndPort athensAddress = clusterNodes.get(0).getClientConnectionAddress();
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athensAddress, "title", "Microservices");
+        String response = kvClient.setValue(athensAddress, "title", "Microservices");
         assertEquals("Success", response);
+
 
         String value = kvClient.getValue(athensAddress, "title");
         assertEquals("Microservices", value);
@@ -47,7 +48,7 @@ public class QuorumReadWriteTest {
         athens.dropMessagesTo(byzantium);
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);
 
         assertEquals("Microservices", athens.get("title").getValue());
@@ -57,6 +58,7 @@ public class QuorumReadWriteTest {
         cyrene.dropMessagesTo(athens);
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
+
         TestUtils.waitUntilTrue(()-> {
                 return "Microservices".equals(byzantium.get("title").getValue());
                 }, "Waiting for read repair", Duration.ofSeconds(5));
@@ -73,7 +75,7 @@ public class QuorumReadWriteTest {
         athens.dropMessagesTo(byzantium);
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);
 
         assertEquals("Microservices", athens.get("title").getValue());
@@ -99,7 +101,7 @@ public class QuorumReadWriteTest {
         athens.dropMessagesTo(byzantium);
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);
 
         assertEquals("Microservices", athens.get("title").getValue());
@@ -126,8 +128,10 @@ public class QuorumReadWriteTest {
 
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Error", response);
+        assertEquals("Microservices", athens.get("title").getValue());
+
 
         athens.reconnectTo(cyrene);
         cyrene.dropMessagesTo(byzantium);
@@ -135,7 +139,6 @@ public class QuorumReadWriteTest {
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
 
-        assertEquals("Microservices", athens.get("title").getValue());
     }
 
     //With async read-repair, a client reading after another client can see older values.
@@ -147,13 +150,13 @@ public class QuorumReadWriteTest {
         QuorumKVStore cyrene = clusterNodes.get(2);
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Nicroservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nicroservices");
         assertEquals("Success", response);
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
 
-        response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Error", response);
 
 
@@ -162,13 +165,22 @@ public class QuorumReadWriteTest {
         assertEquals("Nicroservices", cyrene.get("title").getValue());
 
         athens.reconnectTo(cyrene);
-
+        athens.addDelayForMessagesTo(cyrene, 1);
+        //read-repair message to cyrene is delayed..
         String value = kvClient.getValue(athens.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
 
         //there is a possibility of this happening.
         value = kvClient.getValue(byzantium.getClientConnectionAddress(), "title");
         assertEquals("Nicroservices", value);
+
+        TestUtils.waitUntilTrue(()->{
+            try {
+                return "Microservices".equals(kvClient.getValue(byzantium.getClientConnectionAddress(), "title"));
+            } catch (IOException e) {
+                return false;
+            }
+        }, "Waiting for read-repair to complete", Duration.ofSeconds(5));
     }
 
     private List<QuorumKVStore> startCluster(int clusterSize) throws IOException {
@@ -182,12 +194,14 @@ public class QuorumReadWriteTest {
         List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
 
         for (int i = 0; i < clusterSize; i++) {
+            //public static void main(String[]args) {
             Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
             if (doSyncReadRepair) {
                 config.setSynchronousReadRepair();
             }
             QuorumKVStore receivingClusterNode = new QuorumKVStore(clock, config, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
             receivingClusterNode.start();
+            //}
             clusterNodes.add(receivingClusterNode);
         }
         return clusterNodes;
@@ -199,10 +213,11 @@ public class QuorumReadWriteTest {
         List<QuorumKVStore> clusterNodes = startCluster(3);
         QuorumKVStore primaryClusterNode = clusterNodes.get(0);
         KVClient client = new KVClient();
-        InetAddressAndPort primaryNodeAddress = primaryClusterNode.getClientConnectionAddress();
-        assertEquals("Success", client.setKV(primaryNodeAddress, "key", "value"));
 
-        assertEquals("value", client.getValue(primaryNodeAddress, "key"));
+        InetAddressAndPort oldPrimaryAddress = primaryClusterNode.getClientConnectionAddress();
+        assertEquals("Success", client.setValue(oldPrimaryAddress, "key", "value"));
+
+        assertEquals("value", client.getValue(oldPrimaryAddress, "key"));
         //Garbage collection pause...
 
         //Simulates starting a new primary instance because the first went under a GC pause.
@@ -212,10 +227,10 @@ public class QuorumReadWriteTest {
         newInstance.start();
 
         assertEquals(2, newInstance.getGeneration());
-        String responseForNewWrite = client.setKV(newClientAddress, "key1", "value1");
+        String responseForNewWrite = client.setValue(newClientAddress, "key1", "value1");
         assertEquals("Success", responseForNewWrite);
 
         //Comes out of Garbage Collection pause.
-        assertEquals("Rejecting request from generation 1 as already accepted from generation 2", client.setKV(primaryNodeAddress, "key2", "value2"));
+        assertEquals("Rejecting request from generation 1 as already accepted from generation 2", client.setValue(oldPrimaryAddress, "key2", "value2"));
     }
 }

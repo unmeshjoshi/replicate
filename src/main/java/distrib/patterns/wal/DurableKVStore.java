@@ -15,12 +15,16 @@ public class DurableKVStore {
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
         appendLog(key, value);
+        //add to data files.
+        //add to index files.
+        //return response;///
+        //
         kv.put(key, value);
     }
 
     private Long appendLog(String key, String value) {
         Long aLong = wal.writeEntry(new SetValueCommand(key, value).serialize());
-        wal.flush();
+        wal.flush(); //heavy operation.
         return aLong;
     }
 
@@ -32,7 +36,7 @@ public class DurableKVStore {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
        //TODO: applyLog at startup.
-
+        applyLog();
     }
 
     public void applyLog() {

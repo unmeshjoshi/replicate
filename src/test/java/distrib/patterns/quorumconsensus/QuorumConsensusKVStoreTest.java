@@ -10,7 +10,6 @@ import quorum.KVClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -25,7 +24,7 @@ public class QuorumConsensusKVStoreTest {
         QuorumKVStore cyrene = kvStores.get(2);
 
         KVClient kvClient = new KVClient();
-        String response = kvClient.setKV(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);
 
         MonotonicId id1 = athens.getVersion("title");

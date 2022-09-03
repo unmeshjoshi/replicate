@@ -20,7 +20,7 @@ public class KVClient {
         return new String(getResponse.getMessageBodyJson());
     }
 
-    public String setKV(InetAddressAndPort primaryNodeAddress, String title, String microservices) throws IOException {
+    public String setValue(InetAddressAndPort primaryNodeAddress, String title, String microservices) throws IOException {
         SocketClient client = new SocketClient(primaryNodeAddress);
         RequestOrResponse requestOrResponse = createSetValueRequest(title, microservices);
         RequestOrResponse setResponse = client.blockingSend(requestOrResponse);

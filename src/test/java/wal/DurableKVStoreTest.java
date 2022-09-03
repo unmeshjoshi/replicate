@@ -12,11 +12,15 @@ import static org.junit.Assert.assertEquals;
 public class DurableKVStoreTest {
     @Test
     public void shouldRecoverKVStoreStateFromWAL() {
+        //public static void main(String args[]) {
         File walDir = TestUtils.tempDir("wal");
         DurableKVStore kv = new DurableKVStore(new Config(walDir.getAbsolutePath()));
         kv.put("key1", "value1");
+        //fail.
+        //success
         kv.put("key2", "value2");
         kv.put("key3", "value3");
+        //}
         //KV crashes.
         kv.close();
 

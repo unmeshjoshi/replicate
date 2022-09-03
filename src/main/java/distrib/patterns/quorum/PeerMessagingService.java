@@ -63,6 +63,14 @@ class PeerMessagingService {
         network.reconnectTo(clusterNode.getPeerConnectionAddress());
     }
 
+    public void dropMessagesAfter(QuorumKVStore byzantium, int dropAfterNoOfMessages) {
+        network.dropMessagesAfter(byzantium.getPeerConnectionAddress(), dropAfterNoOfMessages);
+    }
+
+    public void addDelayForMessagesTo(QuorumKVStore cyrene, int noOfMessages) {
+        network.addDelayForMessagesToAfterNMessages(cyrene.getPeerConnectionAddress(), noOfMessages);
+    }
+
     private <T> T deserialize(RequestOrResponse request, Class<T> clazz) {
         return JsonSerDes.deserialize(request.getMessageBodyJson(), clazz);
     }
@@ -98,11 +106,11 @@ class PeerMessagingService {
 
         //TODO: Assignment 3 Add check for generation while handling requests.
 
-//        if (requestGeneration < maxKnownGeneration) {
-//            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
-//            sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
-//            return;
-//        }
+        if (requestGeneration < maxKnownGeneration) {
+            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
+            sendResponseMessage(new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
+            return;
+        }
 
         SetValueRequest setValueRequest = deserialize(request, SetValueRequest.class);
 
@@ -130,11 +138,4 @@ class PeerMessagingService {
         return peerConnectionAddress;
     }
 
-    public void dropMessagesAfter(QuorumKVStore byzantium, int dropAfterNoOfMessages) {
-        network.dropMessagesAfter(byzantium.getPeerConnectionAddress(), dropAfterNoOfMessages);
-    }
-
-    public void addDelayForMessagesTo(QuorumKVStore cyrene, int noOfMessages) {
-        network.addDelayForMessagesToAfterNMessages(cyrene.getPeerConnectionAddress(), noOfMessages);
-    }
 }
