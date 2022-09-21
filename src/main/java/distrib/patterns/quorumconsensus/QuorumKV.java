@@ -4,38 +4,28 @@ import distrib.patterns.common.*;
 import distrib.patterns.net.ClientConnection;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
-import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
 import distrib.patterns.requests.VersionedSetValueRequest;
+import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-class QuorumKV implements Replica {
+class QuorumKV extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKV.class);
     private final ClientState clientState;
-    private Node node;
-    private int noOfReplicas;
     private boolean doSyncReadRepair;
-    private final RequestWaitingList requestWaitingList;
 
-    public QuorumKV(SystemClock clock , boolean doSyncReadRepair) {
+    public QuorumKV(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
+        super(config, clock,clientConnectionAddress, peerConnectionAddress, peers);
         this.clientState = new ClientState(clock);
         this.doSyncReadRepair = doSyncReadRepair;
-        this.requestWaitingList = new RequestWaitingList(clock);
-    }
-
-    public void setNode(Node node) {
-        this.node = node;
-        this.noOfReplicas = node.getNoOfReplicas();
-    }
-
-    private <T> T deserialize(RequestOrResponse request, Class<T> clazz) {
-        return JsonSerDes.deserialize(request.getMessageBodyJson(), clazz);
+        this.durableStore = new DurableKVStore(config);
     }
 
     public void handleClientRequest(Message<RequestOrResponse> message) {
@@ -107,7 +97,7 @@ class QuorumKV implements Replica {
                 clientSetValueRequest.getRequestNumber(),
                 getNextId(existingVersions)
         ); //assign timestamp to request.
-        WriteQuorumCallback quorumCallback = new WriteQuorumCallback(node.getNoOfReplicas(), clientConnection, correlationId);
+        WriteQuorumCallback quorumCallback = new WriteQuorumCallback(getNoOfReplicas(), clientConnection, correlationId);
         sendRequestToReplicas(quorumCallback, RequestId.SetValueRequest, requestToReplicas);
     }
 
@@ -128,7 +118,7 @@ class QuorumKV implements Replica {
 
     private void handleGetValueRequest(ClientConnection clientConnection, Integer correlationId, int generation, RequestId requestId, GetValueRequest clientSetValueRequest) {
         GetValueRequest request = new GetValueRequest(clientSetValueRequest.getKey());
-        ReadQuorumCallback quorumCallback = new ReadQuorumCallback(this, noOfReplicas, clientConnection, correlationId, generation, doSyncReadRepair);
+        ReadQuorumCallback quorumCallback = new ReadQuorumCallback(this, getNoOfReplicas(), clientConnection, correlationId, generation, doSyncReadRepair);
         sendRequestToReplicas(quorumCallback, requestId, request);
     }
 
@@ -158,11 +148,11 @@ class QuorumKV implements Replica {
     private void handleGetVersionRequest(RequestOrResponse request) {
         try {
             GetVersionRequest getVersionRequest = deserialize(request, GetVersionRequest.class);
-            StoredValue storedValue = node.get(getVersionRequest.getKey());
+            StoredValue storedValue = get(getVersionRequest.getKey());
             MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
             byte[] serialize = JsonSerDes.serialize(version);
-            node.send(request.getFromAddress(), new RequestOrResponse(request.getGeneration(), RequestId.GetVersionResponse.getId(),
-                    serialize, request.getCorrelationId(), node.getPeerConnectionAddress()));
+            send(request.getFromAddress(), new RequestOrResponse(request.getGeneration(), RequestId.GetVersionResponse.getId(),
+                    serialize, request.getCorrelationId(), getPeerConnectionAddress()));
         } catch (Exception e) {
             e.printStackTrace();;
         }
@@ -170,11 +160,11 @@ class QuorumKV implements Replica {
 
     private void handleGetValueRequest(RequestOrResponse request) {
         GetValueRequest getValueRequest = deserialize(request, GetValueRequest.class);
-        node.send(request.getFromAddress(),
+        send(request.getFromAddress(),
                 new RequestOrResponse(request.getGeneration(),
                         RequestId.GetValueResponse.getId(),
-                        JsonSerDes.serialize(node.get(getValueRequest.getKey())),
-                        request.getCorrelationId(), node.getPeerConnectionAddress()));
+                        JsonSerDes.serialize(get(getValueRequest.getKey())),
+                        request.getCorrelationId(), getPeerConnectionAddress()));
     }
 
     private void handleResponse(RequestOrResponse response) {
@@ -182,48 +172,36 @@ class QuorumKV implements Replica {
     }
 
     private void handleSetValueRequest(RequestOrResponse request) {
-        int maxKnownGeneration = node.maxKnownGeneration();
-        Integer requestGeneration = request.getGeneration();
-        if (requestGeneration < maxKnownGeneration) {
-            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
-            node.send(request.getFromAddress(),
-                    new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(),
-                            errorMessage.getBytes(), request.getCorrelationId(), node.getPeerConnectionAddress()));
-            return;
-        }
-
-        //TODO: Assignment 3 Add check for generation while handling requests.
         VersionedSetValueRequest setValueRequest = deserialize(request, VersionedSetValueRequest.class);
-        StoredValue storedValue = node.get(setValueRequest.getKey());
+        StoredValue storedValue = get(setValueRequest.getKey());
         if (setValueRequest.getVersion().isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
-            node.put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion(), requestGeneration));
+            put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion()));
         }
-        node.send(request.getFromAddress(),
-                new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), "Success".getBytes(),
+        send(request.getFromAddress(),
+                new RequestOrResponse(RequestId.SetValueResponse.getId(), "Success".getBytes(),
                         request.getCorrelationId(),
-                        node.getPeerConnectionAddress()));
+                        getPeerConnectionAddress()));
     }
 
-    public <T> void sendRequestToReplicas(RequestCallback quorumCallback, RequestId requestId, T requestToReplicas) {
-        for (InetAddressAndPort replica : node.getReplicas()) {
-            int correlationId = nextRequestId();
-            RequestOrResponse request = new RequestOrResponse(node.getGeneration(), requestId.getId(), JsonSerDes.serialize(requestToReplicas), correlationId, node.getPeerConnectionAddress());
-            requestWaitingList.add(request.getCorrelationId(), quorumCallback);
-            node.send(replica, request);
+
+    private final DurableKVStore durableStore;
+    public void put(String key, StoredValue storedValue) {
+        durableStore.put(key, JsonSerDes.toJson(storedValue));
+    }
+
+    public StoredValue get(String key) {
+        String storedValue = durableStore.get(key);
+        if (storedValue == null) {
+            return StoredValue.EMPTY;
         }
+        return JsonSerDes.fromJson(storedValue.getBytes(), StoredValue.class);
     }
 
-    public void sendRequestToReplica(RequestCallback requestCallback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
-        requestWaitingList.add(request.getCorrelationId(), requestCallback);
-        node.send(replicaAddress, request);
-    }
-
-    int requestNumber;
-    private int nextRequestId() {
-        return requestNumber++;
-    }
-
-    public InetAddressAndPort getPeerConnectionAddress() {
-        return node.getPeerConnectionAddress();
+    public MonotonicId getVersion(String key) {
+        StoredValue storedValue = get(key);
+        if (storedValue == null) {
+            return MonotonicId.empty();
+        }
+        return storedValue.getVersion();
     }
 }

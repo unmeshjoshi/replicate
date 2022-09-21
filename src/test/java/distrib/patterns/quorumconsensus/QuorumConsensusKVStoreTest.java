@@ -3,7 +3,6 @@ package distrib.patterns.quorumconsensus;
 import common.TestUtils;
 import distrib.patterns.common.Config;
 import distrib.patterns.common.MonotonicId;
-import distrib.patterns.common.Node;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
 import org.junit.Test;
@@ -19,10 +18,10 @@ public class QuorumConsensusKVStoreTest {
 
     @Test
     public void setsVersionWithKey() throws IOException {
-        List<Node> kvStores = startCluster(3);
-        Node athens = kvStores.get(0);
-        Node byzantium = kvStores.get(1);
-        Node cyrene = kvStores.get(2);
+        List<QuorumKV> kvStores = startCluster(3);
+        QuorumKV athens = kvStores.get(0);
+        QuorumKV byzantium = kvStores.get(1);
+        QuorumKV cyrene = kvStores.get(2);
 
         athens.dropMessagesTo(byzantium);
 
@@ -46,19 +45,19 @@ public class QuorumConsensusKVStoreTest {
     }
 
 
-    private List<Node> startCluster(int clusterSize) throws IOException {
-        List<Node> clusterNodes = new ArrayList<>();
+    private List<QuorumKV> startCluster(int clusterSize) throws IOException {
+        List<QuorumKV> clusterQuorumKVs = new ArrayList<>();
         SystemClock clock = new SystemClock();
         List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
         List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
 
         for (int i = 0; i < clusterSize; i++) {
             Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
-            Node receivingClusterNode = new Node(config, clientInterfaceAddresses.get(i), addresses.get(i), addresses, new QuorumKV(clock, true));
-            receivingClusterNode.start();
-            clusterNodes.add(receivingClusterNode);
+            QuorumKV receivingClusterQuorumKV = new QuorumKV(config, clock, clientInterfaceAddresses.get(i), addresses.get(i), true, addresses);
+            receivingClusterQuorumKV.start();
+            clusterQuorumKVs.add(receivingClusterQuorumKV);
         }
-        return clusterNodes;
+        return clusterQuorumKVs;
     }
 
 

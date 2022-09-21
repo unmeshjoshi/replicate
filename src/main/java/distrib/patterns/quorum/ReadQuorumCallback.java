@@ -1,6 +1,7 @@
 package distrib.patterns.quorum;
 
 import distrib.patterns.common.JsonSerDes;
+import distrib.patterns.common.Replica;
 import distrib.patterns.common.RequestId;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.ClientConnection;
@@ -18,13 +19,13 @@ class ReadQuorumCallback extends QuorumCallback {
     static Logger logger = LogManager.getLogger(ReadQuorumCallback.class);
 
     Map<InetAddressAndPort, StoredValue> responses = new HashMap<>();
-    private QuorumKVStore kvStore;
+    private Replica replica;
     private Integer generation;
     private boolean doSyncReadRepair;
 
-    public ReadQuorumCallback(QuorumKVStore kvStore, int totalExpectedResponses, ClientConnection clientConnection, Integer correlationId, Integer generation, boolean doSyncReadRepair) {
+    public ReadQuorumCallback(Replica replica, int totalExpectedResponses, ClientConnection clientConnection, Integer correlationId, Integer generation, boolean doSyncReadRepair) {
         super(totalExpectedResponses, clientConnection, correlationId);
-        this.kvStore = kvStore;
+        this.replica = replica;
         this.generation = generation;
         this.doSyncReadRepair = doSyncReadRepair;
     }
@@ -56,7 +57,7 @@ class ReadQuorumCallback extends QuorumCallback {
         WaitingRequestCallback requestCallback = new WaitingRequestCallback(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
             System.out.println("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue() + ", timestamp=" + latestStoredValue.getTimestamp());
-            kvStore.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
+            replica.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
 
         if (doSyncReadRepair) {
@@ -77,7 +78,7 @@ class ReadQuorumCallback extends QuorumCallback {
     private RequestOrResponse createSetValueRequest(String key, String value, long timestamp, Integer generation) {
         SetValueRequest setValueRequest = new SetValueRequest(key, value, -1, -1, timestamp);
         RequestOrResponse requestOrResponse = new RequestOrResponse(generation, RequestId.SetValueRequest.getId(),
-                JsonSerDes.serialize(setValueRequest), requestId++, kvStore.getPeerConnectionAddress());
+                JsonSerDes.serialize(setValueRequest), requestId++, replica.getPeerConnectionAddress());
         return requestOrResponse;
     }
 

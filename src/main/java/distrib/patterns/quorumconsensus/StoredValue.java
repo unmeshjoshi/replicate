@@ -3,18 +3,16 @@ package distrib.patterns.quorumconsensus;
 import distrib.patterns.common.MonotonicId;
 
 public class StoredValue {
-    public static final StoredValue EMPTY = new StoredValue("", "", MonotonicId.empty(), 0);
-    public Integer generation;
+    public static final StoredValue EMPTY = new StoredValue("", "", MonotonicId.empty());
     String key;
     String value;
     private MonotonicId version;
 
 
-    public StoredValue(String key, String value, MonotonicId version, Integer generation) {
+    public StoredValue(String key, String value, MonotonicId version) {
         this.key = key;
         this.value = value;
         this.version = version;
-        this.generation = generation;
     }
 
     public String getKey() {
