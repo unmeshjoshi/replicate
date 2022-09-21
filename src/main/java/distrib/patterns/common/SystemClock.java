@@ -4,5 +4,8 @@ public class SystemClock {
     public long nanoTime() {
         return System.nanoTime();
     }
-    public long now() { return System.currentTimeMillis(); }
+    public long now() {
+        //not guaranteed to be monotonic..
+        return System.currentTimeMillis();
+    }
 }

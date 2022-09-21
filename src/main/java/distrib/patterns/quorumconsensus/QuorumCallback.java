@@ -11,7 +11,7 @@ import java.util.concurrent.CompletableFuture;
 
 abstract class QuorumCallback implements RequestCallback<RequestOrResponse> {
     final int quorum;
-    private volatile int expectedNumberOfResponses;
+    private final int expectedNumberOfResponses;
     private volatile int receivedResponses;
     private volatile int receivedErrors;
     private volatile boolean done;

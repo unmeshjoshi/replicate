@@ -42,16 +42,16 @@ public class PaxosLogClusterNodeTest {
     public void singleValuePaxosGetTest() throws IOException {
         List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
-        RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
+        RequestOrResponse requestOrResponse = createSetValueRequest("title", "Microservices");
         SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
         RequestOrResponse response = client.blockingSend(requestOrResponse);
 
         assertEquals("Success", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
 
-        RequestOrResponse getValueRequest = createGetValueRequest("key");
+        RequestOrResponse getValueRequest = createGetValueRequest("title");
         RequestOrResponse response1 = client.blockingSend(getValueRequest);
 
-        assertEquals("value", JsonSerDes.deserialize(response1.getMessageBodyJson(), String.class));
+        assertEquals("Microservices", JsonSerDes.deserialize(response1.getMessageBodyJson(), String.class));
     }
 
 

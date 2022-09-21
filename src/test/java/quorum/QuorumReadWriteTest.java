@@ -17,6 +17,10 @@ import static org.junit.Assert.assertEquals;
 
 public class QuorumReadWriteTest {
 
+
+    //Read Your Own Writes should give the same value written by me or a later value.
+    //Monotonic Reads
+    //Monotonic Reads across clients without relying on system timestamp. //linearizable reads
     @Test
     public void quorumReadWriteTest() throws IOException {
         List<QuorumKVStore> clusterNodes = startCluster(3);
@@ -31,9 +35,12 @@ public class QuorumReadWriteTest {
         String response = kvClient.setValue(athensAddress, "title", "Microservices");
         assertEquals("Success", response);
 
+        //how to make sure replicas are in sync?
 
         String value = kvClient.getValue(athensAddress, "title");
+
         assertEquals("Microservices", value);
+
 
         assertEquals("Microservices", athens.get("title").getValue());
     }
@@ -150,12 +157,14 @@ public class QuorumReadWriteTest {
         QuorumKVStore cyrene = clusterNodes.get(2);
 
         KVClient kvClient = new KVClient();
+        //Nathan
         String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nicroservices");
         assertEquals("Success", response);
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
 
+        //Philip
         response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Error", response);
 
@@ -166,11 +175,18 @@ public class QuorumReadWriteTest {
 
         athens.reconnectTo(cyrene);
         athens.addDelayForMessagesTo(cyrene, 1);
+
+        //concurrent read
         //read-repair message to cyrene is delayed..
+        //Alice -   //Microservices:timestamp 2
+                    //Nitroservices:timestamp 1
         String value = kvClient.getValue(athens.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
 
+        //concurrent read
         //there is a possibility of this happening.
+        //Bob    //Nitroservices:timestamp 1
+                 //Nitroservices:timestamp 1
         value = kvClient.getValue(byzantium.getClientConnectionAddress(), "title");
         assertEquals("Nicroservices", value);
 

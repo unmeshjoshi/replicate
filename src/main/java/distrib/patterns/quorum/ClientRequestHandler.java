@@ -42,7 +42,10 @@ class ClientRequestHandler {
         }
     }
 
-
+    ///t1 = clientState.getTimestamp()
+    //t2 = clientState.getTimestamp()
+    //t3 = clientState.getTimestamp()
+    //t3 > t2 > t1 //NTP..  t1 > t3..
     private void handleSetValueRequest(ClientConnection clientConnection, Integer correlationId, SetValueRequest clientSetValueRequest) {
         SetValueRequest requestToReplicas = new SetValueRequest(clientSetValueRequest.getKey(),
                 clientSetValueRequest.getValue(),

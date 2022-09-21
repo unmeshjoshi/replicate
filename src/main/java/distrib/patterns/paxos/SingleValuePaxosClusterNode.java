@@ -100,12 +100,16 @@ public class SingleValuePaxosClusterNode {
         int attempts = 0;
         while (attempts <= maxAttempts) {
             attempts++;
+            //Alice id=2 //fail
+            //Bob id=4
             MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
             PaxosResult paxosResult = doPaxos(monotonicId, value, replicas);
             if (paxosResult.success) {
                 waitingList.handleResponse(request.getCorrelationId(), paxosResult.value);
                 return;
-            }
+            } //else {
+                    //maxKnownPaxosRoundId = paxosResult.maxKnownNumber;
+            //}
             Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
             logger.warn("Experienced Paxos contention. Attempting with higher generation");
         }

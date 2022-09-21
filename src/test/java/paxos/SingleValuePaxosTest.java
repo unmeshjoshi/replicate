@@ -20,12 +20,12 @@ public class SingleValuePaxosTest {
     public void singleValuePaxosTest() throws IOException {
         List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
 
-        RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
+        RequestOrResponse requestOrResponse = createSetValueRequest("title", "Microservices");
 
         SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
         RequestOrResponse response = client.blockingSend(requestOrResponse);
 
-        assertEquals("value", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
+        assertEquals("Microservices", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
     }
 
     @Test
