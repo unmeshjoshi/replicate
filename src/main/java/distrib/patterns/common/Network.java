@@ -1,6 +1,5 @@
-package distrib.patterns.quorumconsensus;
+package distrib.patterns.common;
 
-import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
 

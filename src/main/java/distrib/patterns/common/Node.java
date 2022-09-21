@@ -1,8 +1,8 @@
-package distrib.patterns.quorumconsensus;
+package distrib.patterns.common;
 
-import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.NIOSocketListener;
+import distrib.patterns.quorumconsensus.StoredValue;
 import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,7 +75,7 @@ public class Node {
                 .map(v -> v.generation).max(Integer::compare).orElse(-1);
     }
 
-    void send(InetAddressAndPort fromAddress, RequestOrResponse message) {
+    public void send(InetAddressAndPort fromAddress, RequestOrResponse message) {
         try {
             network.sendOneWay(fromAddress, message);
         } catch (IOException e) {
@@ -103,7 +103,7 @@ public class Node {
         return replicas;
     }
 
-    int getNoOfReplicas() {
+    public int getNoOfReplicas() {
         return getReplicas().size();
     }
 

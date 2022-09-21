@@ -12,17 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-
-interface Replica {
-    void handleClientRequest(Message<RequestOrResponse> message);
-    void handleServerMessage(Message<RequestOrResponse> message);
-    void setNode(Node node);
-}
 
 class QuorumKV implements Replica {
     private static Logger logger = LogManager.getLogger(QuorumKV.class);

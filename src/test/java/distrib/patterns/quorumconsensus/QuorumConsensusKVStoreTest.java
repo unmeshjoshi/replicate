@@ -3,6 +3,7 @@ package distrib.patterns.quorumconsensus;
 import common.TestUtils;
 import distrib.patterns.common.Config;
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Node;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
 import org.junit.Test;
