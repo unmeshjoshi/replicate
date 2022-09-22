@@ -67,7 +67,7 @@ public abstract class Replica {
         send(replicaAddress, request);
     }
 
-    public void handleResponse(RequestOrResponse response) {
+    public <T> void handleResponse(RequestOrResponse response) {
         requestWaitingList.handleResponse(response.getCorrelationId(), response);
     }
 

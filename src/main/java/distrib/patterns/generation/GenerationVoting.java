@@ -48,8 +48,12 @@ import distrib.patterns.paxos.PrepareResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 public class GenerationVoting extends Replica {
     int generation;
@@ -77,7 +81,7 @@ public class GenerationVoting extends Replica {
     }
 
 
-    class PrepareCallback implements RequestCallback<RequestOrResponse> {
+    class PrepareCallback implements RequestCallback<PrepareResponse> {
         int clusterSize;
         int quorum;
         CountDownLatch latch;
@@ -90,8 +94,8 @@ public class GenerationVoting extends Replica {
         }
 
         @Override
-        public void onResponse(RequestOrResponse r) {
-            promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class));
+        public void onResponse(PrepareResponse r) {
+            promises.add(r);
             latch.countDown();
         }
 
@@ -105,22 +109,45 @@ public class GenerationVoting extends Replica {
         }
     }
 
+    static class RequestDetails<T> {
+        RequestHandler handler;
+        Class requestClass;
+
+        public RequestDetails(RequestHandler<T> handler, Class<T> requestClass) {
+            this.handler = handler;
+            this.requestClass = requestClass;
+        }
+    }
+
+    static interface RequestHandler<T> {
+        public void handleRequest(T request, InetAddressAndPort fromAddress, int correlationId);
+    }
+
+    Map<RequestId, RequestDetails> requestMap = new HashMap<>();
+    {
+        requestMap.put(RequestId.PrepareRequest, new RequestDetails<>(this::handlePrepareRequest, PrepareRequest.class));
+        requestMap.put(RequestId.Promise, new RequestDetails<>(this::handleResponse, PrepareResponse.class));
+    }
     @Override
     public void handleServerMessage(Message<RequestOrResponse> message) {
         RequestOrResponse request = message.getRequest();
-        if (request.getRequestId() == RequestId.PrepareRequest.getId()) {
-            PrepareRequest nextNumberRequest = deserialize(request, PrepareRequest.class);
-            PrepareResponse response;
-            if (generation > nextNumberRequest.getNumber()) {
-                response = new PrepareResponse(false);
-            } else {
-                generation = nextNumberRequest.getNumber();
-                response = new PrepareResponse(true);
-            }
-            sendOneway(request.getFromAddress(), RequestId.Promise, response, request.getCorrelationId());
+        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        Object r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestDetails.requestClass);
+        requestDetails.handler.handleRequest(r, request.getFromAddress(), request.getCorrelationId());
+    }
 
-        } else if (request.getRequestId() == RequestId.Promise.getId()) {
-            handleResponse(request);
+    public <T> void handleResponse(PrepareResponse response, InetAddressAndPort fromAddress, int correlationId) {
+        requestWaitingList.handleResponse(correlationId, response);
+    }
+
+    private void handlePrepareRequest(PrepareRequest nextNumberRequest, InetAddressAndPort fromAddress, int correlationId) {
+        PrepareResponse response;
+        if (generation > nextNumberRequest.getNumber()) {
+            response = new PrepareResponse(false);
+        } else {
+            generation = nextNumberRequest.getNumber();
+            response = new PrepareResponse(true);
         }
+        sendOneway(fromAddress, RequestId.Promise, response, correlationId);
     }
 }
