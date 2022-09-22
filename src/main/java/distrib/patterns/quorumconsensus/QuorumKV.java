@@ -167,10 +167,6 @@ class QuorumKV extends Replica {
                         request.getCorrelationId(), getPeerConnectionAddress()));
     }
 
-    private void handleResponse(RequestOrResponse response) {
-        requestWaitingList.handleResponse(response.getCorrelationId(), response);
-    }
-
     private void handleSetValueRequest(RequestOrResponse request) {
         VersionedSetValueRequest setValueRequest = deserialize(request, VersionedSetValueRequest.class);
         StoredValue storedValue = get(setValueRequest.getKey());

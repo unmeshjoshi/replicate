@@ -40,6 +40,87 @@ package distrib.patterns.generation;
 // A proposer can keep the state stored on the disk and keep retrying..
 // But what if the proposer fails?
 
-public class GenerationVoting {
+import com.google.common.util.concurrent.Uninterruptibles;
+import distrib.patterns.common.*;
+import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.net.requestwaitinglist.RequestCallback;
+import distrib.patterns.paxos.PrepareResponse;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+
+public class GenerationVoting extends Replica {
+    int generation;
+
+    public GenerationVoting(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+        super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
+    }
+
+    @Override
+    public void handleClientRequest(Message<RequestOrResponse> message) {
+        RequestOrResponse request = message.getRequest();
+        if (request.getRequestId() == RequestId.NextNumberRequest.getId()) {
+            int proposedNumber = 1;
+            while(true) {
+                PrepareRequest nr = new PrepareRequest(proposedNumber);
+                PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
+                sendRequestToReplicas(callback, RequestId.PrepareRequest, nr);
+                if (callback.isQuorumPrepared()) {
+                    message.getClientConnection().write(new RequestOrResponse(RequestId.PrepareRequest.getId(), JsonSerDes.serialize(generation), request.getCorrelationId()));
+                    break;
+                }
+                proposedNumber = proposedNumber + 1;//try next number
+            }
+        }
+    }
+
+
+    class PrepareCallback implements RequestCallback<RequestOrResponse> {
+        int clusterSize;
+        int quorum;
+        CountDownLatch latch;
+        List<PrepareResponse> promises = new ArrayList<>();
+
+        public PrepareCallback(int clusterSize) {
+            this.clusterSize = clusterSize;
+            this.quorum =  clusterSize / 2 + 1;
+            this.latch = new CountDownLatch(clusterSize);
+        }
+
+        @Override
+        public void onResponse(RequestOrResponse r) {
+            promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class));
+            latch.countDown();
+        }
+
+        @Override
+        public void onError(Throwable e) {
+        }
+
+        public boolean isQuorumPrepared() {
+            Uninterruptibles.awaitUninterruptibly(latch);
+            return promises.stream().filter(p -> p.isPromised()).count() >= quorum;
+        }
+    }
+
+    @Override
+    public void handleServerMessage(Message<RequestOrResponse> message) {
+        RequestOrResponse request = message.getRequest();
+        if (request.getRequestId() == RequestId.PrepareRequest.getId()) {
+            PrepareRequest nextNumberRequest = deserialize(request, PrepareRequest.class);
+            PrepareResponse response;
+            if (generation > nextNumberRequest.getNumber()) {
+                response = new PrepareResponse(false);
+            } else {
+                generation = nextNumberRequest.getNumber();
+                response = new PrepareResponse(true);
+            }
+            sendOneway(request.getFromAddress(), RequestId.Promise, response, request.getCorrelationId());
+
+        } else if (request.getRequestId() == RequestId.Promise.getId()) {
+            handleResponse(request);
+        }
+    }
 }

@@ -140,10 +140,6 @@ public class QuorumKVStore extends Replica {
         send(request.getFromAddress(), new RequestOrResponse(request.getGeneration(), RequestId.GetValueResponse.getId(), JsonSerDes.serialize(get(getValueRequest.getKey())), request.getCorrelationId(), getPeerConnectionAddress()));
     }
 
-    private void handleResponse(RequestOrResponse response) {
-        requestWaitingList.handleResponse(response.getCorrelationId(), response);
-    }
-
     private void handleSetValueRequest(RequestOrResponse request) {
         int maxKnownGeneration = maxKnownGeneration();
         Integer requestGeneration = request.getGeneration();

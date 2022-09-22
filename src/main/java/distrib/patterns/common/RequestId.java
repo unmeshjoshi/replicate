@@ -47,7 +47,8 @@ public enum RequestId {
     FullPaxosLogPrepare(40),
     FullLogPrepareResponse(41),
     GetVersion(42),
-    GetVersionResponse(43);
+    GetVersionResponse(43),
+    NextNumberRequest(44);
 
     public static RequestId valueOf(Integer id) {
         return map.get(id);

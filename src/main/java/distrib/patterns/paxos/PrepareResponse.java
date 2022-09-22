@@ -15,9 +15,16 @@ public class PrepareResponse {
         this.acceptedGeneration = acceptedGeneration;
     }
 
+    public PrepareResponse(boolean success) {
+        this(success, Optional.empty(), Optional.empty());
+    }
+
     //for jackson
     private PrepareResponse() {
 
     }
 
+    public boolean isPromised() {
+        return promised;
+    }
 }

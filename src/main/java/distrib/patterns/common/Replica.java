@@ -42,6 +42,10 @@ public abstract class Replica {
         clientListener.start();
     }
 
+    public <T> void sendOneway(InetAddressAndPort fromAddress, RequestId id, T request, int correlationId) {
+        send(fromAddress, new RequestOrResponse(id.getId(), JsonSerDes.serialize(request), correlationId) );
+    }
+
     public void send(InetAddressAndPort fromAddress, RequestOrResponse message) {
         try {
             network.sendOneWay(fromAddress, message);
@@ -49,6 +53,7 @@ public abstract class Replica {
             logger.error("Communication failure sending request to " + fromAddress);
         }
     }
+
     public <T> void sendRequestToReplicas(RequestCallback quorumCallback, RequestId requestId, T requestToReplicas) {
         for (InetAddressAndPort replica : peerAddresses) {
             int correlationId = nextRequestId();
@@ -60,6 +65,10 @@ public abstract class Replica {
     public void sendRequestToReplica(RequestCallback requestCallback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
         requestWaitingList.add(request.getCorrelationId(), requestCallback);
         send(replicaAddress, request);
+    }
+
+    public void handleResponse(RequestOrResponse response) {
+        requestWaitingList.handleResponse(response.getCorrelationId(), response);
     }
 
     int requestNumber;

@@ -2,6 +2,9 @@ package common;
 
 import distrib.patterns.common.Config;
 import distrib.patterns.common.Peer;
+import distrib.patterns.common.Replica;
+import distrib.patterns.common.SystemClock;
+import distrib.patterns.generation.GenerationVoting;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.Networks;
 
@@ -138,4 +141,32 @@ public class TestUtils {
         var localhost = new Networks().ipv4Address().getHostAddress();
         return InetAddressAndPort.create(localhost, getRandomPort());
     }
+
+    public interface ReplicaFactory<T extends Replica> {
+        T create(Config config, SystemClock clock,
+                 InetAddressAndPort clientConnectionAddress,
+                 InetAddressAndPort peerConnectionAddress,
+                 List<InetAddressAndPort> peerAddresses) throws IOException;
+    }
+
+
+    public static <T extends Replica> List<T> startCluster(int clusterSize, ReplicaFactory<T> factory) throws IOException {
+        List<T> clusterNodes = new ArrayList<>();
+        SystemClock clock = new SystemClock();
+        List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
+        List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
+
+        for (int i = 0; i < clusterSize; i++) {
+            //public static void main(String[]args) {
+            Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
+
+            T replica =  factory.create(config, clock, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
+            replica.start();
+
+            //}
+            clusterNodes.add(replica);
+        }
+        return clusterNodes;
+    }
+
 }
