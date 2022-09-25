@@ -8,7 +8,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class Replica {
     private static Logger logger = LogManager.getLogger(Replica.class);
@@ -21,6 +27,18 @@ public abstract class Replica {
 
     protected final RequestWaitingList requestWaitingList;
     private List<InetAddressAndPort> peerAddresses;
+
+    public static class RequestDetails<T extends Message<RequestOrResponse>> {
+        Consumer<T> handler;
+        Class requestClass;
+
+        public RequestDetails(Consumer<T> handler, Class requestClass) {
+            this.handler = handler;
+            this.requestClass = requestClass;
+        }
+    }
+
+    Map<RequestId, RequestDetails> requestMap = new HashMap<>();
 
     public Replica(Config config,
                    SystemClock clock,
@@ -42,15 +60,16 @@ public abstract class Replica {
         clientListener.start();
     }
 
-    public <T> void sendOneway(InetAddressAndPort fromAddress, RequestId id, T request, int correlationId) {
-        send(fromAddress, new RequestOrResponse(id.getId(), JsonSerDes.serialize(request), correlationId) );
+    //TODO:Check why its needed to send the peer address.
+    public <T> void sendOneway(InetAddressAndPort address, RequestId id, T request, int correlationId) {
+        send(address, new RequestOrResponse(id.getId(), JsonSerDes.serialize(request), correlationId, getPeerConnectionAddress()) );
     }
 
-    public void send(InetAddressAndPort fromAddress, RequestOrResponse message) {
+    public void send(InetAddressAndPort address, RequestOrResponse message) {
         try {
-            network.sendOneWay(fromAddress, message);
+            network.sendOneWay(address, message);
         } catch (IOException e) {
-            logger.error("Communication failure sending request to " + fromAddress);
+            logger.error("Communication failure sending request to " + address);
         }
     }
 
@@ -67,18 +86,88 @@ public abstract class Replica {
         send(replicaAddress, request);
     }
 
-    public <T> void handleResponse(RequestOrResponse response) {
-        requestWaitingList.handleResponse(response.getCorrelationId(), response);
+
+    public void handleServerMessage(Message<RequestOrResponse> message) {
+        RequestOrResponse request = message.getRequest();
+        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        requestDetails.handler.accept(message);
+    }
+
+    public <T> void registerResponse(RequestId requestId, Class<T> responseClass) {
+        requestMap.put(requestId, new RequestDetails<>((message) -> {
+            RequestOrResponse response = message.getRequest();
+            T res = JsonSerDes.deserialize(response.getMessageBodyJson(), responseClass);
+            requestWaitingList.handleResponse(response.getCorrelationId(), res, response.fromAddress);
+        }, Void.class)); //class is not used for deserialization for responses.
+    }
+
+    public <Req extends Request, Res extends Request> void register(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
+        requestMap.put(requestId, new RequestDetails<>((message) -> {
+            RequestOrResponse request = message.getRequest();
+            Req r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
+            Request response = (Request) handler.apply(r);
+            if (response != null) {
+                sendOneway(request.getFromAddress(), response.getRequestId(), response, request.getCorrelationId());
+            }
+        }
+                , requestClass));
+    }
+
+    public static class Response<T> {
+        Exception e;
+        T result;
+
+        public Response(Exception e) {
+            this.e = e;
+        }
+
+        public Response(T result) {
+            this.result = result;
+        }
+
+        public Exception getError() {
+            return e;
+        }
+
+        public T getResult() {
+            return result;
+        }
+
+        public boolean isErrorResponse() {
+            return e != null;
+        }
+
+        //jackson.
+        private Response() {
+        }
+    }
+
+    public <T  extends Request, Res> void registerClientRequest(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
+        requestMap.put(requestId, new RequestDetails<Message<RequestOrResponse>>((message)-> {
+            RequestOrResponse request = message.getRequest();
+            T r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
+            CompletableFuture<Res> response = handler.apply(r);
+            response.whenComplete((res , e)-> {
+                if (e != null) {
+                    message.getClientConnection().write(new RequestOrResponse(requestId.getId(), JsonSerDes.serialize(e), request.getCorrelationId()).setError());
+                } else {
+                    message.getClientConnection().write(new RequestOrResponse(requestId.getId(), JsonSerDes.serialize(res), request.getCorrelationId()));
+                }
+            });
+        }
+        , requestClass));
     }
 
     int requestNumber;
     private int nextRequestId() {
-        return requestNumber++;
+        return new Random().nextInt();
     }
 
-    public abstract void handleClientRequest(Message<RequestOrResponse> message);
-
-    public abstract void handleServerMessage(Message<RequestOrResponse> message);
+    public void handleClientRequest(Message<RequestOrResponse> message) {
+        RequestOrResponse request = message.getRequest();
+        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        requestDetails.handler.accept(message);
+    }
 
     public int getNoOfReplicas() {
         return this.peerAddresses.size();

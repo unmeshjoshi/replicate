@@ -2,6 +2,7 @@ package distrib.patterns.leaderbasedpaxoslog;
 
 import distrib.patterns.common.JsonSerDes;
 import distrib.patterns.common.RequestOrResponse;
+import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 
 import java.util.ArrayList;
@@ -13,13 +14,13 @@ public class FullLogPrepareCallback implements RequestCallback<RequestOrResponse
     List<FullLogPrepareResponse> promises = new ArrayList<>();
 
     @Override
-    public void onResponse(RequestOrResponse r) {
+    public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
         promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), FullLogPrepareResponse.class));
         latch.countDown();
     }
 
     @Override
-    public void onError(Throwable e) {
+    public void onError(Exception e) {
     }
 
     public boolean isQuorumPrepared() {

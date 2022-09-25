@@ -1,22 +1,20 @@
 package distrib.patterns.quorumconsensus;
 
 import distrib.patterns.common.*;
-import distrib.patterns.net.ClientConnection;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
-import distrib.patterns.requests.VersionedSetValueRequest;
 import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
-class QuorumKV extends Replica {
+public class QuorumKV extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKV.class);
     private final ClientState clientState;
     private boolean doSyncReadRepair;
@@ -26,79 +24,42 @@ class QuorumKV extends Replica {
         this.clientState = new ClientState(clock);
         this.doSyncReadRepair = doSyncReadRepair;
         this.durableStore = new DurableKVStore(config);
-    }
 
-    public void handleClientRequest(Message<RequestOrResponse> message) {
-        RequestOrResponse request = message.getRequest();
-        if (request.getRequestId() == RequestId.SetValueRequest.getId()) {
-            byte[] messageBodyJson = request.getMessageBodyJson();
-            SetValueRequest clientSetValueRequest = JsonSerDes.deserialize(messageBodyJson, SetValueRequest.class);
-            handleSetValueRequest(message.getClientConnection(), request.getCorrelationId(), clientSetValueRequest);
+        register(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
+        registerResponse(RequestId.GetVersionResponse, GetVersionResponse.class);
+        register(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
+        registerResponse(RequestId.SetValueResponse, SetValueResponse.class);
+        register(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        registerResponse(RequestId.GetValueResponse, GetValueResponse.class);
 
-        } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
-            byte[] messageBodyJson = request.getMessageBodyJson();
-            GetValueRequest clientGetValueRequest = JsonSerDes.deserialize(messageBodyJson, GetValueRequest.class);
-            handleGetValueRequest(message.getClientConnection(), request.getCorrelationId(), request.getGeneration(), RequestId.GetValueRequest, clientGetValueRequest);
-        }
+        registerClientRequest(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        registerClientRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
 
-    private void handleSetValueRequest(ClientConnection clientConnection, Integer correlationId, SetValueRequest clientSetValueRequest) {
-        GetVersionRequest getVersion = new GetVersionRequest(clientSetValueRequest.getKey());
-        var expectedNumberOfResponses = 3;
-        CompletableFuture<List<MonotonicId>> responseFuture = new CompletableFuture<>();
-
-        RequestCallback versionCallback = new RequestCallback<RequestOrResponse>() {
-            final int quorum  = expectedNumberOfResponses / 2 + 1;;
-            private volatile int receivedResponses;
-            private volatile int receivedErrors;
-            private volatile boolean done;
-            List<MonotonicId> versions = new ArrayList<>();
-
-            @Override
-            public void onResponse(RequestOrResponse response) {
-                receivedResponses++;
-                addResponseMessage(response);
-                if (receivedResponses == quorum) {
-                    responseFuture.complete(versions);
-                }
-            }
-
-            private void addResponseMessage(RequestOrResponse response) {
-                MonotonicId version = JsonSerDes.deserialize(response.getMessageBodyJson(), MonotonicId.class);
-                versions.add(version);
-            }
-
-            @Override
-            public void onError(Throwable e) {
-                receivedErrors++;
-                if (receivedErrors == quorum && !done) {
-                    done = true;
-                    responseFuture.completeExceptionally(new ReadTimeoutException("Timeout waiting for versions"));
-                }
-            }
-        };
+    private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
+        var getVersion = new GetVersionRequest(clientSetValueRequest.getKey());
+        var versionCallback = new AsyncQuorumCallback<GetVersionResponse>(getNoOfReplicas());
         sendRequestToReplicas(versionCallback, RequestId.GetVersion, getVersion);
-
-        responseFuture.whenComplete((r, e)->{
-            if (e != null) {
-                clientConnection.write(new RequestOrResponse(RequestId.SetValueResponse.getId(), JsonSerDes.serialize("Error"), correlationId));
-                return;
-            }
-            assignVersionAndSetValue(clientSetValueRequest, clientConnection, correlationId, r);
-        });
-
+        var quorumFuture = versionCallback.getQuorumFuture();
+        return quorumFuture.thenCompose((r) ->
+                assignVersionAndSetValue(clientSetValueRequest, r.values().stream().toList()));
     }
 
-    private void assignVersionAndSetValue(SetValueRequest clientSetValueRequest, ClientConnection clientConnection, Integer correlationId, List<MonotonicId> existingVersions) {
+    private CompletableFuture<SetValueResponse> assignVersionAndSetValue(SetValueRequest clientSetValueRequest, List<GetVersionResponse> existingVersions) {
         VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.getKey(),
                 clientSetValueRequest.getValue(),
                 clientSetValueRequest.getClientId(),
                 clientSetValueRequest.getRequestNumber(),
-                getNextId(existingVersions)
+                getNextId(existingVersions.stream().map(r -> r.getVersion()).collect(Collectors.toList()))
         ); //assign timestamp to request.
-        WriteQuorumCallback quorumCallback = new WriteQuorumCallback(getNoOfReplicas(), clientConnection, correlationId);
-        sendRequestToReplicas(quorumCallback, RequestId.SetValueRequest, requestToReplicas);
+        var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
+        sendRequestToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        CompletableFuture<Map<InetAddressAndPort, SetValueResponse>> quorumFuture = quorumCallback.getQuorumFuture();
+        return quorumFuture.thenApply(r -> {
+            //TODO:Find how to handle multiple values;
+            return r.values().stream().findFirst().get();
+        });
     }
 
 
@@ -116,67 +77,82 @@ class QuorumKV extends Replica {
         return ids.stream().max(MonotonicId::compareTo).orElse(MonotonicId.empty());
     }
 
-    private void handleGetValueRequest(ClientConnection clientConnection, Integer correlationId, int generation, RequestId requestId, GetValueRequest clientSetValueRequest) {
-        GetValueRequest request = new GetValueRequest(clientSetValueRequest.getKey());
-        ReadQuorumCallback quorumCallback = new ReadQuorumCallback(this, getNoOfReplicas(), clientConnection, correlationId, generation, doSyncReadRepair);
-        sendRequestToReplicas(quorumCallback, requestId, request);
+    private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest request) {
+        var asyncQuorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
+        sendRequestToReplicas(asyncQuorumCallback, RequestId.VersionedGetValueRequest, request);
+        return asyncQuorumCallback.getQuorumFuture()
+                .thenCompose((nodesToValues)-> {
+                    return new ReadRepairer(this, nodesToValues).readRepair();
+                });
     }
 
-    public synchronized void handleServerMessage(Message<RequestOrResponse> message) {
-        RequestOrResponse requestOrResponse = message.getRequest();
 
-        if (requestOrResponse.getRequestId() == RequestId.GetVersion.getId()) {
-            handleGetVersionRequest(requestOrResponse);
+    static class GetVersionResponse extends Request {
+        MonotonicId id;
+        public GetVersionResponse(MonotonicId id) {
+            super(RequestId.GetVersionResponse);
+            this.id = id;
+        }
 
-        } else if (requestOrResponse.getRequestId() == RequestId.SetValueRequest.getId()) {
-            handleSetValueRequest(requestOrResponse);
+        //for jackson
+        private GetVersionResponse() {
+            super(RequestId.GetVersionResponse);
+        }
 
-        } else if (requestOrResponse.getRequestId() == RequestId.GetValueRequest.getId()) {
-            handleGetValueRequest(requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.SetValueResponse.getId()) {
-            handleResponse(requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.GetValueResponse.getId()) {
-            handleResponse(requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.GetVersionResponse.getId()) {
-            handleResponse(requestOrResponse);
+        public MonotonicId getVersion() {
+            return id;
         }
     }
 
-    private void handleGetVersionRequest(RequestOrResponse request) {
-        try {
-            GetVersionRequest getVersionRequest = deserialize(request, GetVersionRequest.class);
-            StoredValue storedValue = get(getVersionRequest.getKey());
-            MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
-            byte[] serialize = JsonSerDes.serialize(version);
-            send(request.getFromAddress(), new RequestOrResponse(request.getGeneration(), RequestId.GetVersionResponse.getId(),
-                    serialize, request.getCorrelationId(), getPeerConnectionAddress()));
-        } catch (Exception e) {
-            e.printStackTrace();;
+    private GetVersionResponse handleGetVersionRequest(GetVersionRequest getVersionRequest) {
+        StoredValue storedValue = get(getVersionRequest.getKey());
+        MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
+        return new GetVersionResponse(version);
+    }
+
+    public static class GetValueResponse extends Request {
+        StoredValue value;
+        public GetValueResponse(StoredValue value) {
+            this();
+            this.value = value;
+        }
+
+        private GetValueResponse() {
+            super(RequestId.GetValueResponse);
+        }
+
+        public StoredValue getValue() {
+            return value;
         }
     }
 
-    private void handleGetValueRequest(RequestOrResponse request) {
-        GetValueRequest getValueRequest = deserialize(request, GetValueRequest.class);
-        send(request.getFromAddress(),
-                new RequestOrResponse(request.getGeneration(),
-                        RequestId.GetValueResponse.getId(),
-                        JsonSerDes.serialize(get(getValueRequest.getKey())),
-                        request.getCorrelationId(), getPeerConnectionAddress()));
+    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
+        StoredValue storedValue = get(getValueRequest.getKey());
+        return new GetValueResponse(storedValue);
     }
 
-    private void handleSetValueRequest(RequestOrResponse request) {
-        VersionedSetValueRequest setValueRequest = deserialize(request, VersionedSetValueRequest.class);
+    public static class SetValueResponse extends Request {
+        String result;
+        public SetValueResponse(String result) {
+            this();
+            this.result = result;
+        }
+
+        private SetValueResponse() {
+            super(RequestId.SetValueResponse);
+        }
+
+        public String getResult() {
+            return result;
+        }
+    }
+
+    private SetValueResponse handlePeerSetValueRequest(VersionedSetValueRequest setValueRequest) {
         StoredValue storedValue = get(setValueRequest.getKey());
         if (setValueRequest.getVersion().isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
             put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion()));
         }
-        send(request.getFromAddress(),
-                new RequestOrResponse(RequestId.SetValueResponse.getId(), "Success".getBytes(),
-                        request.getCorrelationId(),
-                        getPeerConnectionAddress()));
+        return new SetValueResponse("Success");
     }
 
 

@@ -11,6 +11,13 @@ public class RequestOrResponse {
     private Integer correlationId;
     private Integer generation = -1;
     InetAddressAndPort fromAddress;
+    boolean isError;
+
+    public RequestOrResponse setError() {
+        isError = true;
+        return this;
+    }
+
     //for jackson
     private RequestOrResponse(){}
 
@@ -89,6 +96,10 @@ public class RequestOrResponse {
 
     public InetAddressAndPort getFromAddress() {
         return fromAddress;
+    }
+
+    public boolean isError() {
+        return isError;
     }
 }
 

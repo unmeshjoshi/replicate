@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
@@ -59,18 +60,18 @@ public class LeaderBasedPaxosLogClusterNode {
         this.peerConnectionAddress = peerConnectionAddress;
         this.peers = peers;
         this.listener = new SocketListener(this::handleServerMessage, peerConnectionAddress, config);
-        RequestWaitingList waitingList = new RequestWaitingList(clock, 8000);
+        RequestWaitingList waitingList = new RequestWaitingList(clock, Duration.ofMillis(8000));
         this.clientListener = new NIOSocketListener(message -> {
             RequestOrResponse request = message.getRequest();
             if (request.getRequestId() == RequestId.SetValueRequest.getId()) {
                 var callback = new RequestCallback() {
                     @Override
-                    public void onResponse(Object r) {
+                    public void onResponse(Object r, InetAddressAndPort address) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
                     }
 
                     @Override
-                    public void onError(Throwable e) {
+                    public void onError(Exception e) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
                     }
                 };
@@ -79,7 +80,7 @@ public class LeaderBasedPaxosLogClusterNode {
                 try {
                     SetValueCommand setValueCommand = new SetValueCommand(setValueRequest.getKey(), setValueRequest.getValue());
                     append(new WALEntry(0l, setValueCommand.serialize(), EntryType.DATA, 0));
-                    callback.onResponse("Success");
+                    callback.onResponse("Success", request.getFromAddress());
                 } catch (WriteTimeoutException e) {
                     callback.onError(e);
                 }
@@ -87,19 +88,19 @@ public class LeaderBasedPaxosLogClusterNode {
             } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
                 var callback = new RequestCallback() {
                     @Override
-                    public void onResponse(Object r) {
+                    public void onResponse(Object r, InetAddressAndPort address) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
                     }
 
                     @Override
-                    public void onError(Throwable e) {
+                    public void onError(Exception e) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
                     }
                 };
                 waitingList.add(request.getCorrelationId(), callback);
                 GetValueRequest getValueRequest = JsonSerDes.deserialize(request.getMessageBodyJson(), GetValueRequest.class);
                 append(new WALEntry(0l, new SetValueCommand("", "").serialize(), EntryType.DATA, 0)); //append a no-op command to make sure full paxos is run
-                callback.onResponse(kv.get(getValueRequest.getKey()));
+                callback.onResponse(kv.get(getValueRequest.getKey()), request.getFromAddress());
 
             }
         }, clientAddress);
@@ -202,13 +203,13 @@ public class LeaderBasedPaxosLogClusterNode {
         }
 
         @Override
-        public void onResponse(RequestOrResponse r) {
+        public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
             promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class));
             latch.countDown();
         }
 
         @Override
-        public void onError(Throwable e) {
+        public void onError(Exception e) {
         }
 
         public WALEntry getProposedValue() {
@@ -338,19 +339,19 @@ public class LeaderBasedPaxosLogClusterNode {
             handleFullLogPrepare(requestOrResponse);
 
         } else if (requestOrResponse.getRequestId() == RequestId.FullLogPrepareResponse.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
+            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
 
         } else if (requestOrResponse.getRequestId() == RequestId.PrepareRequest.getId()) {
             handlePaxosPrepare(requestOrResponse);
 
         } else if (requestOrResponse.getRequestId() == RequestId.Promise.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
+            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress() );
 
         } else if (requestOrResponse.getRequestId() == RequestId.ProposeRequest.getId()) {
             handlePaxosProposal(requestOrResponse.getCorrelationId(), requestOrResponse);
 
         } else if (requestOrResponse.getRequestId() == RequestId.ProposeResponse.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
+            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
 
         } else if (requestOrResponse.getRequestId() == RequestId.Commit.getId()) {
             handlePaxosCommit(requestOrResponse.getCorrelationId(), requestOrResponse);

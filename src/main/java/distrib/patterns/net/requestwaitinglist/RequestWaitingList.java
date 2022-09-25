@@ -1,9 +1,11 @@
 package distrib.patterns.net.requestwaitinglist;
 
 import distrib.patterns.common.SystemClock;
+import distrib.patterns.net.InetAddressAndPort;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,14 +26,14 @@ public class RequestWaitingList<Key, Response> {
 
     private SystemClock clock;
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-    private long expirationIntervalMillis; //do not expire for now.
+    private Duration expirationDuration; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
-        this(clock, 1000);
+        this(clock, Duration.ofMillis(2000));
     }
-    public RequestWaitingList(SystemClock clock, long expirationIntervalMillis) {
-        this.expirationIntervalMillis = expirationIntervalMillis;
+    public RequestWaitingList(SystemClock clock, Duration duration) {
+        this.expirationDuration = duration;
         this.clock = clock;
-        executor.scheduleWithFixedDelay(this::expire, expirationIntervalMillis, expirationIntervalMillis, MILLISECONDS);
+        executor.scheduleWithFixedDelay(this::expire, expirationDuration.toMillis(), expirationDuration.toMillis(), MILLISECONDS);
     }
 
     private void expire() {
@@ -48,7 +50,7 @@ public class RequestWaitingList<Key, Response> {
     }
 
     private List<Key> getExpiredRequestKeys(long now) {
-        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().elapsedTime(now) > expirationIntervalMillis).map(e -> e.getKey()).collect(Collectors.toList());
+        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().elapsedTime(now) > expirationDuration.getNano()).map(e -> e.getKey()).collect(Collectors.toList());
     }
 
     public void handleResponse(Key key, Response response) {
@@ -56,11 +58,20 @@ public class RequestWaitingList<Key, Response> {
             return;
         }
         CallbackDetails callbackDetails = pendingRequests.remove(key);
-        callbackDetails.getRequestCallback().onResponse(response);
+        callbackDetails.getRequestCallback().onResponse(response, null); //TODO:Fixme.
 
     }
 
-    public void handleError(int requestId, Throwable e) {
+    public void handleResponse(Key key, Response response, InetAddressAndPort fromNode) {
+        if (!pendingRequests.containsKey(key)) {
+            return;
+        }
+        CallbackDetails callbackDetails = pendingRequests.remove(key);
+        callbackDetails.getRequestCallback().onResponse(response, fromNode);
+
+    }
+
+    public void handleError(int requestId, Exception e) {
         CallbackDetails callbackDetails = pendingRequests.remove(requestId);
         callbackDetails.getRequestCallback().onError(e);
     }

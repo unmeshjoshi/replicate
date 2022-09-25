@@ -3,6 +3,7 @@ package distrib.patterns.quorum;
 import distrib.patterns.common.RequestId;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.ClientConnection;
+import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ abstract class QuorumCallback implements RequestCallback<RequestOrResponse> {
 
 
     @Override
-    public void onResponse(RequestOrResponse response) {
+    public void onResponse(RequestOrResponse response, InetAddressAndPort address) {
         receivedResponses++;
         addResponseMessage(response);
         //TODO: Assignment 3. Complete client response handler.
@@ -52,7 +53,7 @@ abstract class QuorumCallback implements RequestCallback<RequestOrResponse> {
     }
 
     @Override
-    public void onError(Throwable t) {
+    public void onError(Exception t) {
         receivedErrors++;
         if (receivedErrors == quorum && !done) {
             respondToClient("Error");

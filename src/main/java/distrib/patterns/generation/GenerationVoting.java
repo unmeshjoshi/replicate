@@ -40,107 +40,54 @@ package distrib.patterns.generation;
 // A proposer can keep the state stored on the disk and keep retrying..
 // But what if the proposer fails?
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.paxos.PrepareResponse;
+import distrib.patterns.common.BlockingQuorumCallback;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
 
 public class GenerationVoting extends Replica {
     int generation;
 
     public GenerationVoting(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
-    }
-
-    @Override
-    public void handleClientRequest(Message<RequestOrResponse> message) {
-        RequestOrResponse request = message.getRequest();
-        if (request.getRequestId() == RequestId.NextNumberRequest.getId()) {
-            int proposedNumber = 1;
-            while(true) {
-                PrepareRequest nr = new PrepareRequest(proposedNumber);
-                PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
-                sendRequestToReplicas(callback, RequestId.PrepareRequest, nr);
-                if (callback.isQuorumPrepared()) {
-                    message.getClientConnection().write(new RequestOrResponse(RequestId.PrepareRequest.getId(), JsonSerDes.serialize(generation), request.getCorrelationId()));
-                    break;
-                }
-                proposedNumber = proposedNumber + 1;//try next number
-            }
+        {
+            registerClientRequest(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
+            register(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
+            registerResponse(RequestId.Promise, PrepareResponse.class);
         }
     }
 
-
-    class PrepareCallback implements RequestCallback<PrepareResponse> {
-        int clusterSize;
-        int quorum;
-        CountDownLatch latch;
-        List<PrepareResponse> promises = new ArrayList<>();
-
-        public PrepareCallback(int clusterSize) {
-            this.clusterSize = clusterSize;
-            this.quorum =  clusterSize / 2 + 1;
-            this.latch = new CountDownLatch(clusterSize);
+    class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
+        public PrepareCallback(int totalResponses) {
+            super(totalResponses);
         }
-
-        @Override
-        public void onResponse(PrepareResponse r) {
-            promises.add(r);
-            latch.countDown();
-        }
-
-        @Override
-        public void onError(Throwable e) {
-        }
-
         public boolean isQuorumPrepared() {
-            Uninterruptibles.awaitUninterruptibly(latch);
-            return promises.stream().filter(p -> p.isPromised()).count() >= quorum;
+           return blockAndGetQuorumResponses()
+                   .values()
+                   .stream()
+                   .filter(p -> p.isPromised()).count() >= quorum;
         }
     }
 
-    static class RequestDetails<T> {
-        RequestHandler handler;
-        Class requestClass;
-
-        public RequestDetails(RequestHandler<T> handler, Class<T> requestClass) {
-            this.handler = handler;
-            this.requestClass = requestClass;
+    CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
+        int proposedNumber = 1;
+        while(true) {
+            PrepareRequest nr = new PrepareRequest(proposedNumber);
+            PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
+            sendRequestToReplicas(callback, RequestId.PrepareRequest, nr);
+            if (callback.isQuorumPrepared()) {
+                //TODO:Consider using blocking methods for ease of understanding.
+                return CompletableFuture.completedFuture(proposedNumber);
+            }
+            proposedNumber = proposedNumber + 1;//try next number
         }
     }
 
-    static interface RequestHandler<T> {
-        public void handleRequest(T request, InetAddressAndPort fromAddress, int correlationId);
-    }
-
-    Map<RequestId, RequestDetails> requestMap = new HashMap<>();
-    {
-        requestMap.put(RequestId.PrepareRequest, new RequestDetails<>(this::handlePrepareRequest, PrepareRequest.class));
-        requestMap.put(RequestId.Promise, new RequestDetails<>(this::handleResponse, PrepareResponse.class));
-    }
-    @Override
-    public void handleServerMessage(Message<RequestOrResponse> message) {
-        RequestOrResponse request = message.getRequest();
-        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
-        Object r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestDetails.requestClass);
-        requestDetails.handler.handleRequest(r, request.getFromAddress(), request.getCorrelationId());
-    }
-
-    public <T> void handleResponse(PrepareResponse response, InetAddressAndPort fromAddress, int correlationId) {
-        requestWaitingList.handleResponse(correlationId, response);
-    }
-
-    private void handlePrepareRequest(PrepareRequest nextNumberRequest, InetAddressAndPort fromAddress, int correlationId) {
+    private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
         PrepareResponse response;
         if (generation > nextNumberRequest.getNumber()) {
             response = new PrepareResponse(false);
@@ -148,6 +95,6 @@ public class GenerationVoting extends Replica {
             generation = nextNumberRequest.getNumber();
             response = new PrepareResponse(true);
         }
-        sendOneway(fromAddress, RequestId.Promise, response, correlationId);
+        return response;
     }
 }

@@ -2,6 +2,7 @@ package distrib.patterns.paxoslog;
 
 import distrib.patterns.common.JsonSerDes;
 import distrib.patterns.common.RequestOrResponse;
+import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.paxos.ProposalResponse;
 import distrib.patterns.wal.Command;
@@ -22,13 +23,13 @@ public class ProposalCallback implements RequestCallback<RequestOrResponse> {
     List<ProposalResponse> proposalResponses = new ArrayList<>();
     List<Throwable> exceptions = new ArrayList<>();
     @Override
-    public void onResponse(RequestOrResponse r) {
+    public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
         proposalResponses.add(JsonSerDes.deserialize(r.getMessageBodyJson(), ProposalResponse.class));
         latch.countDown();
     }
 
     @Override
-    public void onError(Throwable e) {
+    public void onError(Exception e) {
         exceptions.add(e);
         latch.countDown();
 

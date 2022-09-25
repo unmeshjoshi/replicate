@@ -1,7 +1,6 @@
 package distrib.patterns.quorum;
 
 import distrib.patterns.common.*;
-import distrib.patterns.net.ClientConnection;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
@@ -12,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class QuorumKVStore extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKVStore.class);
@@ -35,43 +35,38 @@ public class QuorumKVStore extends Replica {
         this.durableStore = new DurableKVStore(config);
         this.generation = incrementAndGetGeneration();
         this.clientState = new ClientState(clock);
-    }
 
-
-
-    public void handleClientRequest(Message<RequestOrResponse> message) {
-        RequestOrResponse request = message.getRequest();
-        if (request.getRequestId() == RequestId.SetValueRequest.getId()) {
-            byte[] messageBodyJson = request.getMessageBodyJson();
-            SetValueRequest clientSetValueRequest = JsonSerDes.deserialize(messageBodyJson, SetValueRequest.class);
-            handleSetValueRequest(message.getClientConnection(), request.getCorrelationId(), clientSetValueRequest);
-
-        } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
-            byte[] messageBodyJson = request.getMessageBodyJson();
-            GetValueRequest clientGetValueRequest = JsonSerDes.deserialize(messageBodyJson, GetValueRequest.class);
-            handleGetValueRequest(message.getClientConnection(), request.getCorrelationId(), getGeneration(), RequestId.GetValueRequest, clientGetValueRequest);
-        }
+        register(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
+        register(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        registerResponse(RequestId.SetValueResponse, SetValueResponse.class);
+        registerResponse(RequestId.GetValueResponse, GetValueResponse.class);
+        registerClientRequest(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        registerClientRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     ///t1 = clientState.getTimestamp()
     //t2 = clientState.getTimestamp()
     //t3 = clientState.getTimestamp()
     //t3 > t2 > t1 //NTP..  t1 > t3..
-    private void handleSetValueRequest(ClientConnection clientConnection, Integer correlationId, SetValueRequest clientSetValueRequest) {
-        SetValueRequest requestToReplicas = new SetValueRequest(clientSetValueRequest.getKey(),
+    private CompletableFuture<String> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
+        VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.getKey(),
                 clientSetValueRequest.getValue(),
                 clientSetValueRequest.getClientId(),
                 clientSetValueRequest.getRequestNumber(),
                 clientState.getTimestamp()); //assign timestamp to request.
-        WriteQuorumCallback quorumCallback = new WriteQuorumCallback(getNoOfReplicas(), clientConnection, correlationId);
-        sendRequestToReplicas(quorumCallback, RequestId.SetValueRequest, requestToReplicas);
+        AsyncQuorumCallback<String> quorumCallback = new AsyncQuorumCallback<String>(getNoOfReplicas());
+        sendRequestToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        return quorumCallback.getQuorumFuture().thenApply(r -> "Success"); //TODO:Map quorum responses to
     }
 
 
-    private void handleGetValueRequest(ClientConnection clientConnection, Integer correlationId, int generation, RequestId requestId, GetValueRequest clientSetValueRequest) {
+    private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest clientSetValueRequest) {
         GetValueRequest request = new GetValueRequest(clientSetValueRequest.getKey());
-        ReadQuorumCallback quorumCallback = new ReadQuorumCallback(this, getNoOfReplicas(), clientConnection, correlationId, generation, config.doSyncReadRepair());
-        sendRequestToReplicas(quorumCallback, requestId, request);
+        AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
+        sendRequestToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, request);
+        return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
+            return new ReadRepairer(this, responses).readRepair();
+        });
     }
 
 
@@ -118,51 +113,66 @@ public class QuorumKVStore extends Replica {
         return generation;
     }
 
-    @Override
-    public synchronized void handleServerMessage(Message<RequestOrResponse> message) {
-        RequestOrResponse requestOrResponse = message.getRequest();
-        if (requestOrResponse.getRequestId() == RequestId.SetValueRequest.getId()) {
-            handleSetValueRequest(requestOrResponse);
+    public static class GetValueResponse extends Request {
+        StoredValue value;
+        public GetValueResponse(StoredValue value) {
+            this();
+            this.value = value;
+        }
 
-        } else if (requestOrResponse.getRequestId() == RequestId.GetValueRequest.getId()) {
-            handleGetValueRequest(requestOrResponse);
+        private GetValueResponse() {
+            super(RequestId.GetValueResponse);
+        }
 
-        } else if (requestOrResponse.getRequestId() == RequestId.SetValueResponse.getId()) {
-            handleResponse(requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.GetValueResponse.getId()) {
-            handleResponse(requestOrResponse);
+        public StoredValue getValue() {
+            return value;
         }
     }
 
-    private void handleGetValueRequest(RequestOrResponse request) {
-        GetValueRequest getValueRequest = deserialize(request, GetValueRequest.class);
-        send(request.getFromAddress(), new RequestOrResponse(request.getGeneration(), RequestId.GetValueResponse.getId(), JsonSerDes.serialize(get(getValueRequest.getKey())), request.getCorrelationId(), getPeerConnectionAddress()));
+
+    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
+        StoredValue storedValue = get(getValueRequest.getKey());
+        logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue);
+        return new GetValueResponse(storedValue);
     }
 
-    private void handleSetValueRequest(RequestOrResponse request) {
-        int maxKnownGeneration = maxKnownGeneration();
-        Integer requestGeneration = request.getGeneration();
-
-        //TODO: Assignment 3 Add check for generation while handling requests.
-
-        if (requestGeneration < maxKnownGeneration) {
-            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
-            send(request.getFromAddress(), new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), getPeerConnectionAddress()));
-            return;
+    public static class SetValueResponse extends Request {
+        String result;
+        public SetValueResponse(String result) {
+            this();
+            this.result = result;
         }
 
-        SetValueRequest setValueRequest = deserialize(request, SetValueRequest.class);
+        private SetValueResponse() {
+            super(RequestId.SetValueResponse);
+        }
 
+        public String getResult() {
+            return result;
+        }
+    }
+
+    private SetValueResponse handleSetValueRequest(VersionedSetValueRequest setValueRequest) {
+//TODO: Figure out way to handle generation.
+//        int maxKnownGeneration = maxKnownGeneration();
+//        Integer requestGeneration = request.getGeneration();
+//
+//        //TODO: Assignment 3 Add check for generation while handling requests.
+//
+//        if (requestGeneration < maxKnownGeneration) {
+//            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
+//            send(request.getFromAddress(), new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), getPeerConnectionAddress()));
+//            return;
+//        }
         StoredValue storedValue = get(setValueRequest.getKey());
 
         if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.
             logger.info("Setting newer value " + setValueRequest.getValue());
-            put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getTimestamp(), requestGeneration));
+            put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getTimestamp(), 1));
         } else {
             logger.info("Not setting value " + setValueRequest.getValue() + " because timestamp higher " + storedValue.getTimestamp() + " than request " + setValueRequest.getTimestamp());
 
         }
-        send(request.getFromAddress(), new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), "Success".getBytes(), request.getCorrelationId(), getPeerConnectionAddress()));
+        return new SetValueResponse("Success");
     }
 }

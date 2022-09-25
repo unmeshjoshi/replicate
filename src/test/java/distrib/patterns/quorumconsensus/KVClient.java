@@ -1,15 +1,15 @@
-package quorum;
+package distrib.patterns.quorumconsensus;
 
-import distrib.patterns.common.*;
+import distrib.patterns.common.JsonSerDes;
+import distrib.patterns.common.Replica;
+import distrib.patterns.common.RequestId;
+import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
-import distrib.patterns.quorum.QuorumKVStore;
-import distrib.patterns.quorum.StoredValue;
 import distrib.patterns.requests.GetValueRequest;
 import distrib.patterns.requests.SetValueRequest;
 
 import java.io.IOException;
-import java.util.Random;
 
 public class KVClient {
     int correlationId;
@@ -21,8 +21,9 @@ public class KVClient {
         if (getResponse.isError()) {
             return "Error";
         };
-        StoredValue response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), StoredValue.class);
-        return response.getValue();
+
+        StoredValue storedValue = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), StoredValue.class);
+        return storedValue.getValue();
     }
 
     public String setValue(InetAddressAndPort primaryNodeAddress, String title, String microservices) throws IOException {
@@ -30,24 +31,23 @@ public class KVClient {
         RequestOrResponse requestOrResponse = createSetValueRequest(title, microservices);
         RequestOrResponse setResponse = client.blockingSend(requestOrResponse);
         client.close();
-
         if (setResponse.isError()) {
             return "Error";
         };
-        QuorumKVStore.SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), QuorumKVStore.SetValueResponse.class);
+        QuorumKV.SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), QuorumKV.SetValueResponse.class);
         return response.getResult();
     }
 
     private RequestOrResponse createGetValueRequest(String key) {
         GetValueRequest getValueRequest = new GetValueRequest(key);
-        RequestOrResponse requestOrResponse1 = new RequestOrResponse(RequestId.GetValueRequest.getId(), JsonSerDes.serialize(getValueRequest), new Random().nextInt());
+        RequestOrResponse requestOrResponse1 = new RequestOrResponse(RequestId.GetValueRequest.getId(), JsonSerDes.serialize(getValueRequest), correlationId++);
         return requestOrResponse1;
     }
 
     private RequestOrResponse createSetValueRequest(String key, String value) {
         SetValueRequest setValueRequest = new SetValueRequest(key, value);
         RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.SetValueRequest.getId(),
-                JsonSerDes.serialize(setValueRequest), new Random().nextInt());
+                JsonSerDes.serialize(setValueRequest), correlationId++);
         return requestOrResponse;
     }
 }

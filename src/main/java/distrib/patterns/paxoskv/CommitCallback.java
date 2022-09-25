@@ -2,6 +2,7 @@ package distrib.patterns.paxoskv;
 
 import distrib.patterns.common.JsonSerDes;
 import distrib.patterns.common.RequestOrResponse;
+import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.common.MonotonicId;
 
@@ -25,13 +26,13 @@ public class CommitCallback implements RequestCallback<RequestOrResponse> {
     List<CommitResponse> proposalResponses = new ArrayList<>();
 
     @Override
-    public void onResponse(RequestOrResponse r) {
+    public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
         proposalResponses.add(JsonSerDes.deserialize(r.getMessageBodyJson(), CommitResponse.class));
         latch.countDown();
     }
 
     @Override
-    public void onError(Throwable e) {
+    public void onError(Exception e) {
     }
 
     public boolean isQuorumAccepted() {

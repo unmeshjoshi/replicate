@@ -3,19 +3,21 @@ package distrib.patterns.generation;
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
-public class PrepareRequest extends Request {
+public class NextNumberResponse extends Request {
     int number;
 
-    public PrepareRequest(int number) {
-        this();
+    public NextNumberResponse(int number) {
+        super(RequestId.NextNumberResponse);
         this.number = number;
+
     }
 
     public int getNumber() {
         return number;
     }
+
     //for jackson
-    private PrepareRequest() {
-        super(RequestId.PrepareRequest);
+    private NextNumberResponse() {
+        super(RequestId.NextNumberResponse);
     }
 }

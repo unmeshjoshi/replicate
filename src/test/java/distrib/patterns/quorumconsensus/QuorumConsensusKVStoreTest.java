@@ -6,7 +6,6 @@ import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
 import org.junit.Test;
-import quorum.KVClient;
 
 import java.io.IOException;
 import java.util.ArrayList;

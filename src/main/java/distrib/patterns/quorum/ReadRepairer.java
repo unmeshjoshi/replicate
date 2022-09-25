@@ -1,0 +1,63 @@
+package distrib.patterns.quorum;
+
+import distrib.patterns.common.*;
+import distrib.patterns.net.InetAddressAndPort;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
+class ReadRepairer {
+    static Logger logger = LogManager.getLogger(ReadRepairer.class);
+    private Replica replica;
+    private Map<InetAddressAndPort, QuorumKVStore.GetValueResponse> nodesToValues;
+
+    public ReadRepairer(Replica replica, Map<InetAddressAndPort, QuorumKVStore.GetValueResponse> nodesToValues) {
+        this.replica = replica;
+        this.nodesToValues = nodesToValues;
+    }
+
+    public CompletableFuture readRepair() {
+        StoredValue latestStoredValue = getLatestStoredValue();
+        return readRepair(latestStoredValue);
+    }
+
+    private CompletableFuture<StoredValue> readRepair(StoredValue latestStoredValue) {
+        var nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.getTimestamp());
+        if (nodesHavingStaleValues.isEmpty()) {
+            return CompletableFuture.completedFuture(latestStoredValue);
+        }
+
+        var writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp());
+        var requestCallback = new AsyncQuorumCallback<String>(nodesHavingStaleValues.size());
+        for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
+            logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
+            replica.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
+        }
+        return requestCallback.getQuorumFuture()
+                .thenApply((result) -> {
+                    return latestStoredValue;
+                });
+    }
+
+    int requestId = new Random().nextInt();
+    private RequestOrResponse createSetValueRequest(String key, String value, long timestamp) {
+        VersionedSetValueRequest setValueRequest = new VersionedSetValueRequest(key, value, -1, -1, timestamp);
+        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.VersionedSetValueRequest.getId(),
+                JsonSerDes.serialize(setValueRequest), requestId++, replica.getPeerConnectionAddress());
+        return requestOrResponse;
+    }
+
+    private List<InetAddressAndPort> getNodesHavingStaleValues(long latestTimestamp) {
+        return this.nodesToValues.entrySet().stream().filter(e -> latestTimestamp > (e.getValue().getValue().getTimestamp())).map(e -> e.getKey()).collect(Collectors.toList());
+    }
+
+    private StoredValue getLatestStoredValue() {
+        return this.nodesToValues.values().stream().map(r -> r.getValue()).max(Comparator.comparingLong(StoredValue::getTimestamp)).orElse(StoredValue.EMPTY);
+    }
+}

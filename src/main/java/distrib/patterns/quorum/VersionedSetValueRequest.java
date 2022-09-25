@@ -1,31 +1,27 @@
-package distrib.patterns.requests;
+package distrib.patterns.quorum;
 
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
-public class SetValueRequest extends Request {
+public class VersionedSetValueRequest extends Request {
     private long clientId;
     private int requestNumber;
     private String key;
     private String value;
-    private long timestamp;
+    private long version;
 
     //for jaxon
-    private SetValueRequest() {
-        super(RequestId.SetValueRequest);
+    private VersionedSetValueRequest() {
+        super(RequestId.VersionedSetValueRequest);
     }
 
-    public SetValueRequest(String key, String value, long clientId, int requestNumber, long timestamp) {
-        super(RequestId.SetValueRequest);
+    public VersionedSetValueRequest(String key, String value, long clientId, int requestNumber, long version) {
+        super(RequestId.VersionedSetValueRequest);
         this.key = key;
         this.value = value;
         this.clientId = clientId;
         this.requestNumber = requestNumber;
-        this.timestamp = timestamp;
-    }
-
-    public SetValueRequest(String key, String value) {
-        this(key, value, -1, -1, -1);
+        this.version = version;
     }
 
     public String getKey() {
@@ -45,7 +41,7 @@ public class SetValueRequest extends Request {
     }
 
     public long getTimestamp() {
-        return timestamp;
+        return version;
     }
 }
 

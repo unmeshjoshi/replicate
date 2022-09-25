@@ -2,7 +2,8 @@ package distrib.patterns.generation;
 
 import common.TestUtils;
 import distrib.patterns.common.JsonSerDes;
-import distrib.patterns.common.RequestId;
+import distrib.patterns.common.Replica;
+import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
@@ -26,7 +27,8 @@ public class GenerationVotingTest {
             SocketClient<Object> client = new SocketClient<>(address);
             RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
                         JsonSerDes.serialize(request)));
-            return JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
+            T response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
+            return response;
         }
     }
 

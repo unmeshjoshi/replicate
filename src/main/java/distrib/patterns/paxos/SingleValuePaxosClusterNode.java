@@ -51,12 +51,12 @@ public class SingleValuePaxosClusterNode {
             if (request.getRequestId() == RequestId.SetValueRequest.getId()) {
                 var callback = new RequestCallback() {
                     @Override
-                    public void onResponse(Object r) {
+                    public void onResponse(Object r, InetAddressAndPort address) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
                     }
 
                     @Override
-                    public void onError(Throwable e) {
+                    public void onError(Exception e) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
                     }
                 };
@@ -67,12 +67,12 @@ public class SingleValuePaxosClusterNode {
             } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
                 var callback = new RequestCallback() {
                     @Override
-                    public void onResponse(Object r) {
+                    public void onResponse(Object r, InetAddressAndPort address) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
                     }
 
                     @Override
-                    public void onError(Throwable e) {
+                    public void onError(Exception e) {
                         message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
                     }
                 };
@@ -183,13 +183,13 @@ public class SingleValuePaxosClusterNode {
         }
 
         @Override
-        public void onResponse(RequestOrResponse r) {
+        public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
             promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class));
             latch.countDown();
         }
 
         @Override
-        public void onError(Throwable e) {
+        public void onError(Exception e) {
         }
 
         public String getProposedValue() {
@@ -255,13 +255,13 @@ public class SingleValuePaxosClusterNode {
             handlePaxosPrepare(requestOrResponse);
 
         } else if (requestOrResponse.getRequestId() == RequestId.Promise.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
+            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
 
         } else if (requestOrResponse.getRequestId() == RequestId.ProposeRequest.getId()) {
             handlePaxosProposal(requestOrResponse.getCorrelationId(), requestOrResponse);
 
         } else if (requestOrResponse.getRequestId() == RequestId.ProposeResponse.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
+            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
         }
     }
 

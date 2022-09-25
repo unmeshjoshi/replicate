@@ -1,8 +1,10 @@
-package distrib.patterns.requests;
+package distrib.patterns.quorumconsensus;
 
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
 
-public class VersionedSetValueRequest {
+public class VersionedSetValueRequest extends Request {
     private long clientId;
     private int requestNumber;
     private String key;
@@ -11,9 +13,11 @@ public class VersionedSetValueRequest {
 
     //for jaxon
     private VersionedSetValueRequest() {
+        super(RequestId.SetValueRequest);
     }
 
     public VersionedSetValueRequest(String key, String value, long clientId, int requestNumber, MonotonicId version) {
+        super(RequestId.VersionedSetValueRequest);
         this.key = key;
         this.value = value;
         this.clientId = clientId;

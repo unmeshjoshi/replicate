@@ -30,6 +30,16 @@ public class StoredValue {
         return generation;
     }
 
+    @Override
+    public String toString() {
+        return "StoredValue{" +
+                "key='" + key + '\'' +
+                ", value='" + value + '\'' +
+                ", timestamp=" + timestamp +
+                ", generation=" + generation +
+                '}';
+    }
+
     //for jackson
     private StoredValue() {
     }

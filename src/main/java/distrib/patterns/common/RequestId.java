@@ -48,7 +48,10 @@ public enum RequestId {
     FullLogPrepareResponse(41),
     GetVersion(42),
     GetVersionResponse(43),
-    NextNumberRequest(44);
+    NextNumberRequest(44),
+    NextNumberResponse(45),
+    VersionedSetValueRequest(46),
+    VersionedGetValueRequest(47);
 
     public static RequestId valueOf(Integer id) {
         return map.get(id);
