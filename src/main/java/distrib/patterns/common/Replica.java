@@ -16,6 +16,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/*
+
+ */
+
 public abstract class Replica {
     private static Logger logger = LogManager.getLogger(Replica.class);
     private final Config config;
@@ -28,17 +32,8 @@ public abstract class Replica {
     protected final RequestWaitingList requestWaitingList;
     private List<InetAddressAndPort> peerAddresses;
 
-    public static class RequestDetails<T extends Message<RequestOrResponse>> {
-        Consumer<T> handler;
-        Class requestClass;
 
-        public RequestDetails(Consumer<T> handler, Class requestClass) {
-            this.handler = handler;
-            this.requestClass = requestClass;
-        }
-    }
-
-    Map<RequestId, RequestDetails> requestMap = new HashMap<>();
+    Map<RequestId, Consumer<Message<RequestOrResponse>>> requestMap = new HashMap<>();
 
     public Replica(Config config,
                    SystemClock clock,
@@ -51,7 +46,7 @@ public abstract class Replica {
         this.peerAddresses = peerAddresses;
         this.clientConnectionAddress = clientConnectionAddress;
         this.peerConnectionAddress = peerConnectionAddress;
-        this.peerListener = new NIOSocketListener(this::handleServerMessage, peerConnectionAddress);
+        this.peerListener = new NIOSocketListener(this::handlePeerMessage, peerConnectionAddress);
         this.clientListener = new NIOSocketListener(this::handleClientRequest, clientConnectionAddress);
     }
 
@@ -87,86 +82,143 @@ public abstract class Replica {
     }
 
 
-    public void handleServerMessage(Message<RequestOrResponse> message) {
+    public void handlePeerMessage(Message<RequestOrResponse> message) {
         RequestOrResponse request = message.getRequest();
-        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
-        requestDetails.handler.accept(message);
+        Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        consumer.accept(message);
     }
 
-    public <T> void registerResponse(RequestId requestId, Class<T> responseClass) {
-        requestMap.put(requestId, new RequestDetails<>((message) -> {
-            RequestOrResponse response = message.getRequest();
-            T res = JsonSerDes.deserialize(response.getMessageBodyJson(), responseClass);
-            requestWaitingList.handleResponse(response.getCorrelationId(), res, response.fromAddress);
-        }, Void.class)); //class is not used for deserialization for responses.
+    public <T extends Request> void responseMessageHandler(RequestId requestId, Class<T> responseClass) {
+        Function<Message<RequestOrResponse>, Stage<T>> deserializer = createDeserializer(responseClass);
+        requestMap.put(requestId, (message) -> {
+            deserializer.andThen(responseHandler).apply(message);
+        }); //class is not used for deserialization for responses.
     }
 
-    public <Req extends Request, Res extends Request> void register(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
-        requestMap.put(requestId, new RequestDetails<>((message) -> {
+    static class Stage<Req extends Request> {
+        private Message<RequestOrResponse> message;
+        private Req request;
+
+        public Stage(Message<RequestOrResponse> message, Req request) {
+            this.message = message;
+            this.request = request;
+        }
+
+        public Req getRequest() {
+            return request;
+        }
+
+        public Message<RequestOrResponse> getMessage() {
+            return message;
+        }
+    }
+
+    static class AsyncStage<Req> {
+        private Message<RequestOrResponse> message;
+        private CompletableFuture<Req> request;
+
+        public AsyncStage(Message<RequestOrResponse> message, CompletableFuture<Req> request) {
+            this.message = message;
+            this.request = request;
+        }
+
+        public CompletableFuture<Req> getRequest() {
+            return request;
+        }
+
+        public Message<RequestOrResponse> getMessage() {
+            return message;
+        }
+    }
+
+    Function<Stage, Void> respondToPeer = req -> {
+        Message<RequestOrResponse> message = req.getMessage();
+        sendOneway(message.getRequest().getFromAddress(), req.request.getRequestId(), req.request, message.getRequest().getCorrelationId());
+        return null;
+    };
+
+    Function<Stage, Void> responseHandler = (stage) -> {
+        Message<RequestOrResponse> message = stage.message;
+        var response = message.getRequest();
+        Replica.this.requestWaitingList.handleResponse(response.getCorrelationId(), stage.request, response.fromAddress);
+        return null;
+    };
+    //deserialize.andThen(handler.apply).andThen(sendResponseToPeer)
+    public <Req extends Request, Res extends Request> Replica messageHandler(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
+        var deserialize = createDeserializer(requestClass);
+        var applyHandler = wrapHandler(handler);
+
+        requestMap.put(requestId, (message)->{
+            deserialize.andThen(applyHandler).andThen(respondToPeer).apply(message);
+        });
+        return this;
+    }
+
+    private static <Req extends Request, Res extends CompletableFuture> Function<Stage<Req>, AsyncStage> asyncWrapHandler(Function<Req, Res> handler) {
+        return (stage) -> {
+            Res response = handler.apply((Req) stage.request);
+            return new AsyncStage(stage.getMessage(), response);
+        };
+    }
+
+    private static <Req extends Request, Res extends Request> Function<Stage<Req>, Stage> wrapHandler(Function<Req, Res> handler) {
+        Function<Stage<Req>, Stage> applyHandler = (stage) -> {
+            Res response = handler.apply((Req) stage.request);
+            return new Stage(stage.getMessage(), response);
+        };
+        return applyHandler;
+    }
+
+    private static <Req extends Request> Function<Message<RequestOrResponse>, Stage<Req>> createDeserializer(Class<Req> requestClass) {
+        Function<Message<RequestOrResponse>, Stage<Req>> deserialize = (message) -> {
             RequestOrResponse request = message.getRequest();
             Req r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
-            Request response = (Request) handler.apply(r);
-            if (response != null) {
-                sendOneway(request.getFromAddress(), response.getRequestId(), response, request.getCorrelationId());
+            return new Stage<>(message, r);
+        };
+        return deserialize;
+    }
+
+    public <T  extends Request, Res> void requestHandler(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
+        Function<Message<RequestOrResponse>, Stage<T>> deserializer = createDeserializer(requestClass);
+        var asyncHandler = asyncWrapHandler(handler);
+        requestMap.put(requestId, (message)-> {
+            deserializer.andThen(asyncHandler).andThen(respondToClient).apply(message);
+        });
+    }
+
+    Function<AsyncStage, Void> respondToClient = (stage) -> {
+        var response = stage.getRequest();
+        Message<RequestOrResponse> message = stage.getMessage();
+        RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
+        var correlationId = request.getCorrelationId();
+        response.whenComplete((res , e)-> {
+            if (e != null) {
+                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e), correlationId).setError());
+            } else {
+                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(res), correlationId));
             }
-        }
-                , requestClass));
+        });
+        return null;
+    };
+
+    private static <Res extends Request> void respondToRequest(Message<RequestOrResponse> message, CompletableFuture<Res> response, Integer correlationId) {
+        response.whenComplete((res , e)-> {
+            if (e != null) {
+                message.getClientConnection().write(new RequestOrResponse(res.getRequestId().getId(), JsonSerDes.serialize(e), correlationId).setError());
+            } else {
+                message.getClientConnection().write(new RequestOrResponse(res.getRequestId().getId(), JsonSerDes.serialize(res), correlationId));
+            }
+        });
     }
 
-    public static class Response<T> {
-        Exception e;
-        T result;
-
-        public Response(Exception e) {
-            this.e = e;
-        }
-
-        public Response(T result) {
-            this.result = result;
-        }
-
-        public Exception getError() {
-            return e;
-        }
-
-        public T getResult() {
-            return result;
-        }
-
-        public boolean isErrorResponse() {
-            return e != null;
-        }
-
-        //jackson.
-        private Response() {
-        }
-    }
-
-    public <T  extends Request, Res> void registerClientRequest(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
-        requestMap.put(requestId, new RequestDetails<Message<RequestOrResponse>>((message)-> {
-            RequestOrResponse request = message.getRequest();
-            T r = JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
-            CompletableFuture<Res> response = handler.apply(r);
-            response.whenComplete((res , e)-> {
-                if (e != null) {
-                    message.getClientConnection().write(new RequestOrResponse(requestId.getId(), JsonSerDes.serialize(e), request.getCorrelationId()).setError());
-                } else {
-                    message.getClientConnection().write(new RequestOrResponse(requestId.getId(), JsonSerDes.serialize(res), request.getCorrelationId()));
-                }
-            });
-        }
-        , requestClass));
-    }
-
-    int requestNumber;
     private int nextRequestId() {
         return new Random().nextInt();
     }
 
     public void handleClientRequest(Message<RequestOrResponse> message) {
         RequestOrResponse request = message.getRequest();
-        RequestDetails requestDetails = requestMap.get(RequestId.valueOf(request.getRequestId()));
-        requestDetails.handler.accept(message);
+        Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        consumer.accept(message);
     }
 
     public int getNoOfReplicas() {

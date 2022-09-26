@@ -73,7 +73,7 @@ public class QuorumReadWriteTest {
 
     @Test
     public void quorumSynchronousReadRepair() throws IOException {
-        List<QuorumKVStore> clusterNodes = startCluster(3, true);
+        List<QuorumKVStore> clusterNodes = startCluster(3);
         QuorumKVStore athens = clusterNodes.get(0);
         QuorumKVStore byzantium = clusterNodes.get(1);
         QuorumKVStore cyrene = clusterNodes.get(2);
@@ -99,7 +99,7 @@ public class QuorumReadWriteTest {
 
     @Test
     public void quorumReadFailsIfReadRepairFails() throws IOException {
-        List<QuorumKVStore> clusterNodes = startCluster(3, true);
+        List<QuorumKVStore> clusterNodes = startCluster(3);
         QuorumKVStore athens = clusterNodes.get(0);
         QuorumKVStore byzantium = clusterNodes.get(1);
         QuorumKVStore cyrene = clusterNodes.get(2);
@@ -150,7 +150,7 @@ public class QuorumReadWriteTest {
     //With async read-repair, a client reading after another client can see older values.
     @Test
     public void laterReadsGetOlderValue() throws IOException {
-        List<QuorumKVStore> clusterNodes = startCluster(3);
+        List<QuorumKVStore> clusterNodes = startCluster(3, true);
         QuorumKVStore athens = clusterNodes.get(0);
         QuorumKVStore byzantium = clusterNodes.get(1);
         QuorumKVStore cyrene = clusterNodes.get(2);
@@ -202,7 +202,7 @@ public class QuorumReadWriteTest {
         return startCluster(clusterSize, false);
     }
 
-    private List<QuorumKVStore> startCluster(int clusterSize, boolean doSyncReadRepair) throws IOException {
+    private List<QuorumKVStore> startCluster(int clusterSize, boolean doAsyncRepair) throws IOException {
         List<QuorumKVStore> clusterNodes = new ArrayList<>();
         SystemClock clock = new SystemClock();
         List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
@@ -211,8 +211,8 @@ public class QuorumReadWriteTest {
         for (int i = 0; i < clusterSize; i++) {
             //public static void main(String[]args) {
             Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
-            if (doSyncReadRepair) {
-                config.setSynchronousReadRepair();
+            if (doAsyncRepair) {
+                config.setAsyncRepair();
             }
             QuorumKVStore replica = new QuorumKVStore(config, clock, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
             replica.start();

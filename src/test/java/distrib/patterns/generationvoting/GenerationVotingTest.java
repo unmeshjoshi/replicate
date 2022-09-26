@@ -1,8 +1,7 @@
-package distrib.patterns.generation;
+package distrib.patterns.generationvoting;
 
 import common.TestUtils;
 import distrib.patterns.common.JsonSerDes;
-import distrib.patterns.common.Replica;
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.InetAddressAndPort;

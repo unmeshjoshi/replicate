@@ -3,10 +3,10 @@ package quorum;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
-import distrib.patterns.quorum.QuorumKVStore;
 import distrib.patterns.quorum.StoredValue;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorum.messages.GetValueRequest;
+import distrib.patterns.quorum.messages.SetValueRequest;
+import distrib.patterns.quorum.messages.SetValueResponse;
 
 import java.io.IOException;
 import java.util.Random;
@@ -34,7 +34,7 @@ public class KVClient {
         if (setResponse.isError()) {
             return "Error";
         };
-        QuorumKVStore.SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), QuorumKVStore.SetValueResponse.class);
+        SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), SetValueResponse.class);
         return response.getResult();
     }
 

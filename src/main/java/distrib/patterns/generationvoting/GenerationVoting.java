@@ -1,4 +1,4 @@
-package distrib.patterns.generation;
+package distrib.patterns.generationvoting;
 
 //Two problems:
 //1. How to order requests. They can be conurrent or happening one after the other, with nodes failing or messages
@@ -43,7 +43,6 @@ package distrib.patterns.generation;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.paxos.PrepareResponse;
-import distrib.patterns.common.BlockingQuorumCallback;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,9 +54,9 @@ public class GenerationVoting extends Replica {
     public GenerationVoting(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         {
-            registerClientRequest(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
-            register(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
-            registerResponse(RequestId.Promise, PrepareResponse.class);
+            requestHandler(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
+            messageHandler(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
+            responseMessageHandler(RequestId.Promise, PrepareResponse.class);
         }
     }
 

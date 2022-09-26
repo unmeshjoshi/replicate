@@ -2,6 +2,8 @@ package distrib.patterns.quorumconsensus;
 
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.quorumconsensus.messages.GetValueResponse;
+import distrib.patterns.quorumconsensus.messages.VersionedSetValueRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,9 +16,9 @@ import java.util.stream.Collectors;
 class ReadRepairer {
     static Logger logger = LogManager.getLogger(ReadRepairer.class);
     private Replica replica;
-    private Map<InetAddressAndPort, QuorumKV.GetValueResponse> nodesToValues;
+    private Map<InetAddressAndPort, GetValueResponse> nodesToValues;
 
-    public ReadRepairer(Replica replica, Map<InetAddressAndPort, QuorumKV.GetValueResponse> nodesToValues) {
+    public ReadRepairer(Replica replica, Map<InetAddressAndPort, GetValueResponse> nodesToValues) {
         this.replica = replica;
         this.nodesToValues = nodesToValues;
     }

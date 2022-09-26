@@ -2,8 +2,7 @@ package distrib.patterns.quorum;
 
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorum.messages.*;
 import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,12 +35,16 @@ public class QuorumKVStore extends Replica {
         this.generation = incrementAndGetGeneration();
         this.clientState = new ClientState(clock);
 
-        register(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
-        register(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        registerResponse(RequestId.SetValueResponse, SetValueResponse.class);
-        registerResponse(RequestId.GetValueResponse, GetValueResponse.class);
-        registerClientRequest(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        registerClientRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        //handlesClientRequest sending peer message with response
+//        register(RequestId.VersionedSetValueRequest, VersionedSetValueRequest.class)
+//        .handledWith(this::handleSetValueRequest)
+//        .respondedWith(
+        messageHandler(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
+        messageHandler(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        responseMessageHandler(RequestId.SetValueResponse, SetValueResponse.class);
+        responseMessageHandler(RequestId.GetValueResponse, GetValueResponse.class);
+        requestHandler(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        requestHandler(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     ///t1 = clientState.getTimestamp()
@@ -65,7 +68,7 @@ public class QuorumKVStore extends Replica {
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
         sendRequestToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, request);
         return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
-            return new ReadRepairer(this, responses).readRepair();
+            return new ReadRepairer(this, responses, config.doAsyncReadRepair()).readRepair();
         });
     }
 
@@ -113,43 +116,11 @@ public class QuorumKVStore extends Replica {
         return generation;
     }
 
-    public static class GetValueResponse extends Request {
-        StoredValue value;
-        public GetValueResponse(StoredValue value) {
-            this();
-            this.value = value;
-        }
-
-        private GetValueResponse() {
-            super(RequestId.GetValueResponse);
-        }
-
-        public StoredValue getValue() {
-            return value;
-        }
-    }
-
 
     private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
         StoredValue storedValue = get(getValueRequest.getKey());
         logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue);
         return new GetValueResponse(storedValue);
-    }
-
-    public static class SetValueResponse extends Request {
-        String result;
-        public SetValueResponse(String result) {
-            this();
-            this.result = result;
-        }
-
-        private SetValueResponse() {
-            super(RequestId.SetValueResponse);
-        }
-
-        public String getResult() {
-            return result;
-        }
     }
 
     private SetValueResponse handleSetValueRequest(VersionedSetValueRequest setValueRequest) {

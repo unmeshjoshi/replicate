@@ -1,4 +1,4 @@
-package distrib.patterns.quorumconsensus;
+package distrib.patterns.quorumconsensus.messages;
 
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;

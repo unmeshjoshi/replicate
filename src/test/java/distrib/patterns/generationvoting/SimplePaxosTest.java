@@ -1,10 +1,8 @@
-package distrib.patterns.generation;
+package distrib.patterns.generationvoting;
 
-import distrib.patterns.paxos.WriteTimeoutException;
 import distrib.patterns.vsr.ClusterNode;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 

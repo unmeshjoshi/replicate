@@ -2,8 +2,7 @@ package distrib.patterns.quorumconsensus;
 
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorumconsensus.messages.*;
 import distrib.patterns.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,26 +15,24 @@ import java.util.stream.Collectors;
 
 public class QuorumKV extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKV.class);
-    private final ClientState clientState;
-    private boolean doSyncReadRepair;
 
     public QuorumKV(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
         super(config, clock,clientConnectionAddress, peerConnectionAddress, peers);
-        this.clientState = new ClientState(clock);
-        this.doSyncReadRepair = doSyncReadRepair;
         this.durableStore = new DurableKVStore(config);
+        //messagehandler(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class)
+        // .respondedWith(RequestId.GetVersionResponse, GetVersionResponse.class)
+        messageHandler(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
+        responseMessageHandler(RequestId.GetVersionResponse, GetVersionResponse.class);
 
-        register(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
-        registerResponse(RequestId.GetVersionResponse, GetVersionResponse.class);
-        register(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
-        registerResponse(RequestId.SetValueResponse, SetValueResponse.class);
-        register(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        registerResponse(RequestId.GetValueResponse, GetValueResponse.class);
+        messageHandler(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
+        responseMessageHandler(RequestId.SetValueResponse, SetValueResponse.class);
 
-        registerClientRequest(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        registerClientRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        messageHandler(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        responseMessageHandler(RequestId.GetValueResponse, GetValueResponse.class);
+
+        requestHandler(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        requestHandler(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
-
 
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
         var getVersion = new GetVersionRequest(clientSetValueRequest.getKey());
@@ -86,65 +83,15 @@ public class QuorumKV extends Replica {
                 });
     }
 
-
-    static class GetVersionResponse extends Request {
-        MonotonicId id;
-        public GetVersionResponse(MonotonicId id) {
-            super(RequestId.GetVersionResponse);
-            this.id = id;
-        }
-
-        //for jackson
-        private GetVersionResponse() {
-            super(RequestId.GetVersionResponse);
-        }
-
-        public MonotonicId getVersion() {
-            return id;
-        }
-    }
-
     private GetVersionResponse handleGetVersionRequest(GetVersionRequest getVersionRequest) {
         StoredValue storedValue = get(getVersionRequest.getKey());
         MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
         return new GetVersionResponse(version);
     }
 
-    public static class GetValueResponse extends Request {
-        StoredValue value;
-        public GetValueResponse(StoredValue value) {
-            this();
-            this.value = value;
-        }
-
-        private GetValueResponse() {
-            super(RequestId.GetValueResponse);
-        }
-
-        public StoredValue getValue() {
-            return value;
-        }
-    }
-
     private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
         StoredValue storedValue = get(getValueRequest.getKey());
         return new GetValueResponse(storedValue);
-    }
-
-    public static class SetValueResponse extends Request {
-        String result;
-        public SetValueResponse(String result) {
-            this();
-            this.result = result;
-        }
-
-        private SetValueResponse() {
-            super(RequestId.SetValueResponse);
-        }
-
-        public String getResult() {
-            return result;
-        }
     }
 
     private SetValueResponse handlePeerSetValueRequest(VersionedSetValueRequest setValueRequest) {

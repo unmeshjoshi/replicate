@@ -4,8 +4,8 @@ import common.TestUtils;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorum.messages.GetValueRequest;
+import distrib.patterns.quorum.messages.SetValueRequest;
 import org.junit.Test;
 
 import java.io.IOException;

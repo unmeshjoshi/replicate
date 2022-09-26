@@ -1,13 +1,13 @@
 package distrib.patterns.quorumconsensus;
 
 import distrib.patterns.common.JsonSerDes;
-import distrib.patterns.common.Replica;
 import distrib.patterns.common.RequestId;
 import distrib.patterns.common.RequestOrResponse;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorumconsensus.messages.GetValueRequest;
+import distrib.patterns.quorumconsensus.messages.SetValueRequest;
+import distrib.patterns.quorumconsensus.messages.SetValueResponse;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class KVClient {
         if (setResponse.isError()) {
             return "Error";
         };
-        QuorumKV.SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), QuorumKV.SetValueResponse.class);
+        SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), SetValueResponse.class);
         return response.getResult();
     }
 

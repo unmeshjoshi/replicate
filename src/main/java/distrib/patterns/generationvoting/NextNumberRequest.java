@@ -1,4 +1,4 @@
-package distrib.patterns.generation;
+package distrib.patterns.generationvoting;
 
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;

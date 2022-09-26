@@ -4,7 +4,6 @@ import distrib.patterns.common.Config;
 import distrib.patterns.common.Peer;
 import distrib.patterns.common.Replica;
 import distrib.patterns.common.SystemClock;
-import distrib.patterns.generation.GenerationVoting;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.Networks;
 

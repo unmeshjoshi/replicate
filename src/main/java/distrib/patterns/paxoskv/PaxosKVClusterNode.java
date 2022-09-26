@@ -10,8 +10,8 @@ import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.common.MonotonicId;
 import distrib.patterns.paxos.WriteTimeoutException;
-import distrib.patterns.requests.GetValueRequest;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorum.messages.GetValueRequest;
+import distrib.patterns.quorum.messages.SetValueRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

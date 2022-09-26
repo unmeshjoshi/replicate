@@ -1,28 +1,31 @@
-package distrib.patterns.quorumconsensus;
+package distrib.patterns.quorum.messages;
 
-import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
-public class VersionedSetValueRequest extends Request {
+public class SetValueRequest extends Request {
     private long clientId;
     private int requestNumber;
     private String key;
     private String value;
-    private MonotonicId version;
+    private long timestamp;
 
     //for jaxon
-    private VersionedSetValueRequest() {
+    private SetValueRequest() {
         super(RequestId.SetValueRequest);
     }
 
-    public VersionedSetValueRequest(String key, String value, long clientId, int requestNumber, MonotonicId version) {
-        super(RequestId.VersionedSetValueRequest);
+    public SetValueRequest(String key, String value, long clientId, int requestNumber, long timestamp) {
+        super(RequestId.SetValueRequest);
         this.key = key;
         this.value = value;
         this.clientId = clientId;
         this.requestNumber = requestNumber;
-        this.version = version;
+        this.timestamp = timestamp;
+    }
+
+    public SetValueRequest(String key, String value) {
+        this(key, value, -1, -1, -1);
     }
 
     public String getKey() {
@@ -41,8 +44,8 @@ public class VersionedSetValueRequest extends Request {
         return requestNumber;
     }
 
-    public MonotonicId getVersion() {
-        return version;
+    public long getTimestamp() {
+        return timestamp;
     }
 }
 

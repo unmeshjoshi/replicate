@@ -25,7 +25,7 @@ class Network {
         }
 
         if (shouldDelayMessagesTo(address)) {
-            sendAfterDelay(address, message, 5000);
+            sendAfterDelay(address, message, 1000);
             return;
         }
 

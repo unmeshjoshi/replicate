@@ -2,6 +2,8 @@ package distrib.patterns.quorum;
 
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.quorum.messages.GetValueResponse;
+import distrib.patterns.quorum.messages.VersionedSetValueRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,11 +17,12 @@ import java.util.stream.Collectors;
 class ReadRepairer {
     static Logger logger = LogManager.getLogger(ReadRepairer.class);
     private Replica replica;
-    private Map<InetAddressAndPort, QuorumKVStore.GetValueResponse> nodesToValues;
+    private Map<InetAddressAndPort, GetValueResponse> nodesToValues;
 
-    public ReadRepairer(Replica replica, Map<InetAddressAndPort, QuorumKVStore.GetValueResponse> nodesToValues) {
+    public ReadRepairer(Replica replica, Map<InetAddressAndPort, GetValueResponse> nodesToValues, boolean isAsyncRepair) {
         this.replica = replica;
         this.nodesToValues = nodesToValues;
+        this.isAsyncRepair = isAsyncRepair;
     }
 
     public CompletableFuture readRepair() {
@@ -27,22 +30,27 @@ class ReadRepairer {
         return readRepair(latestStoredValue);
     }
 
+    boolean isAsyncRepair;
+
     private CompletableFuture<StoredValue> readRepair(StoredValue latestStoredValue) {
         var nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.getTimestamp());
         if (nodesHavingStaleValues.isEmpty()) {
             return CompletableFuture.completedFuture(latestStoredValue);
         }
-
         var writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp());
         var requestCallback = new AsyncQuorumCallback<String>(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
             logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
             replica.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
-        return requestCallback.getQuorumFuture()
-                .thenApply((result) -> {
-                    return latestStoredValue;
-                });
+        if (isAsyncRepair) {
+            return CompletableFuture.completedFuture(latestStoredValue); //complete immidiately.
+        } else {
+            return requestCallback.getQuorumFuture()
+                    .thenApply((result) -> {
+                        return latestStoredValue;
+                    });
+        }
     }
 
     int requestId = new Random().nextInt();

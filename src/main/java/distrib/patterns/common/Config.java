@@ -17,7 +17,7 @@ public class Config {
     private long heartBeatIntervalMs = 100;
     private long followerTimeoutMs = 5000l;
     private boolean supportLogGroup = false;
-    private boolean doSyncReadRepair = false;
+    private boolean doAsyncRepair = false;
 
     public Config(String walDir) {
         this.walDir = walDir;
@@ -144,11 +144,11 @@ public class Config {
 
     }
 
-    public void setSynchronousReadRepair() {
-        this.doSyncReadRepair = true;
+    public void setAsyncRepair() {
+        this.doAsyncRepair = true;
     }
 
-    public boolean doSyncReadRepair() {
-        return doSyncReadRepair;
+    public boolean doAsyncReadRepair() {
+        return doAsyncRepair;
     }
 }

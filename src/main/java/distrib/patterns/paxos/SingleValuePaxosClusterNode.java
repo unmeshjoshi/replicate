@@ -8,7 +8,7 @@ import distrib.patterns.net.SocketClient;
 import distrib.patterns.net.SocketListener;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
-import distrib.patterns.requests.SetValueRequest;
+import distrib.patterns.quorum.messages.SetValueRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
