@@ -9,10 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -86,6 +83,22 @@ public abstract class Replica {
     public void sendRequestToReplica(RequestCallback callback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
         requestWaitingList.add(request.getCorrelationId(), callback);
         send(replicaAddress, request);
+    }
+
+
+    public <T> List<RequestOrResponse> blockingSendToReplicas(RequestId requestId, T requestToReplicas) {
+        List<RequestOrResponse> responses = new ArrayList<>();
+        for (InetAddressAndPort replica : peerAddresses) {
+            int correlationId = nextRequestId();
+            RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
+            try {
+                RequestOrResponse response = network.sendRequestResponse(replica, request);
+                responses.add(response);
+            } catch (IOException e) {
+                logger.error(e);
+            }
+        }
+        return responses;
     }
 
     //handles messages sent by peers in the cluster in message passing style.

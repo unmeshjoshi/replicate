@@ -16,7 +16,7 @@ import static org.junit.Assert.assertEquals;
 public class QuorumConsensusKVStoreTest {
 
     @Test
-    public void setsVersionWithKey() throws IOException {
+    public void readRepair() throws IOException {
         List<QuorumKV> kvStores = startCluster(3);
         QuorumKV athens = kvStores.get(0);
         QuorumKV byzantium = kvStores.get(1);
@@ -41,6 +41,45 @@ public class QuorumConsensusKVStoreTest {
         assertEquals("Microservices", title);
 
         assertEquals(new MonotonicId(1, 1),  byzantium.getVersion("title"));
+    }
+
+    @Test
+    public void compareAndSwapIsSuccessfulForOldAndNewValues() throws IOException {
+        List<QuorumKV> kvStores = startCluster(3);
+        QuorumKV athens = kvStores.get(0);
+        QuorumKV byzantium = kvStores.get(1);
+        QuorumKV cyrene = kvStores.get(2);
+
+        athens.dropMessagesToAfter(byzantium, 1);
+        athens.dropMessagesTo(cyrene);
+
+        KVClient kvClient = new KVClient();
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nitroservices");
+        assertEquals("Error", response);
+        //quorum responses not received as messages to byzantium and cyrene fail.
+
+        assertEquals(new MonotonicId(1, 1), athens.getVersion("title"));
+        assertEquals(new MonotonicId(-1, -1), byzantium.getVersion("title"));
+        assertEquals(new MonotonicId(-1, -1), cyrene.getVersion("title"));
+
+        KVClient alice = new KVClient();
+        //cyrene should be able to connect with itself and byzantium.
+        String aliceValue = alice.getValue(cyrene.getClientConnectionAddress(), "title");
+
+        KVClient bob = new KVClient();
+        athens.reconnectTo(cyrene);
+        athens.reconnectTo(byzantium);
+        InetAddressAndPort address = athens.getClientConnectionAddress();
+        String bobValue = bob.getValue(address, "title");
+        if (bobValue.equals("Microservices")) {
+            kvClient.setValue(address, "title", "Distributed Systems");
+        }
+
+        if (aliceValue.equals("")) {
+            alice.setValue(cyrene.getClientConnectionAddress(), "title", "Nitroservices");
+        }
+        response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
+        assertEquals("Distributed Systems", response);
     }
 
 

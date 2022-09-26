@@ -86,6 +86,24 @@ public class GenerationVoting extends Replica {
         }
     }
 
+    CompletableFuture<Integer> handleNextNumberRequestRequestResponse(NextNumberRequest request) {
+        int proposedNumber = 1;
+        while(true) {
+            PrepareRequest nr = new PrepareRequest(proposedNumber);
+            List<RequestOrResponse> responses = blockingSendToReplicas(RequestId.PrepareRequest, nr);
+            if (isQuorumPrepared(responses)) {
+                //TODO:Consider using blocking methods for ease of understanding.
+                return CompletableFuture.completedFuture(proposedNumber);
+            }
+            proposedNumber = proposedNumber + 1;//try next number
+        }
+    }
+
+    private boolean isQuorumPrepared(List<RequestOrResponse> responses) {
+        return responses.stream().map(r -> JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class))
+                .filter(p -> p.isPromised()).count() >= (getNoOfReplicas() / 2 + 1);
+    }
+
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
         PrepareResponse response;
         if (generation > nextNumberRequest.getNumber()) {

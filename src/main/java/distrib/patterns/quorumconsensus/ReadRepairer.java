@@ -30,6 +30,9 @@ class ReadRepairer {
 
     private CompletableFuture<StoredValue> readRepair(StoredValue latestStoredValue) {
         var nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.getVersion());
+        if (nodesHavingStaleValues.isEmpty()) {
+            return CompletableFuture.completedFuture(latestStoredValue);
+        }
         var writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getVersion());
         var requestCallback = new AsyncQuorumCallback<String>(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {

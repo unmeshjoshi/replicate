@@ -21,6 +21,7 @@ class Network {
     ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
     public void sendOneWay(InetAddressAndPort address, RequestOrResponse message) throws IOException {
         if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
+            removeExistingConnections(address);
             return;
         }
 
@@ -30,6 +31,26 @@ class Network {
         }
 
         sendMessage(address, message);
+    }
+
+    private void removeExistingConnections(InetAddressAndPort address) {
+        SocketClient socketClient = connectionPool.remove(address);
+        if (socketClient != null) {
+            socketClient.close();
+        }
+    }
+
+    public RequestOrResponse sendRequestResponse(InetAddressAndPort address, RequestOrResponse message) throws IOException {
+        if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
+            return message;
+        }
+
+        if (shouldDelayMessagesTo(address)) {
+            sendAfterDelay(address, message, 1000);
+            return message;
+        }
+
+        return sendAndReceive(address, message);
     }
 
     private void sendAfterDelay(InetAddressAndPort address, RequestOrResponse message, int delay) {
@@ -62,6 +83,17 @@ class Network {
             integer = 0;
         }
         noOfMessages.put(address, integer + 1);
+    }
+
+    private RequestOrResponse sendAndReceive(InetAddressAndPort address, RequestOrResponse message) throws IOException {
+        SocketClient socketClient = getOrCreateConnection(address);
+        RequestOrResponse response = socketClient.blockingSend(message);
+        Integer integer = noOfMessages.get(address);
+        if (integer == null) {
+            integer = 0;
+        }
+        noOfMessages.put(address, integer + 1);
+        return response;
     }
 
     private synchronized SocketClient getOrCreateConnection(InetAddressAndPort address) throws IOException {
