@@ -46,6 +46,7 @@ public abstract class Replica {
         this.peerConnectionAddress = peerConnectionAddress;
         this.peerListener = new NIOSocketListener(this::handlePeerMessage, peerConnectionAddress);
         this.clientListener = new NIOSocketListener(this::handleClientRequest, clientConnectionAddress);
+        this.registerHandlers();
     }
 
     public void start() {
@@ -86,13 +87,14 @@ public abstract class Replica {
     }
 
 
-    public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas, Class<Res> responseClass) {
+    public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas) {
         List<Res> responses = new ArrayList<>();
         for (InetAddressAndPort replica : peerAddresses) {
             int correlationId = nextRequestId();
             RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
             try {
                 RequestOrResponse response = network.sendRequestResponse(replica, request);
+                Class<Res> responseClass = responseClasses.get(RequestId.valueOf(response.getRequestId()));
                 Res res = JsonSerDes.deserialize(response.getMessageBodyJson(), responseClass);
                 responses.add(res);
             } catch (IOException e) {
@@ -123,7 +125,7 @@ public abstract class Replica {
     //This is async message-passing communication.
     //The sender does not expect a response to the request on the same connection.
     //deserialize.andThen(handler.apply).andThen(sendResponseToPeer)
-    public <Req extends Request, Res extends Request> Replica messageHandler(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
+    public <Req extends Request, Res extends Request> Replica handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
         requestMap.put(requestId, (message)->{
@@ -139,7 +141,7 @@ public abstract class Replica {
     //Sends response from the handler to the sender.
     //This is request-response  communication or rpc.
     //The sender expects a response to the request on the same connection.
-    public <T  extends Request, Res> void requestHandler(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
+    public <T  extends Request, Res> void handlesRequestAsync(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleAsync = asyncWrapHandler(handler);
         requestMap.put(requestId, (message)-> {
@@ -150,7 +152,8 @@ public abstract class Replica {
         });
     }
 
-    public <T  extends Request, Res extends Request> void syncRequestHandler(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
+    private Map<RequestId, Class> responseClasses = new HashMap();
+    public <T  extends Request, Res extends Request> Replica handlesRequestSync(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleSync = wrapHandler(handler);
         requestMap.put(requestId, (message)-> {
@@ -159,11 +162,16 @@ public abstract class Replica {
                     .andThen(syncRespondToSender)
                     .apply(message);
         });
+        return this;
+    }
+
+    public void respondsWith(RequestId id, Class clazz) {
+        responseClasses.put(id, clazz);
     }
 
     //Configures a handler to process a message from the peer in response to the message this peer has sent.
     //@see responseHandler and sendRequestToReplicas
-    public <T extends Request> void responseMessageHandler(RequestId requestId, Class<T> responseClass) {
+    public <T extends Request> void expectsResponseMessage(RequestId requestId, Class<T> responseClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserializer = createDeserializer(responseClass);
         requestMap.put(requestId, (message) -> {
             deserializer.andThen(responseHandler).apply(message);
@@ -184,7 +192,7 @@ public abstract class Replica {
         RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
         var correlationId = request.getCorrelationId();
         ClientConnection clientConnection = message.getClientConnection();
-        clientConnection.write(new RequestOrResponse(request.getRequestId(),
+        clientConnection.write(new RequestOrResponse(response.getRequestId().getId(),
                                                 serialize(response), correlationId));
         return null;
     };
@@ -279,4 +287,6 @@ public abstract class Replica {
     private <Req extends Request> Req deserialize(Class<Req> requestClass, RequestOrResponse request) {
         return JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
     }
+
+    protected abstract void registerHandlers();
 }

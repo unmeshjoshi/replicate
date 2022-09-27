@@ -1,8 +1,10 @@
 package distrib.patterns.twophasecommit;
 
-import distrib.patterns.common.*;
+import distrib.patterns.common.Config;
+import distrib.patterns.common.Replica;
+import distrib.patterns.common.RequestId;
+import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.paxos.ProposalResponse;
 import distrib.patterns.wal.Command;
 import distrib.patterns.wal.DurableKVStore;
 
@@ -10,18 +12,23 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 public class TwoPhaseCommit extends Replica {
     Command acceptedCommand;
     DurableKVStore kvStore;
     public TwoPhaseCommit(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
-
         this.kvStore = new DurableKVStore(config);
-        syncRequestHandler(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class);
-        syncRequestHandler(RequestId.Commit, this::handleCommit, CommitCommandRequest.class);
-        syncRequestHandler(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class);
+    }
+
+    @Override
+    protected void registerHandlers() {
+        handlesRequestSync(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class)
+                .respondsWith(RequestId.ProposeResponse, ProposeResponse.class);
+        handlesRequestSync(RequestId.Commit, this::handleCommit, CommitCommandRequest.class)
+                .respondsWith(RequestId.CommitResponse, CommitCommandResponse.class);
+        handlesRequestSync(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class)
+                .respondsWith(RequestId.ExcuteCommandResponse, ExecuteCommandResponse.class);
     }
 
     private CommitCommandResponse handleCommit(CommitCommandRequest t) {
@@ -45,7 +52,7 @@ public class TwoPhaseCommit extends Replica {
 
     private ExecuteCommandResponse handleExecute(ExecuteCommandRequest t) {
         ProposeRequest proposal = new ProposeRequest(getCommand(t.getCommand()));
-        List<ProposeResponse> proposalResponses = blockingSendToReplicas(proposal.getRequestId(), proposal, ProposeResponse.class);
+        List<ProposeResponse> proposalResponses = blockingSendToReplicas(proposal.getRequestId(), proposal);
         if (proposalResponses.stream().filter(r -> r.isAccepted()).count() >= quorum()) {
             CommitCommandResponse c = sendCommitRequest(new CommitCommandRequest(getCommand(t.getCommand())));
             return new ExecuteCommandResponse(c.getResponse(), c.isCommitted());
@@ -54,7 +61,7 @@ public class TwoPhaseCommit extends Replica {
     }
 
     private CommitCommandResponse sendCommitRequest(CommitCommandRequest r) {
-        List<CommitCommandResponse> proposalResponses = blockingSendToReplicas(r.getRequestId(), r, CommitCommandResponse.class);
+        List<CommitCommandResponse> proposalResponses = blockingSendToReplicas(r.getRequestId(), r);
         return proposalResponses.get(0);
     }
 

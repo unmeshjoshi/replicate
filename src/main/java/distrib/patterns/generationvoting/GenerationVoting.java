@@ -53,11 +53,14 @@ public class GenerationVoting extends Replica {
 
     public GenerationVoting(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
-        {
-            requestHandler(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
-            messageHandler(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
-            responseMessageHandler(RequestId.Promise, PrepareResponse.class);
-        }
+
+    }
+
+    @Override
+    protected void registerHandlers() {
+       handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
+       handlesMessage(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
+       expectsResponseMessage(RequestId.Promise, PrepareResponse.class);
     }
 
     class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {

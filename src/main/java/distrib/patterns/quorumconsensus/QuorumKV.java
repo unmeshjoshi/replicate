@@ -19,19 +19,23 @@ public class QuorumKV extends Replica {
     public QuorumKV(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
         super(config, clock,clientConnectionAddress, peerConnectionAddress, peers);
         this.durableStore = new DurableKVStore(config);
-        //messagehandler(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class)
-        // .respondedWith(RequestId.GetVersionResponse, GetVersionResponse.class)
-        messageHandler(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
-        responseMessageHandler(RequestId.GetVersionResponse, GetVersionResponse.class);
 
-        messageHandler(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
-        responseMessageHandler(RequestId.SetValueResponse, SetValueResponse.class);
+    }
 
-        messageHandler(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        responseMessageHandler(RequestId.GetValueResponse, GetValueResponse.class);
 
-        requestHandler(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        requestHandler(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+    @Override
+    protected void registerHandlers() {
+        handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class)
+                .expectsResponseMessage(RequestId.GetVersionResponse, GetVersionResponse.class);
+
+        handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class)
+                .expectsResponseMessage(RequestId.SetValueResponse, SetValueResponse.class);
+
+        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
+                .expectsResponseMessage(RequestId.GetValueResponse, GetValueResponse.class);
+
+        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
@@ -123,4 +127,5 @@ public class QuorumKV extends Replica {
         }
         return storedValue.getVersion();
     }
+
 }

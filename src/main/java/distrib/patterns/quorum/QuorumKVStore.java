@@ -34,17 +34,17 @@ public class QuorumKVStore extends Replica {
         this.durableStore = new DurableKVStore(config);
         this.generation = incrementAndGetGeneration();
         this.clientState = new ClientState(clock);
+    }
 
-        //handlesClientRequest sending peer message with response
-//        register(RequestId.VersionedSetValueRequest, VersionedSetValueRequest.class)
-//        .handledWith(this::handleSetValueRequest)
-//        .respondedWith(
-        messageHandler(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
-        messageHandler(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        responseMessageHandler(RequestId.SetValueResponse, SetValueResponse.class);
-        responseMessageHandler(RequestId.GetValueResponse, GetValueResponse.class);
-        requestHandler(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        requestHandler(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+    @Override
+    protected void registerHandlers() {
+        handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class)
+                .expectsResponseMessage(RequestId.SetValueResponse, SetValueResponse.class);
+        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
+                .expectsResponseMessage(RequestId.GetValueResponse, GetValueResponse.class);
+
+        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     ///t1 = clientState.getTimestamp()
