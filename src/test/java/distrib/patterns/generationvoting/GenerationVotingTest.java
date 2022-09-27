@@ -1,11 +1,7 @@
 package distrib.patterns.generationvoting;
 
 import common.TestUtils;
-import distrib.patterns.common.JsonSerDes;
-import distrib.patterns.common.Request;
-import distrib.patterns.common.RequestOrResponse;
-import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.SocketClient;
+import distrib.patterns.common.NetworkClient;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -14,22 +10,6 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 public class GenerationVotingTest {
-
-    private static class NetworkClient<T> {
-        Class<T> responseClass;
-
-        public NetworkClient(Class<T> responseClass) {
-            this.responseClass = responseClass;
-        }
-
-        public T send(Request request, InetAddressAndPort address) throws IOException {
-            SocketClient<Object> client = new SocketClient<>(address);
-            RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
-                        JsonSerDes.serialize(request)));
-            T response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
-            return response;
-        }
-    }
 
     @Test
     public void generateMonotonicNumbersWithQuorumVoting() throws IOException {

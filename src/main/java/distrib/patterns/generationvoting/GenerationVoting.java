@@ -1,7 +1,7 @@
 package distrib.patterns.generationvoting;
 
 //Two problems:
-//1. How to order requests. They can be conurrent or happening one after the other, with nodes failing or messages
+//1. How to order requests. They can be concurrent or happening one after the other, with nodes failing or messages
 // getting lost.
 // solution: Assign a unique number to each request. To maintain the uniqueness ask the quorum to check if
 // they have seen a higher value. If yes, then pick up a next value and repeat. When quorum of servers
@@ -84,24 +84,6 @@ public class GenerationVoting extends Replica {
             }
             proposedNumber = proposedNumber + 1;//try next number
         }
-    }
-
-    CompletableFuture<Integer> handleNextNumberRequestRequestResponse(NextNumberRequest request) {
-        int proposedNumber = 1;
-        while(true) {
-            PrepareRequest nr = new PrepareRequest(proposedNumber);
-            List<RequestOrResponse> responses = blockingSendToReplicas(RequestId.PrepareRequest, nr);
-            if (isQuorumPrepared(responses)) {
-                //TODO:Consider using blocking methods for ease of understanding.
-                return CompletableFuture.completedFuture(proposedNumber);
-            }
-            proposedNumber = proposedNumber + 1;//try next number
-        }
-    }
-
-    private boolean isQuorumPrepared(List<RequestOrResponse> responses) {
-        return responses.stream().map(r -> JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class))
-                .filter(p -> p.isPromised()).count() >= (getNoOfReplicas() / 2 + 1);
     }
 
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {

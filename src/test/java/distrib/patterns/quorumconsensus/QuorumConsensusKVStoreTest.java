@@ -44,7 +44,7 @@ public class QuorumConsensusKVStoreTest {
     }
 
     @Test
-    public void compareAndSwapIsSuccessfulForOldAndNewValues() throws IOException {
+    public void compareAndSwapIsSuccessfulForTwoConcurrentClients() throws IOException {
         List<QuorumKV> kvStores = startCluster(3);
         QuorumKV athens = kvStores.get(0);
         QuorumKV byzantium = kvStores.get(1);
@@ -63,21 +63,31 @@ public class QuorumConsensusKVStoreTest {
         assertEquals(new MonotonicId(-1, -1), cyrene.getVersion("title"));
 
         KVClient alice = new KVClient();
+
         //cyrene should be able to connect with itself and byzantium.
+        //both cyrene and byzantium have empty value.
+        //Alice starts the compareAndSwap
+        //Alice reads the value.
         String aliceValue = alice.getValue(cyrene.getClientConnectionAddress(), "title");
 
+        //meanwhile bob starts compareAndSwap as well
+        //Bob connects to athens, which is now able to connect to cyrene and byzantium
         KVClient bob = new KVClient();
         athens.reconnectTo(cyrene);
         athens.reconnectTo(byzantium);
-        InetAddressAndPort address = athens.getClientConnectionAddress();
-        String bobValue = bob.getValue(address, "title");
+        String bobValue = bob.getValue(athens.getClientConnectionAddress(), "title");
         if (bobValue.equals("Microservices")) {
-            kvClient.setValue(address, "title", "Distributed Systems");
+            kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
         }
+        //Bob successfully completes compareAndSwap
 
+        //Alice checks the value to be empty.
         if (aliceValue.equals("")) {
             alice.setValue(cyrene.getClientConnectionAddress(), "title", "Nitroservices");
         }
+        //Alice successfully completes compareAndSwap
+
+        //Bob is surprised to read the different value after his compareAndSwap was successful.
         response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Distributed Systems", response);
     }

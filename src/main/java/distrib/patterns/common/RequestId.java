@@ -51,7 +51,7 @@ public enum RequestId {
     NextNumberRequest(44),
     NextNumberResponse(45),
     VersionedSetValueRequest(46),
-    VersionedGetValueRequest(47);
+    VersionedGetValueRequest(47), ExcuteCommandRequest(48), ExcuteCommandResponse(49);
 
     public static RequestId valueOf(Integer id) {
         return map.get(id);

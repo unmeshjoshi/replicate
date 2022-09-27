@@ -1,12 +1,15 @@
 package distrib.patterns.wal;
 
 
+import distrib.patterns.twophasecommit.CompareAndSwap;
+
 import java.io.*;
 
 public abstract class Command {
     public static final int NO_CLIENT_ID = -1;
     public static int SetValueType = 1;
     protected static final int CompositeCommandType = 16;
+    protected static final int CasCommandType = 17;
 
 
     long clientId = -1;
@@ -56,6 +59,9 @@ public abstract class Command {
               return SetValueCommand.deserialize(daos).withClientId(clientId).withRequestNumber(requestNumber);
           } else if (commandType == CompositeCommandType) {
               return CompositeCommand.deserialize(daos.readAllBytes());
+          }
+          else if (commandType == CasCommandType) {
+            return CompareAndSwap.deserialize(daos.readAllBytes());
 
           } else throw new IllegalArgumentException("Unknown commandType " + commandType);
       } catch (Exception e) {

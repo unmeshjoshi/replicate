@@ -86,14 +86,15 @@ public abstract class Replica {
     }
 
 
-    public <T> List<RequestOrResponse> blockingSendToReplicas(RequestId requestId, T requestToReplicas) {
-        List<RequestOrResponse> responses = new ArrayList<>();
+    public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas, Class<Res> responseClass) {
+        List<Res> responses = new ArrayList<>();
         for (InetAddressAndPort replica : peerAddresses) {
             int correlationId = nextRequestId();
             RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
             try {
                 RequestOrResponse response = network.sendRequestResponse(replica, request);
-                responses.add(response);
+                Res res = JsonSerDes.deserialize(response.getMessageBodyJson(), responseClass);
+                responses.add(res);
             } catch (IOException e) {
                 logger.error(e);
             }
@@ -126,7 +127,10 @@ public abstract class Replica {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
         requestMap.put(requestId, (message)->{
-            deserialize.andThen(applyHandler).andThen(sendMessageToSender).apply(message);
+            deserialize
+                    .andThen(applyHandler)
+                    .andThen(sendMessageToSender)
+                    .apply(message);
         });
         return this;
     }
@@ -136,10 +140,24 @@ public abstract class Replica {
     //This is request-response  communication or rpc.
     //The sender expects a response to the request on the same connection.
     public <T  extends Request, Res> void requestHandler(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
-        Function<Message<RequestOrResponse>, Stage<T>> deserializer = createDeserializer(requestClass);
-        var asyncHandler = asyncWrapHandler(handler);
+        Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
+        var handleAsync = asyncWrapHandler(handler);
         requestMap.put(requestId, (message)-> {
-            deserializer.andThen(asyncHandler).andThen(respondToSender).apply(message);
+            deserialize
+                    .andThen(handleAsync)
+                    .andThen(asyncRespondToSender)
+                    .apply(message);
+        });
+    }
+
+    public <T  extends Request, Res extends Request> void syncRequestHandler(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
+        Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
+        var handleSync = wrapHandler(handler);
+        requestMap.put(requestId, (message)-> {
+            deserialize
+                    .andThen(handleSync)
+                    .andThen(syncRespondToSender)
+                    .apply(message);
         });
     }
 
@@ -159,7 +177,19 @@ public abstract class Replica {
         return null;
     };
 
-    Function<AsyncStage, Void> respondToSender = (stage) -> {
+
+    Function<Stage, Void> syncRespondToSender = (stage) -> {
+        var response = stage.getRequest();
+        Message<RequestOrResponse> message = stage.getMessage();
+        RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
+        var correlationId = request.getCorrelationId();
+        ClientConnection clientConnection = message.getClientConnection();
+        clientConnection.write(new RequestOrResponse(request.getRequestId(),
+                                                serialize(response), correlationId));
+        return null;
+    };
+
+    Function<AsyncStage, Void> asyncRespondToSender = (stage) -> {
         var response = stage.getRequest();
         Message<RequestOrResponse> message = stage.getMessage();
         RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
