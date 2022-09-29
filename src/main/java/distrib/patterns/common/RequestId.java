@@ -41,7 +41,7 @@ public enum RequestId {
     PrepareRequest(34),
     Promise(35),
     Propose(36),
-    Commit(37),
+    CommitRequest(37),
     ProposeResponse(38),
     CommitResponse(39),
     FullPaxosLogPrepare(40),

@@ -5,12 +5,13 @@ import distrib.patterns.common.RequestOrResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-public class SocketClient<T> {
+public class SocketClient<T> implements Closeable {
     private static Logger logger = LogManager.getLogger(SocketClient.class.getName());
 
     Socket clientSocket;

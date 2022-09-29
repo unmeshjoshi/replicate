@@ -16,6 +16,6 @@ public class CommitCommandRequest extends Request {
     }
 
     private CommitCommandRequest() {
-        super(RequestId.Commit);
+        super(RequestId.CommitRequest);
     }
 }

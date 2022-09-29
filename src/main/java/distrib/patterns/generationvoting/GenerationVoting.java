@@ -59,8 +59,8 @@ public class GenerationVoting extends Replica {
     @Override
     protected void registerHandlers() {
        handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
-       handlesMessage(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class);
-       expectsResponseMessage(RequestId.Promise, PrepareResponse.class);
+       handlesMessage(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class)
+               .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
     }
 
     class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {

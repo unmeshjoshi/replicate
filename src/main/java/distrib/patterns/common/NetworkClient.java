@@ -13,10 +13,11 @@ public class NetworkClient<T> {
     }
 
     public T send(Request request, InetAddressAndPort address) throws IOException {
-        SocketClient<Object> client = new SocketClient<>(address);
-        RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
-                JsonSerDes.serialize(request)));
-        T response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
-        return response;
+        try(SocketClient<Object> client = new SocketClient<>(address)){
+            RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
+                    JsonSerDes.serialize(request)));
+            T response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
+            return response;
+        }
     }
 }

@@ -146,7 +146,7 @@ public class PaxosKVClusterNode {
             requestWaitingList.add(correlationId, commitCallback);
             try {
                 SocketClient client = new SocketClient(replica);
-                RequestOrResponse message = new RequestOrResponse(RequestId.Commit.getId(), JsonSerDes.serialize(new CommitRequest(key, value, monotonicId)), correlationId, peerConnectionAddress);
+                RequestOrResponse message = new RequestOrResponse(RequestId.CommitRequest.getId(), JsonSerDes.serialize(new CommitRequest(key, value, monotonicId)), correlationId, peerConnectionAddress);
                 client.sendOneway(message);
             } catch (IOException e) {
                 requestWaitingList.handleError(correlationId, e);
@@ -253,7 +253,7 @@ public class PaxosKVClusterNode {
         } else if (requestOrResponse.getRequestId() == RequestId.ProposeResponse.getId()) {
             requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
 
-        } else if (requestOrResponse.getRequestId() == RequestId.Commit.getId()) {
+        } else if (requestOrResponse.getRequestId() == RequestId.CommitRequest.getId()) {
             handlePaxosCommit(requestOrResponse.getCorrelationId(), requestOrResponse);
         }
     }

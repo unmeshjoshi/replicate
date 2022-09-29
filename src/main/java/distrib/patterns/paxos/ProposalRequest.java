@@ -1,12 +1,15 @@
 package distrib.patterns.paxos;
 
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
 
-public class ProposalRequest {
+public class ProposalRequest extends Request {
     private MonotonicId monotonicId;
     private String proposedValue;
 
     public ProposalRequest(MonotonicId monotonicId, String proposedValue) {
+        this();
         this.monotonicId = monotonicId;
         this.proposedValue = proposedValue;
     }
@@ -20,6 +23,6 @@ public class ProposalRequest {
     }
     //for jackson
     private ProposalRequest() {
-
+        super(RequestId.ProposeRequest);
     }
 }

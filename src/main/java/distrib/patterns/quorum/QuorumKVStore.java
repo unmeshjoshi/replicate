@@ -39,9 +39,9 @@ public class QuorumKVStore extends Replica {
     @Override
     protected void registerHandlers() {
         handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class)
-                .expectsResponseMessage(RequestId.SetValueResponse, SetValueResponse.class);
+                .respondsWithMessage(RequestId.SetValueResponse, SetValueResponse.class);
         handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
-                .expectsResponseMessage(RequestId.GetValueResponse, GetValueResponse.class);
+                .respondsWithMessage(RequestId.GetValueResponse, GetValueResponse.class);
 
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);

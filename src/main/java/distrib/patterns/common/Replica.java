@@ -125,7 +125,7 @@ public abstract class Replica {
     //This is async message-passing communication.
     //The sender does not expect a response to the request on the same connection.
     //deserialize.andThen(handler.apply).andThen(sendResponseToPeer)
-    public <Req extends Request, Res extends Request> Replica handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
+    public <Req extends Request, Res extends Request> Builder<Res> handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
         requestMap.put(requestId, (message)->{
@@ -134,7 +134,21 @@ public abstract class Replica {
                     .andThen(sendMessageToSender)
                     .apply(message);
         });
-        return this;
+        return new Builder<Res>();
+    }
+
+    public class SyncBuilder<T extends Request> {
+        public Replica respondsWith(RequestId requestId, Class<T> responseClass) {
+            Replica.this.respondsWith(requestId, responseClass);
+            return Replica.this;
+        }
+    }
+
+    public class Builder<T extends Request> {
+         public Replica respondsWithMessage(RequestId requestId, Class<T> responseClass) {
+            Replica.this.respondsWithMessage(requestId, responseClass);
+            return Replica.this;
+        }
     }
 
     //Configures a handler to process a given request.
@@ -153,7 +167,7 @@ public abstract class Replica {
     }
 
     private Map<RequestId, Class> responseClasses = new HashMap();
-    public <T  extends Request, Res extends Request> Replica handlesRequestSync(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
+    public <T  extends Request, Res extends Request> SyncBuilder<Res> handlesRequest(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleSync = wrapHandler(handler);
         requestMap.put(requestId, (message)-> {
@@ -162,7 +176,7 @@ public abstract class Replica {
                     .andThen(syncRespondToSender)
                     .apply(message);
         });
-        return this;
+        return new SyncBuilder<Res>();
     }
 
     public void respondsWith(RequestId id, Class clazz) {
@@ -171,7 +185,7 @@ public abstract class Replica {
 
     //Configures a handler to process a message from the peer in response to the message this peer has sent.
     //@see responseHandler and sendRequestToReplicas
-    public <T extends Request> void expectsResponseMessage(RequestId requestId, Class<T> responseClass) {
+    private <T extends Request> void respondsWithMessage(RequestId requestId, Class<T> responseClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserializer = createDeserializer(responseClass);
         requestMap.put(requestId, (message) -> {
             deserializer.andThen(responseHandler).apply(message);
@@ -289,4 +303,9 @@ public abstract class Replica {
     }
 
     protected abstract void registerHandlers();
+
+    public void shutdown() {
+        peerListener.shudown();
+        clientListener.shudown();
+    }
 }

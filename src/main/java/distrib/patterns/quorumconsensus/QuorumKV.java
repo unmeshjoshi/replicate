@@ -19,20 +19,18 @@ public class QuorumKV extends Replica {
     public QuorumKV(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
         super(config, clock,clientConnectionAddress, peerConnectionAddress, peers);
         this.durableStore = new DurableKVStore(config);
-
     }
-
 
     @Override
     protected void registerHandlers() {
         handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class)
-                .expectsResponseMessage(RequestId.GetVersionResponse, GetVersionResponse.class);
+                .respondsWithMessage(RequestId.GetVersionResponse, GetVersionResponse.class);
 
         handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class)
-                .expectsResponseMessage(RequestId.SetValueResponse, SetValueResponse.class);
+                .respondsWithMessage(RequestId.SetValueResponse, SetValueResponse.class);
 
         handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
-                .expectsResponseMessage(RequestId.GetValueResponse, GetValueResponse.class);
+                .respondsWithMessage(RequestId.GetValueResponse, GetValueResponse.class);
 
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);

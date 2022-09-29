@@ -42,12 +42,12 @@ class Network {
 
     public RequestOrResponse sendRequestResponse(InetAddressAndPort address, RequestOrResponse message) throws IOException {
         if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
-            return null;
+            throw new IOException("Unable to connect to " + address);
         }
 
         if (shouldDelayMessagesTo(address)) {
             sendAfterDelay(address, message, 1000);
-            return null;
+            throw new IOException("Request to " + address + " timed out");
         }
 
         return sendAndReceive(address, message);

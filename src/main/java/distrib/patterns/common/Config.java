@@ -151,4 +151,8 @@ public class Config {
     public boolean doAsyncReadRepair() {
         return doAsyncRepair;
     }
+
+    public void setServerId(Integer serverId) {
+        this.serverId = serverId;
+    }
 }

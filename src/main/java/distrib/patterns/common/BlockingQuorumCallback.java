@@ -16,7 +16,7 @@ public class BlockingQuorumCallback<T> implements RequestCallback<T> {
     protected final int quorum;
     private final int totalResponses;
     List<Exception> exceptions = new ArrayList<>();
-    Map<InetAddressAndPort, T> responses = new ConcurrentHashMap<>();
+    protected Map<InetAddressAndPort, T> responses = new ConcurrentHashMap<>();
     CountDownLatch latch;
 
     public BlockingQuorumCallback(int totalResponses) {

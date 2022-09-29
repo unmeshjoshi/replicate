@@ -2,9 +2,11 @@ package quorum;
 
 import common.TestUtils;
 import distrib.patterns.common.Config;
+import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.quorum.QuorumKVStore;
+import distrib.patterns.quorum.StoredValue;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -14,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class QuorumReadWriteTest {
     //Read Your Own Writes should give the same value written by me or a later value.
@@ -196,6 +198,57 @@ public class QuorumReadWriteTest {
                 return false;
             }
         }, "Waiting for read-repair to complete", Duration.ofSeconds(5));
+    }
+
+    //Incomplete write requests cause two different clients to see different values
+    //depending on which nodes they connect to.
+    @Test
+    public void compareAndSwapIsSuccessfulForTwoConcurrentClients() throws IOException {
+        List<QuorumKVStore> kvStores = startCluster(3);
+        QuorumKVStore athens = kvStores.get(0);
+        QuorumKVStore byzantium = kvStores.get(1);
+        QuorumKVStore cyrene = kvStores.get(2);
+
+        athens.dropMessagesTo(byzantium);
+        athens.dropMessagesTo(cyrene);
+
+        distrib.patterns.quorumconsensus.KVClient kvClient = new distrib.patterns.quorumconsensus.KVClient();
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nitroservices");
+        assertEquals("Error", response);
+        //quorum responses not received as messages to byzantium and cyrene fail.
+
+        assertEquals("Nitroservices", athens.get("title").getValue());
+        assertEquals(StoredValue.EMPTY, byzantium.get("title"));
+        assertEquals(StoredValue.EMPTY, cyrene.get("title"));
+
+        distrib.patterns.quorumconsensus.KVClient alice = new distrib.patterns.quorumconsensus.KVClient();
+
+        //cyrene should be able to connect with itself and byzantium.
+        //both cyrene and byzantium have empty value.
+        //Alice starts the compareAndSwap
+        //Alice reads the value.
+        String aliceValue = alice.getValue(cyrene.getClientConnectionAddress(), "title");
+
+        //meanwhile bob starts compareAndSwap as well
+        //Bob connects to athens, which is now able to connect to cyrene and byzantium
+        distrib.patterns.quorumconsensus.KVClient bob = new distrib.patterns.quorumconsensus.KVClient();
+        athens.reconnectTo(cyrene);
+        athens.reconnectTo(byzantium);
+        String bobValue = bob.getValue(athens.getClientConnectionAddress(), "title");
+        if (bobValue.equals("Microservices")) {
+            kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
+        }
+        //Bob successfully completes compareAndSwap
+
+        //Alice checks the value to be empty.
+        if (aliceValue.equals("")) {
+            alice.setValue(cyrene.getClientConnectionAddress(), "title", "Nitroservices");
+        }
+        //Alice successfully completes compareAndSwap
+
+        //Bob is surprised to read the different value after his compareAndSwap was successful.
+        response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
+        assertEquals("Distributed Systems", response);
     }
 
     private List<QuorumKVStore> startCluster(int clusterSize) throws IOException {

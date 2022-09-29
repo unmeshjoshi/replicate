@@ -23,11 +23,11 @@ public class TwoPhaseCommit extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesRequestSync(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class)
+        handlesRequest(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class)
                 .respondsWith(RequestId.ProposeResponse, ProposeResponse.class);
-        handlesRequestSync(RequestId.Commit, this::handleCommit, CommitCommandRequest.class)
+        handlesRequest(RequestId.CommitRequest, this::handleCommit, CommitCommandRequest.class)
                 .respondsWith(RequestId.CommitResponse, CommitCommandResponse.class);
-        handlesRequestSync(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class)
+        handlesRequest(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class)
                 .respondsWith(RequestId.ExcuteCommandResponse, ExecuteCommandResponse.class);
     }
 
@@ -72,5 +72,9 @@ public class TwoPhaseCommit extends Replica {
     private ProposeResponse handlePropose(ProposeRequest proposeRequest) {
         acceptedCommand = getCommand(proposeRequest.getCommand());
         return new ProposeResponse(true);
+    }
+
+    public String getValue(String key) {
+        return kvStore.get(key);
     }
 }
