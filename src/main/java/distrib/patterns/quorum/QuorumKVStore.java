@@ -24,8 +24,8 @@ public class QuorumKVStore extends Replica {
     private final DurableKVStore systemStorage;
     private final DurableKVStore durableStore;
 
-    public QuorumKVStore(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> replicas) throws IOException {
-        super(config, clock, clientConnectionAddress, peerConnectionAddress, replicas);
+    public QuorumKVStore(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> replicas) throws IOException {
+        super(name, config, clock, clientConnectionAddress, peerConnectionAddress, replicas);
         this.config = config;
         this.replicas = replicas;
         //FIXME
@@ -51,22 +51,22 @@ public class QuorumKVStore extends Replica {
     //t2 = clientState.getTimestamp()
     //t3 = clientState.getTimestamp()
     //t3 > t2 > t1 //NTP..  t1 > t3..
-    private CompletableFuture<String> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
+    private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
         VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.getKey(),
                 clientSetValueRequest.getValue(),
                 clientSetValueRequest.getClientId(),
                 clientSetValueRequest.getRequestNumber(),
                 clientState.getTimestamp()); //assign timestamp to request.
         AsyncQuorumCallback<String> quorumCallback = new AsyncQuorumCallback<String>(getNoOfReplicas());
-        sendRequestToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
-        return quorumCallback.getQuorumFuture().thenApply(r -> "Success"); //TODO:Map quorum responses to
+        sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        return quorumCallback.getQuorumFuture().thenApply(r -> new SetValueResponse("Success")); //TODO:Map quorum responses to
     }
 
 
     private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest clientSetValueRequest) {
         GetValueRequest request = new GetValueRequest(clientSetValueRequest.getKey());
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
-        sendRequestToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, request);
+        sendMessageToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, request);
         return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
             return new ReadRepairer(this, responses, config.doAsyncReadRepair()).readRepair();
         });

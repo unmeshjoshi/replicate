@@ -20,6 +20,10 @@ public class ExecuteCommandResponse extends Request {
         return new ExecuteCommandResponse(Optional.empty(), false);
     }
 
+    public static ExecuteCommandResponse errorResponse(String s) {
+        return new ExecuteCommandResponse(Optional.of(s), false);
+    }
+
     public Optional<String> getResponse() {
         return response;
     }

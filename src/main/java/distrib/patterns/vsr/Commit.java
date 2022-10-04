@@ -1,0 +1,15 @@
+package distrib.patterns.vsr;
+
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
+
+public class Commit extends Request {
+    public final int viewNumber;
+    public final int commitNumber;
+
+    public Commit(int viewNumber, int commitNumber) {
+        super(RequestId.CommitRequest);
+        this.viewNumber = viewNumber;
+        this.commitNumber = commitNumber;
+    }
+}

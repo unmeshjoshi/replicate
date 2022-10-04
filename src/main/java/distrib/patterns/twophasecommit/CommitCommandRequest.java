@@ -2,13 +2,12 @@ package distrib.patterns.twophasecommit;
 
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
-import distrib.patterns.wal.Command;
 
 public class CommitCommandRequest extends Request {
     byte[] command;
-    public CommitCommandRequest(Command command) {
+    public CommitCommandRequest(byte[] serialize) {
         this();
-        this.command = command.serialize();
+        this.command = serialize;
     }
 
     public byte[] getCommand() {

@@ -32,8 +32,8 @@ public class SingleValuePaxos extends Replica {
     Optional<String> committedValue = Optional.empty();
     Optional<MonotonicId> committedGeneration = Optional.empty();
 
-    public SingleValuePaxos(SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
-        super(config, clock, clientAddress, peerConnectionAddress, peers);
+    public SingleValuePaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
+        super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
     }
 
@@ -118,13 +118,13 @@ public class SingleValuePaxos extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(MonotonicId monotonicId, String value) {
         BlockingQuorumCallback commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendRequestToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(monotonicId, value));
+        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(monotonicId, value));
         return commitCallback;
     }
 
     private ProposalCallback sendProposeRequest(String proposedValue, MonotonicId monotonicId) {
         ProposalCallback proposalCallback = new ProposalCallback(getNoOfReplicas());
-        sendRequestToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, proposedValue));
+        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, proposedValue));
         return proposalCallback;
     }
 
@@ -162,7 +162,7 @@ public class SingleValuePaxos extends Replica {
 
     private PrepareCallback sendPrepareRequest(String proposedValue, MonotonicId monotonicId) {
         PrepareCallback prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
-        sendRequestToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(monotonicId));
+        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(monotonicId));
         return prepareCallback;
     }
 

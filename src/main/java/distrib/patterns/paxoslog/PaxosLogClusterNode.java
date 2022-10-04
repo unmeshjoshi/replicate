@@ -330,7 +330,7 @@ public class PaxosLogClusterNode {
             paxosState.promisedGeneration = generation;
             paxosState.acceptedGeneration = Optional.of(generation);
             paxosState.acceptedValue = Optional.ofNullable(request.getProposedValue());
-            sendMessage(new RequestOrResponse(RequestId.ProposeResponse.getId(), JsonSerDes.serialize(true), correlationId), requestOrResponse.getFromAddress());
+            sendMessage(new RequestOrResponse(RequestId.ProposeResponse.getId(), JsonSerDes.serialize(new ProposalResponse(true)), correlationId), requestOrResponse.getFromAddress());
         }
     }
 

@@ -4,12 +4,15 @@ import common.TestUtils;
 import distrib.patterns.common.Config;
 import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.SystemClock;
+import distrib.patterns.generationvoting.GenerationVoting;
 import distrib.patterns.net.InetAddressAndPort;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -17,10 +20,12 @@ public class QuorumConsensusKVStoreTest {
 
     @Test
     public void readRepair() throws IOException {
-        List<QuorumKV> kvStores = startCluster(3);
-        QuorumKV athens = kvStores.get(0);
-        QuorumKV byzantium = kvStores.get(1);
-        QuorumKV cyrene = kvStores.get(2);
+        Map<String, QuorumKV> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKV(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
+        QuorumKV athens = kvStores.get("athens");
+        QuorumKV byzantium = kvStores.get("byzantium");
+        QuorumKV cyrene = kvStores.get("cyrene");
+
 
         athens.dropMessagesTo(byzantium);
 
@@ -45,10 +50,11 @@ public class QuorumConsensusKVStoreTest {
 
     @Test
     public void compareAndSwapIsSuccessfulForTwoConcurrentClients() throws IOException {
-        List<QuorumKV> kvStores = startCluster(3);
-        QuorumKV athens = kvStores.get(0);
-        QuorumKV byzantium = kvStores.get(1);
-        QuorumKV cyrene = kvStores.get(2);
+        Map<String, QuorumKV> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKV(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
+        QuorumKV athens = kvStores.get("athens");
+        QuorumKV byzantium = kvStores.get("byzantium");
+        QuorumKV cyrene = kvStores.get("cyrene");
 
         athens.dropMessagesToAfter(byzantium, 1);
         athens.dropMessagesTo(cyrene);
@@ -91,22 +97,4 @@ public class QuorumConsensusKVStoreTest {
         response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Distributed Systems", response);
     }
-
-
-    private List<QuorumKV> startCluster(int clusterSize) throws IOException {
-        List<QuorumKV> clusterQuorumKVs = new ArrayList<>();
-        SystemClock clock = new SystemClock();
-        List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
-        List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
-
-        for (int i = 0; i < clusterSize; i++) {
-            Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
-            QuorumKV receivingClusterQuorumKV = new QuorumKV(config, clock, clientInterfaceAddresses.get(i), addresses.get(i), true, addresses);
-            receivingClusterQuorumKV.start();
-            clusterQuorumKVs.add(receivingClusterQuorumKV);
-        }
-        return clusterQuorumKVs;
-    }
-
-
 }

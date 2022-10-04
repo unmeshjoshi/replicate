@@ -12,15 +12,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 
 public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
-
-    private int clusterSize = 3;
-
     SingleValuePaxos athens;
     SingleValuePaxos byzantium;
     SingleValuePaxos cyrene;
@@ -28,14 +26,14 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
     @Before
     public void startCluster() throws IOException {
         AtomicInteger id = new AtomicInteger(1);
-        super.nodes = TestUtils.startCluster(clusterSize,
-                (config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {
                         config.setServerId(id.getAndIncrement());
-                        return new SingleValuePaxos(clock, config, clientConnectionAddress, peerConnectionAddress, peerAddresses);
+                        return new SingleValuePaxos(name, clock, config, clientConnectionAddress, peerConnectionAddress, peerAddresses);
                 });
-        athens = nodes.get(0);
-        byzantium = nodes.get(1);
-        cyrene = nodes.get(2);
+        athens = nodes.get("athens");
+        byzantium = nodes.get("byzantium");
+        cyrene = nodes.get("cyrene");
     }
 
     @Test
@@ -43,7 +41,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         NetworkClient<SetValueResponse> client = new NetworkClient<>(SetValueResponse.class);
         SetValueResponse response = client.send(createSetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
 
-        assertEquals("Microservices", response.getResult());
+        assertEquals("Microservices", response.result);
     }
 
     @Test
@@ -60,7 +58,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         NetworkClient<SetValueResponse> client = new NetworkClient<>(SetValueResponse.class);
         SetValueResponse response = client.send(createSetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
 
-        assertEquals("Microservices", response.getResult());
+        assertEquals("Microservices", response.result);
 
         NetworkClient<GetValueResponse> client2 = new NetworkClient<>(GetValueResponse.class);
         GetValueRequest getValueRequest = new GetValueRequest("title");

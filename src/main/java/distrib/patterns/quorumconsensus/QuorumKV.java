@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 public class QuorumKV extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKV.class);
 
-    public QuorumKV(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
-        super(config, clock,clientConnectionAddress, peerConnectionAddress, peers);
+    public QuorumKV(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
+        super(name, config, clock,clientConnectionAddress, peerConnectionAddress, peers);
         this.durableStore = new DurableKVStore(config);
     }
 
@@ -39,7 +39,7 @@ public class QuorumKV extends Replica {
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
         var getVersion = new GetVersionRequest(clientSetValueRequest.getKey());
         var versionCallback = new AsyncQuorumCallback<GetVersionResponse>(getNoOfReplicas());
-        sendRequestToReplicas(versionCallback, RequestId.GetVersion, getVersion);
+        sendMessageToReplicas(versionCallback, RequestId.GetVersion, getVersion);
         var quorumFuture = versionCallback.getQuorumFuture();
         return quorumFuture.thenCompose((r) ->
                 assignVersionAndSetValue(clientSetValueRequest, r.values().stream().toList()));
@@ -53,7 +53,7 @@ public class QuorumKV extends Replica {
                 getNextId(existingVersions.stream().map(r -> r.getVersion()).collect(Collectors.toList()))
         ); //assign timestamp to request.
         var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
-        sendRequestToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
         CompletableFuture<Map<InetAddressAndPort, SetValueResponse>> quorumFuture = quorumCallback.getQuorumFuture();
         return quorumFuture.thenApply(r -> {
             //TODO:Find how to handle multiple values;
@@ -78,7 +78,7 @@ public class QuorumKV extends Replica {
 
     private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest request) {
         var asyncQuorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
-        sendRequestToReplicas(asyncQuorumCallback, RequestId.VersionedGetValueRequest, request);
+        sendMessageToReplicas(asyncQuorumCallback, RequestId.VersionedGetValueRequest, request);
         return asyncQuorumCallback.getQuorumFuture()
                 .thenCompose((nodesToValues)-> {
                     return new ReadRepairer(this, nodesToValues).readRepair();

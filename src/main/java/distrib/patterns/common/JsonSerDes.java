@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.cfg.ConstructorDetector;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -67,11 +68,12 @@ public class JsonSerDes {
             objectMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
             objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             objectMapper
-                    .registerModule(new ParameterNamesModule(JsonCreator.Mode.DEFAULT));
+                    .registerModule(new ParameterNamesModule(JsonCreator.Mode.PROPERTIES));
             var module = new SimpleModule();
             module.addKeyDeserializer(InetAddressAndPort.class, new InetAddressAndPortKeyDeserializer());
             objectMapper.registerModule(module);
             objectMapper.registerModule(new Jdk8Module());
+            objectMapper.setConstructorDetector(ConstructorDetector.USE_PROPERTIES_BASED);
             return objectMapper.readValue(json, clazz);
 
         } catch (Exception e) {

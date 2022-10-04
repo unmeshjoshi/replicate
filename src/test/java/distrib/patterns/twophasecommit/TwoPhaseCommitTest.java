@@ -6,6 +6,7 @@ import distrib.patterns.common.NetworkClient;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,17 +18,17 @@ public class TwoPhaseCommitTest extends ClusterTest<TwoPhaseCommit> {
     @Test
     public void valuesAvailableOnlyIfQuorumHasAgreedToExecuteTheCommand() throws IOException {
         //created as instance variables, so that teardown can shutdown the cluster
-        super.nodes = TestUtils.startCluster(3,
-                    (config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new TwoPhaseCommit(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+                    (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new TwoPhaseCommit(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
 
-        TwoPhaseCommit athens = nodes.get(0);
-        TwoPhaseCommit byzantium = nodes.get(1);
-        TwoPhaseCommit cyrene = nodes.get(2);
+        TwoPhaseCommit athens = nodes.get("athens");
+        TwoPhaseCommit byzantium = nodes.get("byzantium");
+        TwoPhaseCommit cyrene = nodes.get("cyrene");
 
         NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand), athens.getClientConnectionAddress());
+                = client.send(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress());
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());
@@ -39,11 +40,11 @@ public class TwoPhaseCommitTest extends ClusterTest<TwoPhaseCommit> {
 
     @Test
     public void valuesUnavailableIfCommitMessagesAreLost() throws IOException {
-        List<TwoPhaseCommit> nodes = TestUtils.startCluster(3,
-                (config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new TwoPhaseCommit(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        TwoPhaseCommit athens = nodes.get(0);
-        TwoPhaseCommit byzantium = nodes.get(1);
-        TwoPhaseCommit cyrene = nodes.get(2);
+       super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new TwoPhaseCommit(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        TwoPhaseCommit athens = nodes.get("athens");
+        TwoPhaseCommit byzantium = nodes.get("byzantium");
+        TwoPhaseCommit cyrene = nodes.get("cyrene");
 
         //commit messages to byzantium and cyrene are dropped.
         athens.dropMessagesToAfter(byzantium, 1);
@@ -52,7 +53,7 @@ public class TwoPhaseCommitTest extends ClusterTest<TwoPhaseCommit> {
         NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand), athens.getClientConnectionAddress());
+                = client.send(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress());
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());

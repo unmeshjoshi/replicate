@@ -37,7 +37,7 @@ class ReadRepairer {
         var requestCallback = new AsyncQuorumCallback<String>(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
             logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
-            replica.sendRequestToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
+            replica.sendMessageToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
         return requestCallback.getQuorumFuture()
                 .thenApply((result) -> latestStoredValue);

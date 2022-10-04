@@ -9,10 +9,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /*
 
@@ -21,26 +24,29 @@ import java.util.function.Function;
 public abstract class Replica {
     private static Logger logger = LogManager.getLogger(Replica.class);
     private final Config config;
+    private final String name;
     private final NIOSocketListener peerListener;
     private final NIOSocketListener clientListener;
     private InetAddressAndPort clientConnectionAddress;
     private InetAddressAndPort peerConnectionAddress;
     private final Network network = new Network();
-
     protected final RequestWaitingList requestWaitingList;
+    protected SystemClock clock;
     private List<InetAddressAndPort> peerAddresses;
-
+    private volatile long heartbeatReceivedNs;
 
     Map<RequestId, Consumer<Message<RequestOrResponse>>> requestMap = new HashMap<>();
 
-    public Replica(Config config,
+    public Replica(String name, Config config,
                    SystemClock clock,
                    InetAddressAndPort clientConnectionAddress,
                    InetAddressAndPort peerConnectionAddress,
                    List<InetAddressAndPort> peerAddresses) throws IOException {
+        this.name = name;
 
         this.config = config;
         this.requestWaitingList = new RequestWaitingList(clock);
+        this.clock = clock;
         this.peerAddresses = peerAddresses;
         this.clientConnectionAddress = clientConnectionAddress;
         this.peerConnectionAddress = peerConnectionAddress;
@@ -57,8 +63,12 @@ public abstract class Replica {
     //Send message without expecting any messages as a response from the peer
     //@see sendRequestToReplicas which expects a message from the peer.
     //TODO:Check why its needed to send the peer address.
-    public <T> void sendOneway(InetAddressAndPort address, RequestId id, T request, int correlationId) {
-        send(address, new RequestOrResponse(id.getId(), serialize(request), correlationId, getPeerConnectionAddress()) );
+    public <T extends Request> void sendOneway(InetAddressAndPort address, T request, int correlationId) {
+        send(address, new RequestOrResponse(request.getRequestId().getId(), serialize(request), correlationId, getPeerConnectionAddress()) );
+    }
+
+    public <T extends Request> void sendOneway(InetAddressAndPort address, T request) {
+        sendOneway(address, request, nextRequestId());
     }
 
     public void send(InetAddressAndPort address, RequestOrResponse message) {
@@ -73,19 +83,36 @@ public abstract class Replica {
     //Once the message is received, the callback is invoked.
     //The response message types are configured to invoke responseMessageHandler which invokes the callback
     //@see responseMessageHandler
-    public <T> void sendRequestToReplicas(RequestCallback callback, RequestId requestId, T requestToReplicas) {
+    public <T> void sendMessageToReplicas(RequestCallback callback, RequestId requestId, T requestToReplicas) {
         for (InetAddressAndPort replica : peerAddresses) {
             int correlationId = nextRequestId();
             RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
-            sendRequestToReplica(callback, replica, request);
+            sendMessageToReplica(callback, replica, request);
         }
     }
 
-    public void sendRequestToReplica(RequestCallback callback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
+    public void sendMessageToReplica(RequestCallback callback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
         requestWaitingList.add(request.getCorrelationId(), callback);
         send(replicaAddress, request);
     }
 
+    public <T extends Request> void sendOnewayMessageToReplicas(T requestToReplicas) {
+        for (InetAddressAndPort replica : peerAddresses) {
+            int correlationId = nextRequestId();
+            sendOneway(replica, requestToReplicas, correlationId);
+        }
+    }
+
+    public <T extends Request> void sendOnewayMessageToOtherReplicas(T requestToReplicas) {
+        for (InetAddressAndPort replica : otherReplicas()) {
+            int correlationId = nextRequestId();
+            sendOneway(replica, requestToReplicas, correlationId);
+        }
+    }
+
+    private List<InetAddressAndPort> otherReplicas() {
+        return peerAddresses.stream().filter(r -> !r.equals(peerConnectionAddress)).collect(Collectors.toList());
+    }
 
     public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas) {
         List<Res> responses = new ArrayList<>();
@@ -107,9 +134,14 @@ public abstract class Replica {
     //handles messages sent by peers in the cluster in message passing style.
     //peer to peer communication happens on peerConnectionAddress
     public void handlePeerMessage(Message<RequestOrResponse> message) {
+        markHeartbeatReceived();
         RequestOrResponse request = message.getRequest();
         Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
         consumer.accept(message);
+    }
+
+    protected void markHeartbeatReceived() {
+        heartbeatReceivedNs = clock.nanoTime();
     }
 
     //handles requests sent by clients of the cluster.
@@ -125,7 +157,7 @@ public abstract class Replica {
     //This is async message-passing communication.
     //The sender does not expect a response to the request on the same connection.
     //deserialize.andThen(handler.apply).andThen(sendResponseToPeer)
-    public <Req extends Request, Res extends Request> Builder<Res> handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
+    public <Req extends Request, Res extends Request> ResponseMessageBuilder<Res> handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
         requestMap.put(requestId, (message)->{
@@ -134,7 +166,17 @@ public abstract class Replica {
                     .andThen(sendMessageToSender)
                     .apply(message);
         });
-        return new Builder<Res>();
+        return new ResponseMessageBuilder<Res>();
+    }
+
+    public <Req extends Request> void handlesMessage(RequestId requestId, BiConsumer<InetAddressAndPort, Req> handler, Class<Req> requestClass) {
+        var deserialize = createDeserializer(requestClass);
+        Function<Stage<Req>, Void> applyHandler = wrapConsumer(handler);
+        requestMap.put(requestId, (message)->{
+            deserialize
+                    .andThen(applyHandler)
+                    .apply(message);
+        });
     }
 
     public class SyncBuilder<T extends Request> {
@@ -144,7 +186,7 @@ public abstract class Replica {
         }
     }
 
-    public class Builder<T extends Request> {
+    public class ResponseMessageBuilder<T extends Request> {
          public Replica respondsWithMessage(RequestId requestId, Class<T> responseClass) {
             Replica.this.respondsWithMessage(requestId, responseClass);
             return Replica.this;
@@ -195,7 +237,7 @@ public abstract class Replica {
 
     Function<Stage, Void> sendMessageToSender = stage -> {
         Message<RequestOrResponse> message = stage.getMessage();
-        Replica.this.sendOneway(message.getRequest().getFromAddress(), stage.request.getRequestId(), stage.request, message.getRequest().getCorrelationId());
+        Replica.this.sendOneway(message.getRequest().getFromAddress(), stage.request, message.getRequest().getCorrelationId());
         return null;
     };
 
@@ -249,6 +291,14 @@ public abstract class Replica {
         return applyHandler;
     }
 
+    private <Req extends Request, Void> Function<Stage<Req>, Void> wrapConsumer(BiConsumer<InetAddressAndPort, Req> handler) {
+        Function<Stage<Req>, Void> applyHandler = (stage) -> {
+            handler.accept(stage.getMessage().getRequest().getFromAddress(), (Req) stage.request);
+            return null;
+        };
+        return applyHandler;
+    }
+
     private <Req extends Request> Function<Message<RequestOrResponse>, Stage<Req>> createDeserializer(Class<Req> requestClass) {
         Function<Message<RequestOrResponse>, Stage<Req>> deserialize = (message) -> {
             RequestOrResponse request = message.getRequest();
@@ -294,6 +344,10 @@ public abstract class Replica {
         network.addDelayForMessagesToAfterNMessages(n.getPeerConnectionAddress(), noOfMessages);
     }
 
+    public int quorum() {
+        return getNoOfReplicas() / 2 + 1;
+    }
+
     private static byte[] serialize(Object e) {
         return JsonSerDes.serialize(e);
     }
@@ -307,5 +361,18 @@ public abstract class Replica {
     public void shutdown() {
         peerListener.shudown();
         clientListener.shudown();
+    }
+
+    public Duration elapsedTimeSinceLastHeartbeat() {
+        return Duration.ofNanos(clock.nanoTime() - heartbeatReceivedNs);
+    }
+
+
+    public void resetHeartbeat(long heartbeatReceivedNs) {
+        this.heartbeatReceivedNs = heartbeatReceivedNs;
+    }
+
+    public String getName() {
+        return name;
     }
 }

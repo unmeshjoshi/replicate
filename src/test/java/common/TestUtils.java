@@ -14,9 +14,7 @@ import java.net.ServerSocket;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.fail;
@@ -142,15 +140,15 @@ public class TestUtils {
     }
 
     public interface ReplicaFactory<T extends Replica> {
-        T create(Config config, SystemClock clock,
+        T create(String nodeName, Config config, SystemClock clock,
                  InetAddressAndPort clientConnectionAddress,
                  InetAddressAndPort peerConnectionAddress,
                  List<InetAddressAndPort> peerAddresses) throws IOException;
     }
 
-
-    public static <T extends Replica> List<T> startCluster(int clusterSize, ReplicaFactory<T> factory) throws IOException {
-        List<T> clusterNodes = new ArrayList<>();
+    public static <T extends Replica> Map<String, T> startCluster(List<String> nodeNames, ReplicaFactory<T> factory) throws IOException {
+        int clusterSize = nodeNames.size();
+        Map<String, T> clusterNodes = new HashMap<>();
         SystemClock clock = new SystemClock();
         List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
         List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
@@ -159,11 +157,12 @@ public class TestUtils {
             //public static void main(String[]args) {
             Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
 
-            T replica =  factory.create(config, clock, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
+            String nodeName = nodeNames.get(i);
+            T replica =  factory.create(nodeName, config, clock, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
             replica.start();
 
             //}
-            clusterNodes.add(replica);
+            clusterNodes.put(nodeName, replica);
         }
         return clusterNodes;
     }

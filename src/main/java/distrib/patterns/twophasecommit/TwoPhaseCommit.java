@@ -16,8 +16,8 @@ import java.util.Optional;
 public class TwoPhaseCommit extends Replica {
     Command acceptedCommand;
     DurableKVStore kvStore;
-    public TwoPhaseCommit(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
-        super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
+    public TwoPhaseCommit(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+        super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         this.kvStore = new DurableKVStore(config);
     }
 
@@ -51,10 +51,10 @@ public class TwoPhaseCommit extends Replica {
     }
 
     private ExecuteCommandResponse handleExecute(ExecuteCommandRequest t) {
-        ProposeRequest proposal = new ProposeRequest(getCommand(t.getCommand()));
+        ProposeRequest proposal = new ProposeRequest(getCommand(t.command).serialize());
         List<ProposeResponse> proposalResponses = blockingSendToReplicas(proposal.getRequestId(), proposal);
         if (proposalResponses.stream().filter(r -> r.isAccepted()).count() >= quorum()) {
-            CommitCommandResponse c = sendCommitRequest(new CommitCommandRequest(getCommand(t.getCommand())));
+            CommitCommandResponse c = sendCommitRequest(new CommitCommandRequest(getCommand(t.command).serialize()));
             return new ExecuteCommandResponse(c.getResponse(), c.isCommitted());
         };
         return ExecuteCommandResponse.notCommitted();
@@ -65,7 +65,7 @@ public class TwoPhaseCommit extends Replica {
         return proposalResponses.get(0);
     }
 
-    private long quorum() {
+    public int quorum() {
         return getNoOfReplicas() / 2 + 1;
     }
 

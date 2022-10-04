@@ -51,8 +51,8 @@ import java.util.concurrent.CompletableFuture;
 public class GenerationVoting extends Replica {
     int generation;
 
-    public GenerationVoting(Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
-        super(config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
+    public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+        super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
 
     }
 
@@ -80,7 +80,7 @@ public class GenerationVoting extends Replica {
         while(true) {
             PrepareRequest nr = new PrepareRequest(proposedNumber);
             PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
-            sendRequestToReplicas(callback, RequestId.PrepareRequest, nr);
+            sendMessageToReplicas(callback, RequestId.PrepareRequest, nr);
             if (callback.isQuorumPrepared()) {
                 //TODO:Consider using blocking methods for ease of understanding.
                 return CompletableFuture.completedFuture(proposedNumber);

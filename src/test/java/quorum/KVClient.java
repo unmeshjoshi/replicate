@@ -35,7 +35,7 @@ public class KVClient {
             return "Error";
         };
         SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), SetValueResponse.class);
-        return response.getResult();
+        return response.result;
     }
 
     private RequestOrResponse createGetValueRequest(String key) {
