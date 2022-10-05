@@ -38,38 +38,30 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
     @Test
     public void singleValuePaxosTest() throws IOException {
-        NetworkClient<SetValueResponse> client = new NetworkClient<>(SetValueResponse.class);
-        SetValueResponse response = client.send(createSetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
+        var client = new NetworkClient();
+        var response = client.sendAndReceive(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress(), SetValueResponse.class);
 
         assertEquals("Microservices", response.result);
     }
 
     @Test
     public void singleValueNullPaxosGetTest() throws IOException {
-        NetworkClient<GetValueResponse> client2 = new NetworkClient<>(GetValueResponse.class);
-        GetValueRequest getValueRequest = new GetValueRequest("title");
-        GetValueResponse response1 = client2.send(getValueRequest, athens.getClientConnectionAddress());
+        var client = new NetworkClient();
+        var response = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
 
-        assertEquals(Optional.empty(), response1.getValue());
+        assertEquals(Optional.empty(), response.value);
     }
 
     @Test
     public void singleValuePaxosGetTest() throws IOException {
-        NetworkClient<SetValueResponse> client = new NetworkClient<>(SetValueResponse.class);
-        SetValueResponse response = client.send(createSetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
+        var client = new NetworkClient();
+        var response = client.sendAndReceive(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress(), SetValueResponse.class);
 
         assertEquals("Microservices", response.result);
 
-        NetworkClient<GetValueResponse> client2 = new NetworkClient<>(GetValueResponse.class);
-        GetValueRequest getValueRequest = new GetValueRequest("title");
-        GetValueResponse response1 = client2.send(getValueRequest, athens.getClientConnectionAddress());
+        var getValueResponse = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
 
-        assertEquals(Optional.of("Microservices"), response1.getValue());
-    }
-
-    private SetValueRequest createSetValueRequest(String key, String value) {
-        SetValueRequest setValueRequest = new SetValueRequest(key, value);
-        return setValueRequest;
+        assertEquals(Optional.of("Microservices"), getValueResponse.value);
     }
 
 }

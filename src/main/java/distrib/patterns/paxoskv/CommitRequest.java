@@ -1,27 +1,18 @@
 package distrib.patterns.paxoskv;
 
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
 
-public class CommitRequest {
-    private String key;
-    private String value;
-    private MonotonicId monotonicId;
+public class CommitRequest extends Request {
+    public final String key;
+    public final String value;
+    public final MonotonicId generation;
 
-    public CommitRequest(String key, String value, MonotonicId monotonicId) {
+    public CommitRequest(String key, String value, MonotonicId generation) {
+        super(RequestId.CommitRequest);
         this.key = key;
         this.value = value;
-        this.monotonicId = monotonicId;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public MonotonicId getMonotonicId() {
-        return monotonicId;
-    }
-
-    public String getValue() {
-        return value;
+        this.generation = generation;
     }
 }

@@ -7,19 +7,10 @@ import java.util.Optional;
 
 public class GetValueResponse extends Request {
 
-    private Optional<String> value;
+    public final Optional<String> value;
 
     public GetValueResponse(Optional<String> value) {
-        this();
+        super(RequestId.GetValueResponse);
         this.value = value;
     }
-
-    public Optional<String> getValue() {
-        return value;
-    }
-
-    private GetValueResponse() {
-        super(RequestId.GetValueResponse);
-    }
-
 }

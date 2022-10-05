@@ -7,7 +7,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.*;
@@ -25,10 +24,10 @@ public class TwoPhaseCommitTest extends ClusterTest<TwoPhaseCommit> {
         TwoPhaseCommit byzantium = nodes.get("byzantium");
         TwoPhaseCommit cyrene = nodes.get("cyrene");
 
-        NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
+        NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress());
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());
@@ -50,10 +49,10 @@ public class TwoPhaseCommitTest extends ClusterTest<TwoPhaseCommit> {
         athens.dropMessagesToAfter(byzantium, 1);
         athens.dropMessagesToAfter(cyrene, 1);
 
-        NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
+        NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress());
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());

@@ -1,31 +1,18 @@
 package distrib.patterns.paxoskv;
 
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
 
-public class ProposalRequest {
-    private MonotonicId monotonicId;
-    private String key;
-    private String proposedValue;
+public class ProposalRequest extends Request {
+    public final MonotonicId generation;
+    public final String key;
+    public final String proposedValue;
 
-    public ProposalRequest(MonotonicId monotonicId, String key, String proposedValue) {
-        this.monotonicId = monotonicId;
+    public ProposalRequest(MonotonicId generation, String key, String proposedValue) {
+        super(RequestId.ProposeRequest);
+        this.generation = generation;
         this.key = key;
         this.proposedValue = proposedValue;
-    }
-
-    public MonotonicId getMonotonicId() {
-        return monotonicId;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public String getProposedValue() {
-        return proposedValue;
-    }
-    //for jackson
-    private ProposalRequest() {
-
     }
 }

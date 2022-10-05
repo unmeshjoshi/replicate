@@ -19,8 +19,8 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
         GenerationVoting byzantium = nodes.get( "byzantium");
         GenerationVoting cyrene = nodes.get("cyrene");
 
-        NetworkClient<Integer> client = new NetworkClient(Integer.class);
-        Integer nextNumber = client.send(new NextNumberRequest(), athens.getClientConnectionAddress());
+        NetworkClient client = new NetworkClient();
+        Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
         assertEquals(1, nextNumber.intValue());
         assertEquals(1, athens.generation);

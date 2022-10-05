@@ -40,12 +40,14 @@ public class SingleValuePaxos extends Replica {
 
     @Override
     protected void registerHandlers() {
+        //client rpc
         handlesRequest(RequestId.SetValueRequest, this::handleSetValueRequest, SetValueRequest.class)
                 .respondsWith(RequestId.SetValueResponse, SetValueResponse.class);
 
         handlesRequest(RequestId.GetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
                 .respondsWith(RequestId.GetValueRequest, GetValueResponse.class);
 
+        //peer to peer message passing
         handlesMessage(RequestId.PrepareRequest, this::prepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
 
@@ -61,7 +63,7 @@ public class SingleValuePaxos extends Replica {
         return new SetValueResponse(value.orElse(""));
     }
 
-    private GetValueResponse handleGetValueRequest(GetValueRequest setValueRequest) {
+    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
         Optional<String> value = doPaxos(null); //null is the default value
         return new GetValueResponse(value);
     }
@@ -128,7 +130,7 @@ public class SingleValuePaxos extends Replica {
         return proposalCallback;
     }
 
-    static class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
+    public static class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
         private String proposedValue;
 
         public PrepareCallback(String proposedValue, int clusterSize) {

@@ -13,7 +13,7 @@ import java.util.Map;
 public abstract class ClusterTest<T extends Replica> {
     protected Map<String, T> nodes = new HashMap<String, T>();
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
     }
     @After
     public void tearDown() {

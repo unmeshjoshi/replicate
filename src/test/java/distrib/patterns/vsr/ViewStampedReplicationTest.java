@@ -26,16 +26,16 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                         (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new ViewStampedReplication(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
 
-        ViewStampedReplication athens = nodes.get("athens");
-        ViewStampedReplication byzantium = nodes.get("byzantium");
-        ViewStampedReplication cyrene = nodes.get("cyrene");
+        var athens = nodes.get("athens");
+        var byzantium = nodes.get("byzantium");
+        var cyrene = nodes.get("cyrene");
 
-        InetAddressAndPort primaryAddress = athens.getPrimaryAddress();
+        var primaryAddress = athens.getPrimaryAddress();
 
-        NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
-        SetValueCommand casCommand = new SetValueCommand("title", "Microservices");
-        ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress);
+        var client = new NetworkClient();
+        var casCommand = new SetValueCommand("title", "Microservices");
+        var response
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
 
         assertEquals(Optional.of("Microservices"), response.getResponse());
     }
@@ -45,15 +45,15 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                         (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new ViewStampedReplication(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
 
-        ViewStampedReplication athens = nodes.get("athens");
+        var athens = nodes.get("athens");
 
-        InetAddressAndPort primaryAddress = athens.getPrimaryAddress();
-        ViewStampedReplication primary = getPrimaryNode(primaryAddress);
+        var primaryAddress = athens.getPrimaryAddress();
+        var primary = getPrimaryNode(primaryAddress);
 
-        NetworkClient<ExecuteCommandResponse> client = new NetworkClient(ExecuteCommandResponse.class);
-        SetValueCommand casCommand = new SetValueCommand("title", "Microservices");
-        ExecuteCommandResponse response
-                = client.send(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress);
+        var client = new NetworkClient();
+        var casCommand = new SetValueCommand("title", "Microservices");
+        var response
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
         assertEquals(Optional.of("Microservices"), response.getResponse());
 
         List<ViewStampedReplication> backUpNodes = getBackUpNodes(primaryAddress);
