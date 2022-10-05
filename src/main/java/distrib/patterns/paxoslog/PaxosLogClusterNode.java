@@ -3,15 +3,12 @@ package distrib.patterns.paxoslog;
 import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.NIOSocketListener;
-import distrib.patterns.net.SocketClient;
-import distrib.patterns.net.SocketListener;
-import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
-import distrib.patterns.common.MonotonicId;
-import distrib.patterns.paxos.WriteTimeoutException;
+import distrib.patterns.paxos.*;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
+import distrib.patterns.quorum.messages.SetValueResponse;
+import distrib.patterns.vsr.CompletionCallback;
 import distrib.patterns.wal.Command;
 import distrib.patterns.wal.EntryType;
 import distrib.patterns.wal.SetValueCommand;
@@ -21,9 +18,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
@@ -39,101 +35,84 @@ class PaxosState {
 
 }
 
-public class PaxosLogClusterNode {
+public class PaxosLogClusterNode extends Replica {
     private static Logger logger = LogManager.getLogger(PaxosLogClusterNode.class);
-    private final NIOSocketListener clientListener;
-    private SystemClock clock;
-    private Config config;
-    private InetAddressAndPort peerConnectionAddress;
-    private List<InetAddressAndPort> peers;
-    private SocketListener listener;
+
     //Paxos State
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
 
     Map<String, String> kv = new HashMap<>();
+    private SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
 
-    public PaxosLogClusterNode(SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
-        this.clock = clock;
-        this.config = config;
-        this.peerConnectionAddress = peerConnectionAddress;
-        this.peers = peers;
-        this.listener = new SocketListener(this::handleServerMessage, peerConnectionAddress, config);
-        RequestWaitingList waitingList = new RequestWaitingList(clock, Duration.ofMillis(8000));
-        this.clientListener = new NIOSocketListener(message -> {
-            RequestOrResponse request = message.getRequest();
-            if (request.getRequestId() == RequestId.SetValueRequest.getId()) {
-                var callback = new RequestCallback() {
-                    @Override
-                    public void onResponse(Object r, InetAddressAndPort address) {
-                        message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
-                    }
+    RequestWaitingList waitingList = new RequestWaitingList(clock);
 
-                    @Override
-                    public void onError(Exception e) {
-                        message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
-                    }
-                };
-                waitingList.add(request.getCorrelationId(), callback);
-                SetValueRequest setValueRequest = JsonSerDes.deserialize(request.getMessageBodyJson(), SetValueRequest.class);
-                try {
-                    SetValueCommand setValueCommand = new SetValueCommand(setValueRequest.getKey(), setValueRequest.getValue());
-                    append(new WALEntry(0l, setValueCommand.serialize(), EntryType.DATA, 0));
-                    callback.onResponse("Success", request.getFromAddress());
-                } catch (WriteTimeoutException e) {
-                    callback.onError(e);
-                }
-
-            } else if (request.getRequestId() == RequestId.GetValueRequest.getId()) {
-                var callback = new RequestCallback() {
-                    @Override
-                    public void onResponse(Object r, InetAddressAndPort address) {
-                        message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(r), request.getCorrelationId()));
-                    }
-
-                    @Override
-                    public void onError(Exception e) {
-                        message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(e.getMessage()), request.getCorrelationId()));
-                    }
-                };
-                waitingList.add(request.getCorrelationId(), callback);
-                GetValueRequest getValueRequest = JsonSerDes.deserialize(request.getMessageBodyJson(), GetValueRequest.class);
-                append(new WALEntry(0l, new SetValueCommand("", "").serialize(), EntryType.DATA, 0)); //append a no-op command to make sure full paxos is run
-                callback.onResponse(kv.get(getValueRequest.getKey()), request.getFromAddress());
-
-            }
-        }, clientAddress);
-
-
+    public PaxosLogClusterNode(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
+        super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         requestWaitingList = new RequestWaitingList(clock);
     }
 
-    RequestWaitingList requestWaitingList;
-    int requestNumber;
 
-    private int nextRequestId() {
-        return requestNumber++;
+    @Override
+    protected void registerHandlers() {
+        //client rpc
+        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+
+        //peer to peer message passing
+        handlesMessage(RequestId.PrepareRequest, this::prepare, PrepareRequest.class)
+                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
+
+        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
+                .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
+
+        handlesMessage(RequestId.CommitRequest, this::handlePaxosCommit, CommitRequest.class)
+                .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
+
+    private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest request) {
+        var callback = new CompletionCallback<SetValueResponse>();
+        waitingList.add(logIndex, callback);
+
+        SetValueCommand setValueCommand = new SetValueCommand(request.getKey(), request.getValue());
+        //todo append should be async.
+        int logIndex = append(new WALEntry(0l, setValueCommand.serialize(), EntryType.DATA, 0));
+
+        return callback.getFuture();
+    }
+
+    private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
+        var callback = new CompletionCallback<SetValueResponse>();
+        waitingList.add(logIndex, callback);
+
+        var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0));
+        return callback.getFuture().thenApply(r -> {
+            return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
+        });
+    }
+
+    RequestWaitingList requestWaitingList;
+
     int maxKnownPaxosRoundId = 1;
-    int nextIndex = 0;
+    int logIndex = 0;
     int serverId = 1;
     int maxAttempts = 2;
 
-    public boolean append(WALEntry command) {
+    //conver to async
+    public int append(WALEntry initialValue) {
         int attempts = 0;
         while(attempts <= maxAttempts) {
             attempts++;
-            MonotonicId requestId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            PaxosResult paxosResult = doPaxos(requestId, nextIndex, command, peers);
-            if (paxosResult.success) {
-                return true;
+            var requestId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+            var paxosResult = doPaxos(requestId, logIndex, initialValue);
+            if (paxosResult.value.isPresent() && paxosResult.value.get() == initialValue) {
+                return logIndex;
             }
             Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
             logger.warn("Experienced Paxos contention. Attempting with higher generation");
-            nextIndex++;
+            logIndex++;
         }
         throw new WriteTimeoutException(attempts);
-
     }
 
     static class PaxosResult {
@@ -146,77 +125,48 @@ public class PaxosLogClusterNode {
         }
     }
 
-    private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry command, List<InetAddressAndPort> replicas) {
-        PrepareCallback prepareCallback = sendPrepareRequest(index , command, monotonicId, replicas);
+    private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry command) {
+        PrepareCallback prepareCallback = sendPrepareRequest(index , command, monotonicId);
         if (prepareCallback.isQuorumPrepared()) {
-            WALEntry proposedValue = prepareCallback.getProposedValue();
-            ProposalCallback proposalCallback = sendProposeRequest(index, proposedValue, monotonicId, replicas);
+            var proposedValue = prepareCallback.getProposedValue();
+            var proposalCallback = sendProposeRequest(index, proposedValue, monotonicId);
             if (proposalCallback.isQuorumAccepted()) {
-                sendCommitRequest(index, proposedValue, monotonicId, replicas);
+                sendCommitRequest(index, proposedValue, monotonicId);
                 return new PaxosResult(Optional.ofNullable(proposedValue), true);
             }
         }
         return new PaxosResult(Optional.empty(), false);
     }
 
-    private CommitCallback sendCommitRequest(int index, WALEntry proposedValue, MonotonicId monotonicId, List<InetAddressAndPort> replicas) {
-        CommitCallback commitCallback = new CommitCallback(monotonicId);
-        for (InetAddressAndPort replica : replicas) {
-            int correlationId = nextRequestId();
-            requestWaitingList.add(correlationId, commitCallback);
-            try {
-                SocketClient client = new SocketClient(replica);
-                RequestOrResponse message = new RequestOrResponse(RequestId.CommitRequest.getId(), JsonSerDes.serialize(new CommitRequest(index, proposedValue, monotonicId)), correlationId, peerConnectionAddress);
-                client.sendOneway(message);
-            } catch (IOException e) {
-                requestWaitingList.handleError(correlationId, e);
-            }
-        }
+
+    private BlockingQuorumCallback sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
+        var commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
+        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(index, value, monotonicId));
         return commitCallback;
     }
 
-    private ProposalCallback sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId, List<InetAddressAndPort> replicas) {
-        ProposalCallback proposalCallback = new ProposalCallback(proposedValue);
-        for (InetAddressAndPort replica : replicas) {
-            int correlationId = nextRequestId();
-            requestWaitingList.add(correlationId, proposalCallback);
-            try {
-                ProposalRequest proposalRequest = new ProposalRequest(monotonicId, index, proposedValue);
-                RequestOrResponse message = new RequestOrResponse(RequestId.ProposeRequest.getId(), JsonSerDes.serialize(proposalRequest), correlationId, peerConnectionAddress);
-                sendMessage(message, replica);
-            } catch (Exception e) {
-                requestWaitingList.handleError(correlationId, e);
-            }
-        }
+
+    private distrib.patterns.paxos.ProposalCallback sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+        var proposalCallback = new distrib.patterns.paxos.ProposalCallback(getNoOfReplicas());
+        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback;
     }
 
-    static class PrepareCallback implements RequestCallback<RequestOrResponse> {
-        CountDownLatch latch = new CountDownLatch(3);
-        List<PrepareResponse> promises = new ArrayList<>();
+    public static class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
         private WALEntry proposedValue;
 
-        public PrepareCallback(WALEntry proposedValue) {
+        public PrepareCallback(WALEntry proposedValue, int clusterSize) {
+            super(clusterSize);
             this.proposedValue = proposedValue;
         }
 
-        @Override
-        public void onResponse(RequestOrResponse r, InetAddressAndPort address) {
-            promises.add(JsonSerDes.deserialize(r.getMessageBodyJson(), PrepareResponse.class));
-            latch.countDown();
-        }
-
-        @Override
-        public void onError(Exception e) {
-        }
-
         public WALEntry getProposedValue() {
-            return getProposalValue(proposedValue, promises);
+            return getProposalValue(proposedValue, responses.values().stream().toList()); //TODO::
         }
 
         private WALEntry getProposalValue(WALEntry initialValue, List<PrepareResponse> promises) {
-            PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
-            WALEntry proposedValue
+            var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
+            var proposedValue
                     = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
                     initialValue : mostRecentAcceptedValue.acceptedValue.get();
             return proposedValue;
@@ -227,72 +177,31 @@ public class PaxosLogClusterNode {
         }
 
         public boolean isQuorumPrepared() {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return true;
+            return blockAndGetQuorumResponses()
+                    .values()
+                    .stream()
+                    .filter(p -> p.promised).count() >= quorum;
         }
     }
 
-
-    private PrepareCallback sendPrepareRequest(int index, WALEntry proposedValue, MonotonicId monotonicId, List<InetAddressAndPort> replicas) {
-        PrepareCallback prepareCallback = new PrepareCallback(proposedValue);
-        for (InetAddressAndPort replica : replicas) {
-            int correlationId = nextRequestId();
-            requestWaitingList.add(correlationId, prepareCallback);
-            try {
-                RequestOrResponse message = new RequestOrResponse(RequestId.PrepareRequest.getId(),
-                        JsonSerDes.serialize(new PrepareRequest(index, monotonicId)), correlationId, peerConnectionAddress);
-                sendMessage(message, replica);
-
-            } catch (Exception e) {
-                requestWaitingList.handleError(correlationId, e);
-            }
-        }
+    private PrepareCallback sendPrepareRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+        var prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
+        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(index, monotonicId));
         return prepareCallback;
     }
 
-    public void start() {
-        listener.start();
-        clientListener.start();
-    }
-
-    private synchronized void handleServerMessage(Message<RequestOrResponse> message) {
-        RequestOrResponse requestOrResponse = message.getRequest();
-        if (requestOrResponse.getRequestId() == RequestId.PrepareRequest.getId()) {
-            handlePaxosPrepare(requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.Promise.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.ProposeRequest.getId()) {
-            handlePaxosProposal(requestOrResponse.getCorrelationId(), requestOrResponse);
-
-        } else if (requestOrResponse.getRequestId() == RequestId.ProposeResponse.getId()) {
-            requestWaitingList.handleResponse(requestOrResponse.getCorrelationId(), requestOrResponse, requestOrResponse.getFromAddress());
-
-        } else if (requestOrResponse.getRequestId() == RequestId.CommitRequest.getId()) {
-            handlePaxosCommit(requestOrResponse.getCorrelationId(), requestOrResponse);
-        }
-    }
-
-    private void handlePaxosCommit(Integer correlationId, RequestOrResponse requestOrResponse) {
-        CommitRequest request = JsonSerDes.deserialize(requestOrResponse.getMessageBodyJson(), CommitRequest.class);
-        PaxosState paxosState = getOrCreatePaxosState(request.getIndex());
-        paxosState.committedGeneration = Optional.of(request.getMonotonicId());
-        paxosState.committedValue = Optional.of(request.getProposedValue());
+    private distrib.patterns.paxos.CommitResponse handlePaxosCommit(CommitRequest request) {
+        var paxosState = getOrCreatePaxosState(request.index);
+        paxosState.committedGeneration = Optional.of(request.monotonicId);
+        paxosState.committedValue = Optional.of(request.proposedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
-        sendMessage(new RequestOrResponse(RequestId.CommitResponse.getId(), JsonSerDes.serialize(true), correlationId), requestOrResponse.getFromAddress());
+        return new distrib.patterns.paxos.CommitResponse(true);
     }
-
-
 
     private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
         //if all entries upto logIndex - 1 are committed, apply this entry.
-        List<Integer> previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.getIndex()).collect(Collectors.toList());
-        boolean allPreviousCommitted = true;
+        var previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
+        var allPreviousCommitted = true;
         for (Integer previousIndex : previousIndexes) {
             if (paxosLog.get(previousIndex).committedValue.isEmpty()) {
                 allPreviousCommitted = false;
@@ -300,104 +209,57 @@ public class PaxosLogClusterNode {
             }
         }
         if (allPreviousCommitted) {
-            addAndApply(commitRequest.getProposedValue());
+            addAndApply(commitRequest.index, commitRequest.proposedValue);
         }
 
         //see if there are entries above this logIndex which are commited, apply those entries.
-        for(long startIndex = commitRequest.getIndex() + 1; ;startIndex++) {
-            PaxosState paxosState = paxosLog.get(startIndex);
+        for(int startIndex = commitRequest.index + 1; ;startIndex++) {
+            var paxosState = paxosLog.get(startIndex);
             if (paxosState == null) {
                 break;
             }
-            WALEntry committed = paxosState.committedValue.get();
-            addAndApply(committed);
+            var committed = paxosState.committedValue.get();
+            addAndApply(startIndex, committed);
         }
     }
 
-    private void addAndApply(WALEntry walEnty) {
-        Command command = Command.deserialize(new ByteArrayInputStream(walEnty.getData()));
+    private void addAndApply(int index, WALEntry walEnty) {
+        var command = Command.deserialize(new ByteArrayInputStream(walEnty.getData()));
         if (command instanceof SetValueCommand) {
             SetValueCommand setValueCommand = (SetValueCommand)command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
+            waitingList.handleResponse(index, new SetValueResponse(setValueCommand.getValue()));
         }
     }
 
-    private void handlePaxosProposal(Integer correlationId, RequestOrResponse requestOrResponse) {
-        ProposalRequest request = JsonSerDes.deserialize(requestOrResponse.getMessageBodyJson(), ProposalRequest.class);
-        MonotonicId generation = request.getMonotonicId();
-        PaxosState paxosState = getOrCreatePaxosState(request.getIndex());
+    private ProposalResponse handlePaxosProposal(ProposalRequest request) {
+        var generation = request.generation;
+        var paxosState = getOrCreatePaxosState(request.index);
         if (generation.equals(paxosState.promisedGeneration) || generation.isAfter(paxosState.promisedGeneration)) {
             paxosState.promisedGeneration = generation;
             paxosState.acceptedGeneration = Optional.of(generation);
-            paxosState.acceptedValue = Optional.ofNullable(request.getProposedValue());
-            sendMessage(new RequestOrResponse(RequestId.ProposeResponse.getId(), JsonSerDes.serialize(new ProposalResponse(true)), correlationId), requestOrResponse.getFromAddress());
+            paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
+            return new ProposalResponse(true);
         }
+        return new ProposalResponse(false);
     }
 
-    private void handlePaxosPrepare(RequestOrResponse requestOrResponse) {
-        PrepareRequest request = JsonSerDes.deserialize(requestOrResponse.getMessageBodyJson(), PrepareRequest.class);
-        PrepareResponse prepareResponse = prepare(request.index, request.monotonicId);
-        sendMessage(new RequestOrResponse(RequestId.Promise.getId(), JsonSerDes.serialize(prepareResponse), requestOrResponse.getCorrelationId()), requestOrResponse.getFromAddress());
-    }
 
-    public PrepareResponse prepare(int index, MonotonicId generation) {
-        PaxosState paxosState = getOrCreatePaxosState(index);
-        if (paxosState.promisedGeneration.isAfter(generation)) {
+    public PrepareResponse prepare(PrepareRequest request) {
+        var paxosState = getOrCreatePaxosState(request.index);
+        if (paxosState.promisedGeneration.isAfter(request.monotonicId)) {
             return new PrepareResponse(false, paxosState.acceptedValue, paxosState.acceptedGeneration);
         }
-        paxosState.promisedGeneration = generation;
+        paxosState.promisedGeneration = request.monotonicId;
         return new PrepareResponse(true, paxosState.acceptedValue, paxosState.acceptedGeneration);
     }
 
     private PaxosState getOrCreatePaxosState(int index) {
-        PaxosState paxosState = paxosLog.get(index);
+        var paxosState = paxosLog.get(index);
         if (paxosState == null) {
             paxosState = new PaxosState();
             paxosLog.put(index, paxosState);
         }
         return paxosState;
-    }
-
-    private void handleResponse(RequestOrResponse response) {
-        requestWaitingList.handleResponse(response.getCorrelationId(), response);
-    }
-
-    private void handleSetValueRequest(RequestOrResponse request) {
-        SetValueRequest setValueRequest = deserialize(request);
-        sendMessage(new RequestOrResponse(request.getGeneration(), RequestId.SetValueResponse.getId(), setValueRequest.getValue().getBytes(), request.getCorrelationId(), peerConnectionAddress), request.getFromAddress());
-    }
-
-//    static class Network {
-//        List<InetAddressAndPort> dropMessagesTo = new ArrayList<>();
-//        public void dropMessagesTo(InetAddressAndPort address) {
-//            dropMessagesTo.add(address);
-//        }
-//        public void sendOneWay(InetAddressAndPort address, RequestOrResponse requestOrResponse) {
-//            if (dropMessagesTo.contains(address)) {
-//                return;
-//            }
-//            try {
-//
-//                SocketClient socketClient = new SocketClient(address);
-//            socketClient.sendOneway(requestOrResponse);
-//        }
-//    }
-
-    private void sendMessage(RequestOrResponse message, InetAddressAndPort toAddress) {
-        try {
-            if (toAddress.equals(peerConnectionAddress)) {
-                handleServerMessage(new Message<RequestOrResponse>(message, RequestId.valueOf(message.getRequestId())));
-                return;
-            }
-            SocketClient socketClient = new SocketClient(toAddress);
-            socketClient.sendOneway(message);
-        } catch (IOException e) {
-            logger.error("Communication failure sending request to " + toAddress);
-            throw new RuntimeException(e);
-        }
-    }
-
-    private SetValueRequest deserialize(RequestOrResponse request) {
-        return JsonSerDes.deserialize(request.getMessageBodyJson(), SetValueRequest.class);
-    }
+   }
 }

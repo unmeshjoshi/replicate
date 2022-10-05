@@ -24,8 +24,8 @@ public class PaxosKVClusterNodeTest extends ClusterTest<PaxosKVClusterNode> {
     public void setUp() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new PaxosKVClusterNode(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
-
     }
+
     @Test
     public void singleValuePaxosTest() throws IOException {
         var client = new NetworkClient();

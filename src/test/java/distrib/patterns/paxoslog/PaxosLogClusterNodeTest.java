@@ -1,86 +1,53 @@
 package distrib.patterns.paxoslog;
 
+import common.ClusterTest;
 import common.TestUtils;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.SocketClient;
+import distrib.patterns.paxos.GetValueResponse;
+import distrib.patterns.paxoskv.PaxosKVClusterNode;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
+import distrib.patterns.quorum.messages.SetValueResponse;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 
-public class PaxosLogClusterNodeTest {
+public class PaxosLogClusterNodeTest extends ClusterTest<PaxosLogClusterNode> {
+    @Before
+    public void setUp() throws IOException {
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new PaxosLogClusterNode(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
+
+    }
 
     @Test
     public void singleValuePaxosTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
-
-        RequestOrResponse requestOrResponse = createSetValueRequest("key", "value");
-
-        SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
-        RequestOrResponse response = client.blockingSend(requestOrResponse);
-
-        assertEquals("Success", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
+        var networkClient = new NetworkClient();
+        var setValueResponse = networkClient.sendAndReceive(new SetValueRequest("title", "Microservices"), nodes.get("athens").getClientConnectionAddress(), SetValueResponse.class);
+        assertEquals("Microservices", setValueResponse.result);
     }
 
     @Test
     public void singleValueNullPaxosGetTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
-
-        RequestOrResponse setValueRequest = createGetValueRequest("key");
-        SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
-        RequestOrResponse response = client.blockingSend(setValueRequest);
-
-        assertEquals(null, JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
+        var networkClient = new NetworkClient();
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        assertEquals(Optional.empty(), getValueResponse.value);
     }
 
     @Test
     public void singleValuePaxosGetTest() throws IOException {
-        List<InetAddressAndPort> clientInterfaceAddresses = startCluster(3);
-
-        RequestOrResponse requestOrResponse = createSetValueRequest("title", "Microservices");
-        SocketClient client = new SocketClient(clientInterfaceAddresses.get(0));
-        RequestOrResponse response = client.blockingSend(requestOrResponse);
-
-        assertEquals("Success", JsonSerDes.deserialize(response.getMessageBodyJson(), String.class));
-
-        RequestOrResponse getValueRequest = createGetValueRequest("title");
-        RequestOrResponse response1 = client.blockingSend(getValueRequest);
-
-        assertEquals("Microservices", JsonSerDes.deserialize(response1.getMessageBodyJson(), String.class));
+        var networkClient = new NetworkClient();
+        var setValueResponse = networkClient.sendAndReceive(new SetValueRequest("title", "Microservices"), nodes.get("athens").getClientConnectionAddress(), SetValueResponse.class);
+        assertEquals("Microservices", setValueResponse.result);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        assertEquals(Optional.of("Microservices"), getValueResponse.value);
     }
-
-
-    private RequestOrResponse createSetValueRequest(String key, String value) {
-        SetValueRequest setValueRequest = new SetValueRequest(key, value);
-        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.SetValueRequest.getId(),
-                JsonSerDes.serialize(setValueRequest), 1);
-        return requestOrResponse;
-    }
-
-    private RequestOrResponse createGetValueRequest(String key) {
-        GetValueRequest setValueRequest = new GetValueRequest(key);
-        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.GetValueRequest.getId(),
-                JsonSerDes.serialize(setValueRequest), 1);
-        return requestOrResponse;
-    }
-
-
-    private List<InetAddressAndPort> startCluster(int clusterSize) throws IOException {
-        SystemClock clock = new SystemClock();
-        List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
-        List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
-
-        for (int i = 0; i < clusterSize; i++) {
-            Config config = new Config(TestUtils.tempDir("PaxosLogTest").getAbsolutePath());
-            PaxosLogClusterNode paxosKVClusterNode = new PaxosLogClusterNode(clock, config, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
-            paxosKVClusterNode.start();
-        }
-        return clientInterfaceAddresses;
-    }
-
 }

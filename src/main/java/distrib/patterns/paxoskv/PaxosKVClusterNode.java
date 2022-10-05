@@ -3,7 +3,6 @@ package distrib.patterns.paxoskv;
 import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.common.MonotonicId;
 import distrib.patterns.paxos.*;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
@@ -12,7 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

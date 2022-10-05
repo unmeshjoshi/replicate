@@ -3,6 +3,7 @@ package distrib.patterns.quorum.messages;
 import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
+//TODO: remove getters
 public class SetValueRequest extends Request {
     private long clientId;
     private int requestNumber;

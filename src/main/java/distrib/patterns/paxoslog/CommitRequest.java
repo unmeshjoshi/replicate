@@ -1,31 +1,19 @@
 package distrib.patterns.paxoslog;
 
 import distrib.patterns.common.MonotonicId;
+import distrib.patterns.common.Request;
+import distrib.patterns.common.RequestId;
 import distrib.patterns.wal.WALEntry;
 
-public class CommitRequest {
-    private int index;
-    private WALEntry proposedValue;
-    private MonotonicId monotonicId;
+public class CommitRequest extends Request {
+    public final int index;
+    public final WALEntry proposedValue;
+    public final MonotonicId monotonicId;
 
     public CommitRequest(int index, WALEntry committedValue, MonotonicId monotonicId) {
+        super(RequestId.CommitRequest);
         this.index = index;
         this.proposedValue = committedValue;
         this.monotonicId = monotonicId;
     }
-
-    public MonotonicId getMonotonicId() {
-        return monotonicId;
-    }
-
-    public WALEntry getProposedValue() {
-        return proposedValue;
-    }
-
-    public int getIndex() {
-        return index;
-    }
-
-    //for jackson
-    private CommitRequest(){}
 }
