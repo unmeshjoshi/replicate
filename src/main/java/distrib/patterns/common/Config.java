@@ -144,7 +144,7 @@ public class Config {
 
     }
 
-    public void setAsyncRepair() {
+    public void useAsyncReadRepair() {
         this.doAsyncRepair = true;
     }
 

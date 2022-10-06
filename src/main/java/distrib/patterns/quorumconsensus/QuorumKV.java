@@ -8,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,13 +43,17 @@ public class QuorumKV extends Replica {
         sendMessageToReplicas(versionCallback, RequestId.GetVersion, getVersion);
         var quorumFuture = versionCallback.getQuorumFuture();
         return quorumFuture.thenCompose((r) ->
-                assignVersionAndSetValue(clientSetValueRequest, r.values().stream().toList()));
+                assignVersionAndSetValue(clientSetValueRequest, getExistingVersions(r)));
     }
 
-    private CompletableFuture<SetValueResponse> assignVersionAndSetValue(SetValueRequest clientSetValueRequest, List<GetVersionResponse> existingVersions) {
+    private static List<MonotonicId> getExistingVersions(Map<InetAddressAndPort, GetVersionResponse> versionResponses) {
+        return versionResponses.values().stream().map(r -> r.getVersion()).collect(Collectors.toList());
+    }
+
+    private CompletableFuture<SetValueResponse> assignVersionAndSetValue(SetValueRequest clientSetValueRequest, List<MonotonicId> existingVersions) {
         VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.key,
                 clientSetValueRequest.value,
-                getNextId(existingVersions.stream().map(r -> r.getVersion()).collect(Collectors.toList()))
+                getNextId(existingVersions)
         ); //assign timestamp to request.
         var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
         sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);

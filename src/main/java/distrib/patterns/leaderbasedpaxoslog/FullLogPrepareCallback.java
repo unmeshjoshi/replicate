@@ -1,6 +1,7 @@
 package distrib.patterns.leaderbasedpaxoslog;
 
 import distrib.patterns.common.BlockingQuorumCallback;
+import distrib.patterns.leaderbasedpaxoslog.messages.FullLogPrepareResponse;
 
 public class FullLogPrepareCallback extends BlockingQuorumCallback<FullLogPrepareResponse> {
 

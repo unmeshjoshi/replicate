@@ -4,8 +4,8 @@ import common.ClusterTest;
 import common.TestUtils;
 import distrib.patterns.common.NetworkClient;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.twophasecommit.ExecuteCommandRequest;
-import distrib.patterns.twophasecommit.ExecuteCommandResponse;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandRequest;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandResponse;
 import distrib.patterns.wal.SetValueCommand;
 import org.junit.Test;
 

@@ -5,6 +5,7 @@ import distrib.patterns.common.Replica;
 import distrib.patterns.common.RequestId;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.twophasecommit.messages.*;
 import distrib.patterns.wal.Command;
 import distrib.patterns.wal.DurableKVStore;
 

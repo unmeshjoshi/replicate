@@ -3,6 +3,7 @@ package distrib.patterns.paxos;
 import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.paxos.messages.*;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
@@ -10,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -139,10 +141,10 @@ public class SingleValuePaxos extends Replica {
         }
 
         public String getProposedValue() {
-            return getProposalValue(proposedValue, responses.values().stream().toList()); //TODO::
+            return getProposalValue(proposedValue, responses.values());
         }
 
-        private String getProposalValue(String initialValue, List<PrepareResponse> promises) {
+        private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
             PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
             String proposedValue
                     = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
@@ -150,7 +152,7 @@ public class SingleValuePaxos extends Replica {
             return proposedValue;
         }
 
-        private PrepareResponse getMostRecentAcceptedValue(List<PrepareResponse> prepareResponses) {
+        private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
             return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
         }
 

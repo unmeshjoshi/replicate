@@ -41,8 +41,10 @@ package distrib.patterns.generationvoting;
 // But what if the proposer fails?
 
 import distrib.patterns.common.*;
+import distrib.patterns.generationvoting.messages.NextNumberRequest;
+import distrib.patterns.generationvoting.messages.PrepareRequest;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.paxos.PrepareResponse;
+import distrib.patterns.paxos.messages.PrepareResponse;
 
 import java.io.IOException;
 import java.util.List;

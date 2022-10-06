@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,6 +21,8 @@ public class RequestWaitingList<Key, Response> {
     private static Logger logger = LogManager.getLogger(RequestWaitingList.class);
 
     private Map<Key, CallbackDetails> pendingRequests = new ConcurrentHashMap<>();
+    private InetAddressAndPort NONE;
+
     public void add(Key key, RequestCallback<Response> callback) {
         pendingRequests.put(key, new CallbackDetails(callback, clock.nanoTime()));
     }
@@ -58,7 +61,8 @@ public class RequestWaitingList<Key, Response> {
             return;
         }
         CallbackDetails callbackDetails = pendingRequests.remove(key);
-        callbackDetails.getRequestCallback().onResponse(response, null); //TODO:Fixme.
+        NONE = null;
+        callbackDetails.getRequestCallback().onResponse(response, NONE);//TODO:Possibly use Optional
 
     }
 

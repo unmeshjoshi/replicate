@@ -2,22 +2,16 @@ package quorum;
 
 import common.TestUtils;
 import distrib.patterns.common.Config;
-import distrib.patterns.common.JsonSerDes;
-import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.SystemClock;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.quorum.QuorumKVStore;
 import distrib.patterns.quorum.StoredValue;
-import distrib.patterns.quorum.messages.SetValueResponse;
-import distrib.patterns.quorumconsensus.QuorumKV;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.*;
@@ -176,7 +170,7 @@ public class QuorumReadWriteTest {
     public void laterReadsGetOlderValue() throws IOException {
         Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {
-                    config.setAsyncRepair();//TODO: refactor.
+                    config.useAsyncReadRepair();
                     return new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses);
                 });
 

@@ -2,14 +2,17 @@ package distrib.patterns.leaderbasedpaxoslog;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
+import distrib.patterns.leaderbasedpaxoslog.messages.FullLogPrepareResponse;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.common.MonotonicId;
-import distrib.patterns.paxos.GetValueResponse;
-import distrib.patterns.paxos.ProposalResponse;
+import distrib.patterns.paxos.messages.CommitResponse;
+import distrib.patterns.paxos.messages.GetValueResponse;
+import distrib.patterns.paxos.messages.ProposalResponse;
 import distrib.patterns.paxos.WriteTimeoutException;
-import distrib.patterns.paxoslog.PrepareRequest;
-import distrib.patterns.paxoslog.ProposalRequest;
+import distrib.patterns.paxoslog.messages.PrepareRequest;
+import distrib.patterns.paxoslog.messages.ProposalRequest;
+import distrib.patterns.paxoslog.messages.CommitRequest;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
@@ -29,16 +32,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
-class PaxosState {
-    MonotonicId promisedGeneration = MonotonicId.empty();
-    Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    Optional<WALEntry> acceptedValue = Optional.empty();
-
-    Optional<WALEntry> committedValue = Optional.empty();
-    Optional<MonotonicId> committedGeneration = Optional.empty();
-
-}
 
 public class LeaderBasedPaxosLog extends Replica {
     private static Logger logger = LogManager.getLogger(LeaderBasedPaxosLog.class);
@@ -60,14 +53,14 @@ public class LeaderBasedPaxosLog extends Replica {
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::fullLogPrepare, distrib.patterns.paxoslog.PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::fullLogPrepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, FullLogPrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, distrib.patterns.paxoslog.ProposalRequest.class)
-                .respondsWithMessage(RequestId.ProposeResponse, distrib.patterns.paxos.ProposalResponse.class);
+        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
+                .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, distrib.patterns.paxoslog.CommitRequest.class)
-                .respondsWithMessage(RequestId.CommitResponse,  distrib.patterns.paxos.CommitResponse.class);
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
+                .respondsWithMessage(RequestId.CommitResponse,  CommitResponse.class);
     }
 
 
@@ -138,14 +131,14 @@ public class LeaderBasedPaxosLog extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
         var commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendMessageToReplicas(commitCallback, RequestId.Commit, new distrib.patterns.paxoslog.CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback;
     }
 
 
     private distrib.patterns.paxos.ProposalCallback sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new distrib.patterns.paxos.ProposalCallback(getNoOfReplicas());
-        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new distrib.patterns.paxoslog.ProposalRequest(monotonicId, index, proposedValue));
+        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback;
     }
 
@@ -210,15 +203,15 @@ public class LeaderBasedPaxosLog extends Replica {
     }
 
 
-    private distrib.patterns.paxos.CommitResponse handlePaxosCommit(distrib.patterns.paxoslog.CommitRequest request) {
+    private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
         paxosState.committedGeneration = Optional.of(request.monotonicId);
         paxosState.committedValue = Optional.of(request.proposedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
-        return new distrib.patterns.paxos.CommitResponse(true);
+        return new CommitResponse(true);
     }
 
-    private void addAndApplyIfAllThePreviousEntriesAreCommitted(distrib.patterns.paxoslog.CommitRequest commitRequest) {
+    private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
         //if all entries upto logIndex - 1 are committed, apply this entry.
         List<Integer> previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
         boolean allPreviousCommitted = true;
@@ -252,14 +245,14 @@ public class LeaderBasedPaxosLog extends Replica {
         }
     }
 
-    private distrib.patterns.paxos.ProposalResponse handlePaxosProposal(ProposalRequest request) {
+    private ProposalResponse handlePaxosProposal(ProposalRequest request) {
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
         if (generation.equals(paxosState.promisedGeneration) || generation.isAfter(paxosState.promisedGeneration)) {
             paxosState.promisedGeneration = generation;
             paxosState.acceptedGeneration = Optional.of(generation);
             paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
-            return new distrib.patterns.paxos.ProposalResponse(true);
+            return new ProposalResponse(true);
         }
         return new ProposalResponse(false);
     }

@@ -3,6 +3,7 @@ package distrib.patterns.generationvoting;
 import common.ClusterTest;
 import common.TestUtils;
 import distrib.patterns.common.NetworkClient;
+import distrib.patterns.generationvoting.messages.NextNumberRequest;
 import org.junit.Test;
 
 import java.io.IOException;

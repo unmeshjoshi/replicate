@@ -2,7 +2,6 @@ package distrib.patterns.vsr;
 
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
-import distrib.patterns.twophasecommit.ExecuteCommandResponse;
 
 import java.util.concurrent.CompletableFuture;
 

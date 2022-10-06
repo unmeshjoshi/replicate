@@ -3,7 +3,7 @@ package distrib.patterns.leaderbasedpaxoslog;
 import common.ClusterTest;
 import common.TestUtils;
 import distrib.patterns.common.*;
-import distrib.patterns.paxos.GetValueResponse;
+import distrib.patterns.paxos.messages.GetValueResponse;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;

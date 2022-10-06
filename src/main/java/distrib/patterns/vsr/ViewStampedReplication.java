@@ -7,8 +7,9 @@ import distrib.patterns.common.SystemClock;
 import distrib.patterns.heartbeat.HeartBeatScheduler;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
-import distrib.patterns.twophasecommit.ExecuteCommandRequest;
-import distrib.patterns.twophasecommit.ExecuteCommandResponse;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandRequest;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandResponse;
+import distrib.patterns.vsr.messages.*;
 import distrib.patterns.wal.Command;
 import distrib.patterns.wal.SetValueCommand;
 import org.apache.logging.log4j.LogManager;
@@ -214,7 +215,7 @@ public class ViewStampedReplication extends Replica {
     }
 
 
-    static class LogEntry {
+    public static class LogEntry {
         public final ExecuteCommandRequest request;
         public LogEntry(ExecuteCommandRequest request) {
             this.request = request;

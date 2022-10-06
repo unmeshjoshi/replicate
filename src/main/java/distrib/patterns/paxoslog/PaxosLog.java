@@ -5,6 +5,13 @@ import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.paxos.*;
+import distrib.patterns.paxos.messages.CommitResponse;
+import distrib.patterns.paxos.messages.GetValueResponse;
+import distrib.patterns.paxos.messages.ProposalResponse;
+import distrib.patterns.paxoslog.messages.CommitRequest;
+import distrib.patterns.paxoslog.messages.PrepareRequest;
+import distrib.patterns.paxoslog.messages.PrepareResponse;
+import distrib.patterns.paxoslog.messages.ProposalRequest;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
@@ -24,16 +31,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
-class PaxosState {
-    MonotonicId promisedGeneration = MonotonicId.empty();
-    Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    Optional<WALEntry> acceptedValue = Optional.empty();
-
-    Optional<WALEntry> committedValue = Optional.empty();
-    Optional<MonotonicId> committedGeneration = Optional.empty();
-
-}
 
 public class PaxosLog extends Replica {
     private static Logger logger = LogManager.getLogger(PaxosLog.class);
@@ -160,10 +157,10 @@ public class PaxosLog extends Replica {
         }
 
         public WALEntry getProposedValue() {
-            return getProposalValue(proposedValue, responses.values().stream().toList()); //TODO::
+            return getProposalValue(proposedValue, responses.values());
         }
 
-        private WALEntry getProposalValue(WALEntry initialValue, List<PrepareResponse> promises) {
+        private WALEntry getProposalValue(WALEntry initialValue, Collection<PrepareResponse> promises) {
             var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
             var proposedValue
                     = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
@@ -171,7 +168,7 @@ public class PaxosLog extends Replica {
             return proposedValue;
         }
 
-        private PrepareResponse getMostRecentAcceptedValue(List<PrepareResponse> prepareResponses) {
+        private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
             return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
         }
 
@@ -189,12 +186,12 @@ public class PaxosLog extends Replica {
         return prepareCallback;
     }
 
-    private distrib.patterns.paxos.CommitResponse handlePaxosCommit(CommitRequest request) {
+    private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
         paxosState.committedGeneration = Optional.of(request.monotonicId);
         paxosState.committedValue = Optional.of(request.proposedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
-        return new distrib.patterns.paxos.CommitResponse(true);
+        return new CommitResponse(true);
     }
 
     private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
