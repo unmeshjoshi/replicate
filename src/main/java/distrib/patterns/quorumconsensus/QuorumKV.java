@@ -37,7 +37,7 @@ public class QuorumKV extends Replica {
     }
 
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
-        var getVersion = new GetVersionRequest(clientSetValueRequest.getKey());
+        var getVersion = new GetVersionRequest(clientSetValueRequest.key);
         var versionCallback = new AsyncQuorumCallback<GetVersionResponse>(getNoOfReplicas());
         sendMessageToReplicas(versionCallback, RequestId.GetVersion, getVersion);
         var quorumFuture = versionCallback.getQuorumFuture();
@@ -46,10 +46,8 @@ public class QuorumKV extends Replica {
     }
 
     private CompletableFuture<SetValueResponse> assignVersionAndSetValue(SetValueRequest clientSetValueRequest, List<GetVersionResponse> existingVersions) {
-        VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.getKey(),
-                clientSetValueRequest.getValue(),
-                clientSetValueRequest.getClientId(),
-                clientSetValueRequest.getRequestNumber(),
+        VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.key,
+                clientSetValueRequest.value,
                 getNextId(existingVersions.stream().map(r -> r.getVersion()).collect(Collectors.toList()))
         ); //assign timestamp to request.
         var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
@@ -97,9 +95,9 @@ public class QuorumKV extends Replica {
     }
 
     private SetValueResponse handlePeerSetValueRequest(VersionedSetValueRequest setValueRequest) {
-        StoredValue storedValue = get(setValueRequest.getKey());
-        if (setValueRequest.getVersion().isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
-            put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getVersion()));
+        StoredValue storedValue = get(setValueRequest.key);
+        if (setValueRequest.version.isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
+            put(setValueRequest.key, new StoredValue(setValueRequest.key, setValueRequest.value, setValueRequest.version));
         }
         return new SetValueResponse("Success");
     }

@@ -29,13 +29,13 @@ class PaxosState {
 
 }
 
-public class PaxosKVClusterNode extends Replica {
-    private static Logger logger = LogManager.getLogger(PaxosKVClusterNode.class);
+public class PaxosKVStore extends Replica {
+    private static Logger logger = LogManager.getLogger(PaxosKVStore.class);
 
     //Paxos State per key
     Map<String, PaxosState> kv = new HashMap<>();
 
-    public PaxosKVClusterNode(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
+    public PaxosKVStore(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
     }
 

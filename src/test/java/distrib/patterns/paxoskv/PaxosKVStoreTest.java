@@ -3,8 +3,6 @@ package distrib.patterns.paxoskv;
 import common.ClusterTest;
 import common.TestUtils;
 import distrib.patterns.common.*;
-import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.net.SocketClient;
 import distrib.patterns.paxos.GetValueResponse;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
@@ -18,12 +16,12 @@ import java.util.Optional;
 
 import static org.junit.Assert.*;
 
-public class PaxosKVClusterNodeTest extends ClusterTest<PaxosKVClusterNode> {
+public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
 
     @Before
     public void setUp() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new PaxosKVClusterNode(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new PaxosKVStore(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
     }
 
     @Test
