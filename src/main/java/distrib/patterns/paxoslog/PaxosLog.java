@@ -35,18 +35,17 @@ class PaxosState {
 
 }
 
-public class PaxosLogClusterNode extends Replica {
-    private static Logger logger = LogManager.getLogger(PaxosLogClusterNode.class);
+public class PaxosLog extends Replica {
+    private static Logger logger = LogManager.getLogger(PaxosLog.class);
 
     //Paxos State
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
 
     Map<String, String> kv = new HashMap<>();
-    private SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
+    private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
 
-    RequestWaitingList waitingList = new RequestWaitingList(clock);
-
-    public PaxosLogClusterNode(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
+    RequestWaitingList requestWaitingList;
+    public PaxosLog(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         requestWaitingList = new RequestWaitingList(clock);
     }
@@ -72,7 +71,7 @@ public class PaxosLogClusterNode extends Replica {
 
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest request) {
         var callback = new CompletionCallback<SetValueResponse>();
-        waitingList.add(logIndex, callback);
+        requestWaitingList.add(logIndex, callback);
 
         SetValueCommand setValueCommand = new SetValueCommand(request.getKey(), request.getValue());
         //todo append should be async.
@@ -83,7 +82,7 @@ public class PaxosLogClusterNode extends Replica {
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var callback = new CompletionCallback<SetValueResponse>();
-        waitingList.add(logIndex, callback);
+        requestWaitingList.add(logIndex, callback);
 
         var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0));
         return callback.getFuture().thenApply(r -> {
@@ -91,7 +90,7 @@ public class PaxosLogClusterNode extends Replica {
         });
     }
 
-    RequestWaitingList requestWaitingList;
+
 
     int maxKnownPaxosRoundId = 1;
     int logIndex = 0;
@@ -228,7 +227,7 @@ public class PaxosLogClusterNode extends Replica {
         if (command instanceof SetValueCommand) {
             SetValueCommand setValueCommand = (SetValueCommand)command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
-            waitingList.handleResponse(index, new SetValueResponse(setValueCommand.getValue()));
+            requestWaitingList.handleResponse(index, new SetValueResponse(setValueCommand.getValue()));
         }
     }
 

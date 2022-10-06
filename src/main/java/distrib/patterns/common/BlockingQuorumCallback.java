@@ -37,7 +37,7 @@ public class BlockingQuorumCallback<T> implements RequestCallback<T> {
     }
 
     public Map<InetAddressAndPort, T> blockAndGetQuorumResponses() {
-        Uninterruptibles.awaitUninterruptibly(latch, 50000, TimeUnit.MILLISECONDS);
+        Uninterruptibles.awaitUninterruptibly(latch, 5000, TimeUnit.MILLISECONDS);
         return responses;
     }
 }
