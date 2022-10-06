@@ -15,6 +15,6 @@ public class PrepareRequest extends Request {
 
     //for jackson
     private PrepareRequest() {
-        super(RequestId.PrepareRequest);
+        super(RequestId.Prepare);
     }
 }

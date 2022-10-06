@@ -11,7 +11,7 @@ public class CommitRequest extends Request {
     public final MonotonicId monotonicId;
 
     public CommitRequest(int index, WALEntry committedValue, MonotonicId monotonicId) {
-        super(RequestId.CommitRequest);
+        super(RequestId.Commit);
         this.index = index;
         this.proposedValue = committedValue;
         this.monotonicId = monotonicId;

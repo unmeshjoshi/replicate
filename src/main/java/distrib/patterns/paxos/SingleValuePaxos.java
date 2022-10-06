@@ -48,13 +48,13 @@ public class SingleValuePaxos extends Replica {
                 .respondsWith(RequestId.GetValueRequest, GetValueResponse.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.PrepareRequest, this::prepare, PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.CommitRequest, this::handlePaxosCommit, CommitRequest.class)
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
@@ -120,7 +120,7 @@ public class SingleValuePaxos extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(MonotonicId monotonicId, String value) {
         BlockingQuorumCallback commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(monotonicId, value));
+        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(monotonicId, value));
         return commitCallback;
     }
 
@@ -164,7 +164,7 @@ public class SingleValuePaxos extends Replica {
 
     private PrepareCallback sendPrepareRequest(String proposedValue, MonotonicId monotonicId) {
         PrepareCallback prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(monotonicId));
+        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(monotonicId));
         return prepareCallback;
     }
 

@@ -103,9 +103,9 @@ public class ViewStampedReplication extends Replica {
         handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientRequest, ExecuteCommandRequest.class);
 
         //peers communicate by message passing.
-        handlesMessage(RequestId.PrepareRequest, this::handlePrepare, Prepare.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepare, Prepare.class);
         handlesMessage(RequestId.PrepareOK, this::handlePrepareOk, PrepareOK.class);
-        handlesMessage(RequestId.CommitRequest, this::handleCommit, Commit.class);
+        handlesMessage(RequestId.Commit, this::handleCommit, Commit.class);
         handlesMessage(RequestId.StartViewChange, this::handleStartViewChange, StartViewChange.class);
         handlesMessage(RequestId.DoViewChange, this::handleDoViewChange, DoViewChange.class);
         handlesMessage(RequestId.StartView, this::handleStartView, StartView.class);

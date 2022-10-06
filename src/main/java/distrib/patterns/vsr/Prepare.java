@@ -11,7 +11,7 @@ public class Prepare extends Request {
     public final int commitNumber;
 
     public Prepare(int viewNumber, ExecuteCommandRequest request, int opNumber, int commitNumber) {
-        super(RequestId.PrepareRequest);
+        super(RequestId.Prepare);
         this.viewNumber = viewNumber;
         this.request = request;
         this.opNumber = opNumber;

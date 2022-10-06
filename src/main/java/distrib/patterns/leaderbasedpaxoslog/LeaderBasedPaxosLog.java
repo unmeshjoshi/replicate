@@ -60,13 +60,13 @@ public class LeaderBasedPaxosLog extends Replica {
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.PrepareRequest, this::fullLogPrepare, distrib.patterns.paxoslog.PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::fullLogPrepare, distrib.patterns.paxoslog.PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, FullLogPrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, distrib.patterns.paxoslog.ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, distrib.patterns.paxos.ProposalResponse.class);
 
-        handlesMessage(RequestId.CommitRequest, this::handlePaxosCommit, distrib.patterns.paxoslog.CommitRequest.class)
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, distrib.patterns.paxoslog.CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse,  distrib.patterns.paxos.CommitResponse.class);
     }
 
@@ -138,7 +138,7 @@ public class LeaderBasedPaxosLog extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
         var commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new distrib.patterns.paxoslog.CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, RequestId.Commit, new distrib.patterns.paxoslog.CommitRequest(index, value, monotonicId));
         return commitCallback;
     }
 
@@ -205,7 +205,7 @@ public class LeaderBasedPaxosLog extends Replica {
 
     private FullLogPrepareCallback sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
         var prepareCallback = new FullLogPrepareCallback(getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(-1, fullLogPromisedGeneration));
+        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
         return prepareCallback;
     }
 

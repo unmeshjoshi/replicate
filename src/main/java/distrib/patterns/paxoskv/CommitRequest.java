@@ -10,7 +10,7 @@ public class CommitRequest extends Request {
     public final MonotonicId generation;
 
     public CommitRequest(String key, String value, MonotonicId generation) {
-        super(RequestId.CommitRequest);
+        super(RequestId.Commit);
         this.key = key;
         this.value = value;
         this.generation = generation;

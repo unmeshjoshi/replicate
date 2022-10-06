@@ -8,7 +8,7 @@ public class Commit extends Request {
     public final int commitNumber;
 
     public Commit(int viewNumber, int commitNumber) {
-        super(RequestId.CommitRequest);
+        super(RequestId.Commit);
         this.viewNumber = viewNumber;
         this.commitNumber = commitNumber;
     }

@@ -22,6 +22,6 @@ public class CommitRequest extends Request {
     }
 
     private CommitRequest() {
-        super(RequestId.CommitRequest);
+        super(RequestId.Commit);
     }
 }

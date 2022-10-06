@@ -9,7 +9,7 @@ public class PrepareRequest extends Request {
     public final MonotonicId monotonicId;
 
     public PrepareRequest(Integer index, MonotonicId monotonicId) {
-        super(RequestId.PrepareRequest);
+        super(RequestId.Prepare);
         this.index = index;
         this.monotonicId = monotonicId;
     }

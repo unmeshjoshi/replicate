@@ -5,6 +5,7 @@ import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.NIOSocketListener;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
+import distrib.patterns.singularupdatequeue.SingularUpdateQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -58,6 +59,7 @@ public abstract class Replica {
     public void start() {
         peerListener.start();
         clientListener.start();
+        singularUpdateQueue.start();
     }
 
     //Send message without expecting any messages as a response from the peer
@@ -131,13 +133,18 @@ public abstract class Replica {
         return responses;
     }
 
-    //handles messages sent by peers in the cluster in message passing style.
-    //peer to peer communication happens on peerConnectionAddress
-    public void handlePeerMessage(Message<RequestOrResponse> message) {
+    SingularUpdateQueue<Message<RequestOrResponse>, Void> singularUpdateQueue = new SingularUpdateQueue<Message<RequestOrResponse>, Void>((message) -> {
         markHeartbeatReceived();
         RequestOrResponse request = message.getRequest();
         Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
         consumer.accept(message);
+        return null;
+    });
+
+    //handles messages sent by peers in the cluster in message passing style.
+    //peer to peer communication happens on peerConnectionAddress
+    public void handlePeerMessage(Message<RequestOrResponse> message) {
+        singularUpdateQueue.submit(message);
     }
 
     protected void markHeartbeatReceived() {
@@ -361,6 +368,7 @@ public abstract class Replica {
     public void shutdown() {
         peerListener.shudown();
         clientListener.shudown();
+        singularUpdateQueue.shutdown();
     }
 
     public Duration elapsedTimeSinceLastHeartbeat() {

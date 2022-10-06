@@ -48,13 +48,13 @@ public class PaxosKVStore extends Replica {
         handlesRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.PrepareRequest, this::prepare, PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.CommitRequest, this::handlePaxosCommit, CommitRequest.class)
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
@@ -112,7 +112,7 @@ public class PaxosKVStore extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(String key, String value, MonotonicId monotonicId) {
         BlockingQuorumCallback commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(key, value, monotonicId));
+        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(key, value, monotonicId));
         return commitCallback;
     }
 
@@ -125,7 +125,7 @@ public class PaxosKVStore extends Replica {
 
     private SingleValuePaxos.PrepareCallback sendPrepareRequest(String key, String proposedValue, MonotonicId monotonicId) {
         SingleValuePaxos.PrepareCallback prepareCallback = new SingleValuePaxos.PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(key, monotonicId));
+        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(key, monotonicId));
         return prepareCallback;
     }
 

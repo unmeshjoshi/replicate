@@ -59,7 +59,7 @@ public class GenerationVoting extends Replica {
     @Override
     protected void registerHandlers() {
        handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
-       handlesMessage(RequestId.PrepareRequest, this::handlePrepareRequest, PrepareRequest.class)
+       handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class)
                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
     }
 
@@ -80,7 +80,7 @@ public class GenerationVoting extends Replica {
         while(true) {
             PrepareRequest nr = new PrepareRequest(proposedNumber);
             PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
-            sendMessageToReplicas(callback, RequestId.PrepareRequest, nr);
+            sendMessageToReplicas(callback, RequestId.Prepare, nr);
             if (callback.isQuorumPrepared()) {
                 //TODO:Consider using blocking methods for ease of understanding.
                 return CompletableFuture.completedFuture(proposedNumber);

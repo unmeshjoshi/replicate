@@ -58,13 +58,13 @@ public class PaxosLog extends Replica {
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.PrepareRequest, this::prepare, PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.CommitRequest, this::handlePaxosCommit, CommitRequest.class)
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
@@ -125,7 +125,7 @@ public class PaxosLog extends Replica {
     }
 
     private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry command) {
-        PrepareCallback prepareCallback = sendPrepareRequest(index , command, monotonicId);
+        PrepareCallback prepareCallback = sendPrepareMessage(index , command, monotonicId);
         if (prepareCallback.isQuorumPrepared()) {
             var proposedValue = prepareCallback.getProposedValue();
             var proposalCallback = sendProposeRequest(index, proposedValue, monotonicId);
@@ -140,7 +140,7 @@ public class PaxosLog extends Replica {
 
     private BlockingQuorumCallback sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
         var commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
-        sendMessageToReplicas(commitCallback, RequestId.CommitRequest, new CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback;
     }
 
@@ -183,9 +183,9 @@ public class PaxosLog extends Replica {
         }
     }
 
-    private PrepareCallback sendPrepareRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+    private PrepareCallback sendPrepareMessage(int index, WALEntry proposedValue, MonotonicId monotonicId) {
         var prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.PrepareRequest, new PrepareRequest(index, monotonicId));
+        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(index, monotonicId));
         return prepareCallback;
     }
 

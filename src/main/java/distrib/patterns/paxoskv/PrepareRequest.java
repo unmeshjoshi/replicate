@@ -9,7 +9,7 @@ public class PrepareRequest extends Request {
     public final MonotonicId generation;
 
     public PrepareRequest(String key, MonotonicId generation) {
-        super(RequestId.PrepareRequest);
+        super(RequestId.Prepare);
         this.key = key;
         this.generation = generation;
     }
