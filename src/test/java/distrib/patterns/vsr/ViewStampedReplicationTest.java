@@ -22,7 +22,6 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
 
     @Test
     public void testNormalOperationWithoutFailures() throws IOException, InterruptedException {
-
         super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                         (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new ViewStampedReplication(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
 

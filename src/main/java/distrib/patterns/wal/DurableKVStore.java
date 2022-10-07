@@ -14,11 +14,7 @@ public class DurableKVStore {
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
-        appendLog(key, value);
-        //add to data files.
-        //add to index files.
-        //return response;///
-        //
+//        appendLog(key, value);
         kv.put(key, value);
     }
 

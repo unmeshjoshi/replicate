@@ -1,11 +1,13 @@
 package distrib.patterns.common;
 
+import distrib.patterns.heartbeat.HeartBeatScheduler;
 import distrib.patterns.net.ClientConnection;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.NIOSocketListener;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.singularupdatequeue.SingularUpdateQueue;
+import distrib.patterns.vsr.messages.Commit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,6 +57,30 @@ public abstract class Replica {
         this.clientListener = new NIOSocketListener(this::handleClientRequest, clientConnectionAddress);
         this.registerHandlers();
     }
+
+
+    /**
+     * Following schedulers support implementing basic heartbeat mechanism.
+     */
+    protected HeartBeatScheduler heartBeatScheduler = new HeartBeatScheduler(()->{
+        sendHeartbeats();
+    }, 100l); //TODO: Make heartbeat intervals configurable.
+
+    //no-op. implemented by implementations.
+    protected void sendHeartbeats() {
+        logger.info(getName() + " sending heartbeat message");
+    }
+
+    protected Duration heartbeatTimeout = Duration.ofMillis(500);
+
+    protected HeartBeatScheduler heartbeatChecker = new HeartBeatScheduler(()->{
+        checkPrimary();
+    }, 1000l);
+
+    protected void checkPrimary() {
+        //no-op. implemented by implementations.
+    }
+
 
     public void start() {
         peerListener.start();

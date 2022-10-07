@@ -4,7 +4,6 @@ import distrib.patterns.common.Config;
 import distrib.patterns.common.Replica;
 import distrib.patterns.common.RequestId;
 import distrib.patterns.common.SystemClock;
-import distrib.patterns.heartbeat.HeartBeatScheduler;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.twophasecommit.messages.ExecuteCommandRequest;
@@ -24,22 +23,14 @@ import java.util.concurrent.CompletableFuture;
 public class ViewStampedReplication extends Replica {
     private static final Logger logger = LogManager.getLogger(ViewStampedReplication.class);
 
-    HeartBeatScheduler heartBeatScheduler = new HeartBeatScheduler(()->{
-        sendHeartbeats();
-    }, 100l);
-
-    private void sendHeartbeats() {
+    @Override
+    protected void sendHeartbeats() {
         logger.info(getName() + " sending heartbeat message");
         sendOnewayMessageToOtherReplicas(new Commit(viewNumber, commitNumber));
     }
 
-    Duration heartbeatTimeout = Duration.ofMillis(500);
-
-    HeartBeatScheduler heartbeatChecker = new HeartBeatScheduler(()->{
-        checkPrimary();
-    }, 1000l);
-
-    private void checkPrimary() {
+    @Override
+    protected void checkPrimary() {
         logger.info(getName() + " checking heartbeat status at " + clock.nanoTime());
         Duration timeSinceLastHeartbeat = elapsedTimeSinceLastHeartbeat();
         if (timeSinceLastHeartbeat.compareTo(heartbeatTimeout) > 0) {

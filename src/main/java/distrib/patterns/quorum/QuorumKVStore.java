@@ -12,6 +12,35 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * A simple key value store with replication handled using 'quorum'.
+ * Each client request is sent to all the replicas.
+ * Client communicate to the node by request-response rpc.(They expect
+ * and wait for the response on the same connection)
+ * Replicas communicate by message passing.
+ * Each node sends a message to other node, but does not block.
+ * When the sending node receives a response message from the other node,
+ * it completes the pending requests.
+ *
+ *
+ *                                 message1      +--------+
+ *                                +-------------->+        |
+ *                                |               | node2  |
+ *                                |    +-message2-+        |
+ *                                |    |          |        |
+ *                             +--+----v+         +--------+
+ * +------+   request-response |        |
+ * |      |                    |node1   |
+ * |client| <--------------->  |        |
+ * |      |                    |        |
+ * +------+                    +-+----+-+
+ *                               |    ^            +---------+
+ *                               |    |            |         |
+ *                               |    +--message4--+ node3   |
+ *                               |                 |         |
+ *                               +--message3------->         |
+ *                                                 +---------+
+ */
 public class QuorumKVStore extends Replica {
     private static Logger logger = LogManager.getLogger(QuorumKVStore.class);
     public static final int firstGeneration = 1;
@@ -28,7 +57,7 @@ public class QuorumKVStore extends Replica {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, replicas);
         this.config = config;
         this.replicas = replicas;
-        //FIXME
+        //TODO:Configure system directory in the client.
         Config configWithSystemWalDir = makeNewConfigWithSystemWalDir(config);
         this.systemStorage = new DurableKVStore(configWithSystemWalDir);
         this.durableStore = new DurableKVStore(config);
