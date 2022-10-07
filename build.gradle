@@ -36,6 +36,7 @@ dependencies {
 }
 
 compileJava {
+    //For jackson to use property based constructor
     options.compilerArgs << '-parameters'
 }
 

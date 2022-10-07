@@ -8,7 +8,6 @@ import org.apache.logging.log4j.Logger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,7 +30,7 @@ public class RequestWaitingList<Key, Response> {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private Duration expirationDuration; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
-        this(clock, Duration.ofMillis(1000));
+        this(clock, Duration.ofMillis(2000)); //TODO: Keeping this as 1 second occasionally expires some get requests and fails read-repair tests
     }
     public RequestWaitingList(SystemClock clock, Duration duration) {
         this.expirationDuration = duration;
@@ -40,8 +39,7 @@ public class RequestWaitingList<Key, Response> {
     }
 
     private void expire() {
-        long now = clock.nanoTime();
-        List<Key> expiredRequestKeys = getExpiredRequestKeys(now);
+        List<Key> expiredRequestKeys = getExpiredRequestKeys();
         if (expiredRequestKeys.isEmpty()) {
             return;
         }
@@ -52,8 +50,8 @@ public class RequestWaitingList<Key, Response> {
         });
     }
 
-    private List<Key> getExpiredRequestKeys(long now) {
-        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().elapsedTime(now) > expirationDuration.toNanos()).map(e -> e.getKey()).collect(Collectors.toList());
+    private List<Key> getExpiredRequestKeys() {
+        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().isExpired(this.expirationDuration, clock.nanoTime())).map(e -> e.getKey()).collect(Collectors.toList());
     }
 
     public void handleResponse(Key key, Response response) {
