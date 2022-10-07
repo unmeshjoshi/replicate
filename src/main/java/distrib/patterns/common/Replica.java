@@ -66,7 +66,7 @@ public abstract class Replica {
         sendHeartbeats();
     }, 100l); //TODO: Make heartbeat intervals configurable.
 
-    //no-op. implemented by implementations.
+    //no-op. implemented by subclass implementations.
     protected void sendHeartbeats() {
         logger.info(getName() + " sending heartbeat message");
     }
@@ -103,7 +103,7 @@ public abstract class Replica {
         try {
             network.sendOneWay(address, message);
         } catch (IOException e) {
-            logger.error("Communication failure sending request to " + address);
+            logger.error("Communication failure sending request to " + address + " from " + getName());
         }
     }
 

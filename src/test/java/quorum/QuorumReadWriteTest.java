@@ -56,26 +56,24 @@ public class QuorumReadWriteTest {
         QuorumKVStore byzantium = kvStores.get("byzantium");
         QuorumKVStore cyrene = kvStores.get("cyrene");
 
-
-
-        athens.dropMessagesTo(byzantium);
-
         KVClient kvClient = new KVClient();
         String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);
 
-        assertEquals("Microservices", athens.get("title").getValue());
-        assertEquals("Microservices", cyrene.get("title").getValue());
-        assertEquals("", byzantium.get("title").getValue());
+        athens.dropMessagesTo(byzantium);
 
-        cyrene.dropMessagesTo(athens);
+        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
+        assertEquals("Success", response);
+
+        assertEquals("Distributed Systems", athens.get("title").getValue());
+        assertEquals("Distributed Systems", cyrene.get("title").getValue());
+        assertEquals("Microservices", byzantium.get("title").getValue());
+
+
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
-        assertEquals("Microservices", value);
+        assertEquals("Distributed Systems", value);
 
-        TestUtils.waitUntilTrue(()-> {
-                return "Microservices".equals(byzantium.get("title").getValue());
-                }, "Waiting for read repair", Duration.ofSeconds(5));
-
+        assertEquals("Distributed Systems", byzantium.get("title").getValue());
     }
 
     @Test
@@ -145,17 +143,13 @@ public class QuorumReadWriteTest {
         QuorumKVStore byzantium = kvStores.get("byzantium");
         QuorumKVStore cyrene = kvStores.get("cyrene");
 
-
-
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
-
 
         KVClient kvClient = new KVClient();
         String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Error", response);
         assertEquals("Microservices", athens.get("title").getValue());
-
 
         athens.reconnectTo(cyrene);
         cyrene.dropMessagesTo(byzantium);
@@ -208,8 +202,9 @@ public class QuorumReadWriteTest {
 
         //concurrent read
         //there is a possibility of this happening.
-        //Bob    //Nitroservices:timestamp 1
-                 //Nitroservices:timestamp 1
+        //Bob is reading after Alice. But still Bob gets older value.
+        //Bob    //Nitroservices:timestamp 1 byzantium
+                 //Nitroservices:timestamp 1 cyrene
         value = kvClient.getValue(byzantium.getClientConnectionAddress(), "title");
         assertEquals("Nicroservices", value);
 

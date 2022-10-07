@@ -31,7 +31,7 @@ public class RequestWaitingList<Key, Response> {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private Duration expirationDuration; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
-        this(clock, Duration.ofMillis(2000));
+        this(clock, Duration.ofMillis(1000));
     }
     public RequestWaitingList(SystemClock clock, Duration duration) {
         this.expirationDuration = duration;
@@ -53,7 +53,7 @@ public class RequestWaitingList<Key, Response> {
     }
 
     private List<Key> getExpiredRequestKeys(long now) {
-        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().elapsedTime(now) > expirationDuration.getNano()).map(e -> e.getKey()).collect(Collectors.toList());
+        return pendingRequests.entrySet().stream().filter(entry -> entry.getValue().elapsedTime(now) > expirationDuration.toNanos()).map(e -> e.getKey()).collect(Collectors.toList());
     }
 
     public void handleResponse(Key key, Response response) {

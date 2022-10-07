@@ -51,6 +51,8 @@ public class QuorumKVStore extends Replica {
 
     //zookeeper/etcd
     private final DurableKVStore systemStorage;
+
+
     private final DurableKVStore durableStore;
 
     public QuorumKVStore(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> replicas) throws IOException {
@@ -92,10 +94,11 @@ public class QuorumKVStore extends Replica {
     }
 
 
-    private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest clientSetValueRequest) {
-        GetValueRequest request = new GetValueRequest(clientSetValueRequest.getKey());
+    private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest clientRequest) {
+        logger.info("Handling get request for " + clientRequest.getKey() + " in " + getName());
+        GetValueRequest requestToReplicas = new GetValueRequest(clientRequest.getKey());
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
-        sendMessageToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, request);
+        sendMessageToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, requestToReplicas);
         return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
             return new ReadRepairer(this, responses, config.doAsyncReadRepair()).readRepair();
         });
@@ -148,22 +151,11 @@ public class QuorumKVStore extends Replica {
 
     private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
         StoredValue storedValue = get(getValueRequest.getKey());
-        logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue);
+        logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue + " from " + getName());
         return new GetValueResponse(storedValue);
     }
 
     private SetValueResponse handleSetValueRequest(VersionedSetValueRequest setValueRequest) {
-//TODO: Figure out way to handle generation.
-//        int maxKnownGeneration = maxKnownGeneration();
-//        Integer requestGeneration = request.getGeneration();
-//
-//        //TODO: Assignment 3 Add check for generation while handling requests.
-//
-//        if (requestGeneration < maxKnownGeneration) {
-//            String errorMessage = "Rejecting request from generation " + requestGeneration + " as already accepted from generation " + maxKnownGeneration;
-//            send(request.getFromAddress(), new RequestOrResponse(requestGeneration, RequestId.SetValueResponse.getId(), errorMessage.getBytes(), request.getCorrelationId(), getPeerConnectionAddress()));
-//            return;
-//        }
         StoredValue storedValue = get(setValueRequest.getKey());
 
         if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.

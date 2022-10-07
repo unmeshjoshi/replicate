@@ -1,9 +1,11 @@
 package distrib.patterns.wal;
 
 import distrib.patterns.common.Config;
+import distrib.patterns.common.JsonSerDes;
 
 import java.io.ByteArrayInputStream;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class DurableKVStore {
     private final Map<String, String> kv = new HashMap<>();
@@ -14,7 +16,9 @@ public class DurableKVStore {
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
-//        appendLog(key, value);
+        appendLog(key, value);
+        //crash.
+        //process following async
         kv.put(key, value);
     }
 

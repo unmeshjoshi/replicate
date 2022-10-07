@@ -65,6 +65,7 @@ class ReadRepairer {
         return this.nodesToValues.entrySet().stream().filter(e -> latestTimestamp > (e.getValue().getValue().getTimestamp())).map(e -> e.getKey()).collect(Collectors.toList());
     }
 
+    //TODO:assignment
     private StoredValue getLatestStoredValue() {
         return this.nodesToValues.values().stream().map(r -> r.getValue()).max(Comparator.comparingLong(StoredValue::getTimestamp)).orElse(StoredValue.EMPTY);
     }

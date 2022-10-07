@@ -22,7 +22,7 @@ class Network {
     public void sendOneWay(InetAddressAndPort address, RequestOrResponse message) throws IOException {
         if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
             removeExistingConnections(address);
-            return;
+            throw new IOException("Unable to connect to " + address);
         }
 
         if (shouldDelayMessagesTo(address)) {

@@ -16,11 +16,16 @@ public class DurableKVStoreTest {
         File walDir = TestUtils.tempDir("wal");
         DurableKVStore kv = new DurableKVStore(new Config(walDir.getAbsolutePath()));
         kv.put("key1", "value1");
+        //client got success;
+        //client is sure that key1 is durable
         //fail.
         //success
         kv.put("key2", "value2");
+        //client is sure that key2 is durable
         kv.put("key3", "value3");
+        //client is sure that key3 is durable
         //}
+
         //KV crashes.
         kv.close();
 
