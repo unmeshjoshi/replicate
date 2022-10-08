@@ -7,6 +7,7 @@ import distrib.patterns.paxos.messages.*;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
+import distrib.patterns.wal.Command;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +19,44 @@ import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
+/**
+ * Paxos operates in three phases
+ * Prepare      : To order the request by assigning a unique epoch/generation number
+ *                And to know about accepted values/Commands in previous quorum.
+ * Propose      : Propose a new/selected value to all the nodes.
+ * Commit(Learn): Tell all the nodes about the value/command accepted by majority quorum.
+ *                Once committed the value can be returned to the user.
+ *
+ * +-------+         +--------+                 +-------+         +------+
+ * |       |         |        |                 |       |         |      |
+ * |Client |         |node1   |                 | node2 |         | node3|
+ * |       |         |        |                 |       |         |      |
+ * +---+---+         +----+---+                 +---+---+         +--+---+
+ *     |   command        |                         |                |
+ *     +------------------>                         |                |
+ *     |                  +---+                     |                |
+ *     |                  <---|     Prepare         |                |
+ *     |                  +------------------------>+                |
+ *     |                  | <-----------------------|                |
+ *     |                  +----------------------------------------->+
+ *     |                  <------------------------------------------+
+ *     |                  |-----|                   |                |
+ *     |                  <-----|   Propose         |                |
+ *     |                  +------------------------^-+               |
+ *     |                  |  <----------------------|                |
+ *     |                  +----------------------------------------->+
+ *     |                  +<-----------------------------------------+
+ *     |                  |                         |                |
+ *     |                  +------+                  |                |
+ *     |                  |      |  Commit          |                |
+ *     |                  <------+  Execute         |                |
+ *     |                  |------------------------>+                |
+ *     |   Result         +----------------------------------------> ++
+ *     +<-----------------+                                          |
+ *     |                  |                                          |
+ *     +                  +                                          +
+ */
 
 public class SingleValuePaxos extends Replica {
     private static Logger logger = LogManager.getLogger(SingleValuePaxos.class);
@@ -38,7 +77,6 @@ public class SingleValuePaxos extends Replica {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
     }
-
 
     @Override
     protected void registerHandlers() {

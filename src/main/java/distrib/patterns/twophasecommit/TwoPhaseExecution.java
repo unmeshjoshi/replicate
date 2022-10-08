@@ -14,10 +14,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-public class TwoPhaseCommit extends Replica {
+public class TwoPhaseExecution extends Replica {
     Command acceptedCommand;
     DurableKVStore kvStore;
-    public TwoPhaseCommit(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+    public TwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         this.kvStore = new DurableKVStore(config);
     }
