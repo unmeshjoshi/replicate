@@ -13,8 +13,9 @@ import distrib.patterns.paxoslog.messages.PrepareRequest;
 import distrib.patterns.paxoslog.messages.PrepareResponse;
 import distrib.patterns.paxoslog.messages.ProposalRequest;
 import distrib.patterns.quorum.messages.GetValueRequest;
-import distrib.patterns.quorum.messages.SetValueRequest;
-import distrib.patterns.quorum.messages.SetValueResponse;
+import distrib.patterns.twophasecommit.CompareAndSwap;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandRequest;
+import distrib.patterns.twophasecommit.messages.ExecuteCommandResponse;
 import distrib.patterns.vsr.CompletionCallback;
 import distrib.patterns.wal.Command;
 import distrib.patterns.wal.EntryType;
@@ -51,8 +52,8 @@ public class PaxosLog extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
 
         //peer to peer message passing
         handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
@@ -65,23 +66,21 @@ public class PaxosLog extends Replica {
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
+    private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
+        var callback = new CompletionCallback<ExecuteCommandResponse>();
 
-    private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest request) {
-        var callback = new CompletionCallback<SetValueResponse>();
-        requestWaitingList.add(logIndex, callback);
-
-        SetValueCommand setValueCommand = new SetValueCommand(request.getKey(), request.getValue());
         //todo append should be async.
-        int logIndex = append(new WALEntry(0l, setValueCommand.serialize(), EntryType.DATA, 0));
+        int logIndex = append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
 
         return callback.getFuture();
     }
 
-    private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
-        var callback = new CompletionCallback<SetValueResponse>();
-        requestWaitingList.add(logIndex, callback);
 
-        var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0));
+    private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
+        var callback = new CompletionCallback<ExecuteCommandResponse>();
+
+
+        var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0), callback);
         return callback.getFuture().thenApply(r -> {
             return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
         });
@@ -95,12 +94,12 @@ public class PaxosLog extends Replica {
     int maxAttempts = 2;
 
     //conver to async
-    public int append(WALEntry initialValue) {
+    public int append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         int attempts = 0;
         while(attempts <= maxAttempts) {
             attempts++;
             var requestId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            var paxosResult = doPaxos(requestId, logIndex, initialValue);
+            var paxosResult = doPaxos(requestId, logIndex, initialValue, callback);
             if (paxosResult.value.isPresent() && paxosResult.value.get() == initialValue) {
                 return logIndex;
             }
@@ -121,12 +120,16 @@ public class PaxosLog extends Replica {
         }
     }
 
-    private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry command) {
-        PrepareCallback prepareCallback = sendPrepareMessage(index , command, monotonicId);
+    private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+        PrepareCallback prepareCallback = sendPrepareMessage(index , initialValue, monotonicId);
         if (prepareCallback.isQuorumPrepared()) {
             var proposedValue = prepareCallback.getProposedValue();
             var proposalCallback = sendProposeRequest(index, proposedValue, monotonicId);
             if (proposalCallback.isQuorumAccepted()) {
+                //TODO:Fix this awkward assignment. The request should be responded with only after commit happens for this request.
+                if (proposedValue == initialValue) {
+                    requestWaitingList.add(index, callback);
+                }
                 sendCommitRequest(index, proposedValue, monotonicId);
                 return new PaxosResult(Optional.ofNullable(proposedValue), true);
             }
@@ -224,7 +227,16 @@ public class PaxosLog extends Replica {
         if (command instanceof SetValueCommand) {
             SetValueCommand setValueCommand = (SetValueCommand)command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
-            requestWaitingList.handleResponse(index, new SetValueResponse(setValueCommand.getValue()));
+            requestWaitingList.handleResponse(index, new ExecuteCommandResponse(Optional.of(setValueCommand.getValue()), true));
+
+        } else if (command instanceof CompareAndSwap) {
+            CompareAndSwap cas = (CompareAndSwap)command;
+            Optional<String> existingValue = Optional.ofNullable(kv.get(cas.getKey()));
+            if (existingValue.equals(cas.getExistingValue())) {
+                kv.put(cas.getKey(), cas.getNewValue());
+                requestWaitingList.handleResponse(index,  new ExecuteCommandResponse(existingValue, true));
+            }
+            requestWaitingList.handleResponse(index,  new ExecuteCommandResponse(existingValue, false));
         }
     }
 
