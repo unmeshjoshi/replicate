@@ -22,12 +22,23 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
 
         NetworkClient client = new NetworkClient();
         Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
-
         assertEquals(1, nextNumber.intValue());
         assertEquals(1, athens.generation);
         assertEquals(1, byzantium.generation);
         assertEquals(1, cyrene.generation);
 
-    }
+        nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
+        assertEquals(2, nextNumber.intValue());
+        assertEquals(2, athens.generation);
+        assertEquals(2, byzantium.generation);
+        assertEquals(2, cyrene.generation);
+
+        nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
+
+        assertEquals(3, nextNumber.intValue());
+        assertEquals(3, athens.generation);
+        assertEquals(3, byzantium.generation);
+        assertEquals(3, cyrene.generation);
+    }
 }

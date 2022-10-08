@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class GenerationVoting extends Replica {
-    int generation;
+    int generation = 0;
 
     public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
@@ -93,7 +93,7 @@ public class GenerationVoting extends Replica {
 
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
         PrepareResponse response;
-        if (generation > nextNumberRequest.getNumber()) {
+        if (generation >= nextNumberRequest.getNumber()) {
             response = new PrepareResponse(false);
         } else {
             generation = nextNumberRequest.getNumber();

@@ -15,7 +15,33 @@ import static org.junit.Assert.*;
 
 public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
 
-    //Incomplete requests do not create problems.
+    //Assignment: Write a test for incomleteWritesAreNotAvailableInReads.
+    @Test
+    public void incomleteWritesAreNotAvailableInReads() throws IOException {
+        //created as instance variables, so that teardown can shutdown the cluster
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new TwoPhaseExecution(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+
+        TwoPhaseExecution athens = nodes.get("athens");
+        TwoPhaseExecution byzantium = nodes.get("byzantium");
+        TwoPhaseExecution cyrene = nodes.get("cyrene");
+
+        athens.dropMessagesTo(byzantium);
+        athens.dropMessagesTo(cyrene);
+
+
+        NetworkClient client = new NetworkClient();
+        CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
+        ExecuteCommandResponse response
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+
+        assertFalse(response.isCommitted());
+
+        assertNull(athens.getValue("title"));
+        assertNull(byzantium.getValue("title"));
+        assertNull(cyrene.getValue("title"));
+    }
+
     @Test
     public void valuesAvailableOnlyIfQuorumHasAgreedToExecuteTheCommand() throws IOException {
         //created as instance variables, so that teardown can shutdown the cluster

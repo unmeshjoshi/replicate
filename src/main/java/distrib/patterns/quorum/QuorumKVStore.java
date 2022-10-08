@@ -82,6 +82,7 @@ public class QuorumKVStore extends Replica {
     //t2 = clientState.getTimestamp()
     //t3 = clientState.getTimestamp()
     //t3 > t2 > t1 //NTP..  t1 > t3..
+    //LWW - last write wins implementation - provided clocks are in sync.
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
         VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.getKey(),
                 clientSetValueRequest.getValue(),

@@ -195,8 +195,12 @@ public class QuorumReadWriteTest {
 
         //concurrent read
         //read-repair message to cyrene is delayed..
-        //Alice -   //Microservices:timestamp 2
-                    //Nitroservices:timestamp 1
+        //Alice -   //Microservices:timestamp 2 athens
+                    //Nitroservices:timestamp 1 cyrene
+        //triggers read-repair
+        // return "Microservices"
+        // GC Pause on athens
+        // as part of get request --ReadRepair(SetValue title, "Microservices", ts=2)->cyrene //happens async and delayed.
         String value = kvClient.getValue(athens.getClientConnectionAddress(), "title");
         assertEquals("Microservices", value);
 
@@ -248,7 +252,7 @@ public class QuorumReadWriteTest {
         //Alice starts the compareAndSwap
         //Alice reads the value.
         String aliceValue = alice.getValue(cyrene.getClientConnectionAddress(), "title");
-
+        //get-compare-modify-write
         //meanwhile bob starts compareAndSwap as well
         //Bob connects to athens, which is now able to connect to cyrene and byzantium
         distrib.patterns.quorumconsensus.KVClient bob = new distrib.patterns.quorumconsensus.KVClient();
