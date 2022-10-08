@@ -3,6 +3,8 @@ package distrib.patterns.common;
 import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class BlockingQuorumCallback<T> implements RequestCallback<T> {
+    Logger logger = LogManager.getLogger(BlockingQuorumCallback.class);
     protected final int quorum;
     private final int totalResponses;
     List<Exception> exceptions = new ArrayList<>();
@@ -27,6 +30,7 @@ public class BlockingQuorumCallback<T> implements RequestCallback<T> {
 
     @Override
     public void onResponse(T r, InetAddressAndPort address) {
+        logger.info("Received " + r + " from " + address);
         responses.put(address, r);
         latch.countDown();
     }

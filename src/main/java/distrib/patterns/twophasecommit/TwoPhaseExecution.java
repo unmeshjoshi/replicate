@@ -115,6 +115,7 @@ public class TwoPhaseExecution extends Replica {
     }
 
     ProposeResponse handlePropose(ProposeRequest proposeRequest) {
+        //dont accept lower numbered commands.
         acceptedCommand = getCommand(proposeRequest.getCommand());
         return new ProposeResponse(true);
     }

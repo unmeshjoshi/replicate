@@ -23,13 +23,13 @@ package distrib.patterns.generationvoting;
 //   What if accepted by only a minority of nodes.
 //       a accepts and then sender fails.
 //    Next sender can connect to b and c
-      //  b accepts and then sender fails.
+//  b accepts and then sender fails.
 
 // Next sender can connect to a and b.
 // Which value to choose? One of the values from a or b might be the value from previous majority..
 
 //2. How to know if quorum of replicas have accepted the request
-      //Some responses might get lost and we might not know about the accepted request.
+//Some responses might get lost and we might not know about the accepted request.
 //   Send commit message to all the replicas.
 //     Some replicas might not receive commit message.
 //   execute it. //this makes sure all the replicas will execute this request.
@@ -44,14 +44,20 @@ import distrib.patterns.common.*;
 import distrib.patterns.generationvoting.messages.NextNumberRequest;
 import distrib.patterns.generationvoting.messages.PrepareRequest;
 import distrib.patterns.net.InetAddressAndPort;
+import distrib.patterns.paxos.WriteTimeoutException;
 import distrib.patterns.paxos.messages.PrepareResponse;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class GenerationVoting extends Replica {
+    //epoch/term/generation
     int generation = 0;
+    private Logger logger = LogManager.getLogger(GenerationVoting.class);
 
     public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
@@ -60,45 +66,38 @@ public class GenerationVoting extends Replica {
 
     @Override
     protected void registerHandlers() {
-       handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
-       handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class)
-               .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
-    }
-
-    class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
-        public PrepareCallback(int totalResponses) {
-            super(totalResponses);
-        }
-        public boolean isQuorumPrepared() {
-           return blockAndGetQuorumResponses()
-                   .values()
-                   .stream()
-                   .filter(p -> p.isPromised()).count() >= quorum;
-        }
+        handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class)
+                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
     }
 
     CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
         int proposedNumber = 1;
-        while(true) {
-            PrepareRequest nr = new PrepareRequest(proposedNumber);
-            PrepareCallback callback = new PrepareCallback(getNoOfReplicas());
-            sendMessageToReplicas(callback, RequestId.Prepare, nr);
-            if (callback.isQuorumPrepared()) {
-                //TODO:Consider using blocking methods for ease of understanding.
+        return proposeNumber(proposedNumber, 1);
+    }
+
+    private CompletableFuture<Integer> proposeNumber(int proposedNumber, int attempt) {
+        PrepareRequest nr = new PrepareRequest(proposedNumber);
+        var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+
+        sendMessageToReplicas(callback, RequestId.Prepare, nr);
+
+        return callback.getQuorumFuture().handle((r, e) -> {
+            if (e == null) {
                 return CompletableFuture.completedFuture(proposedNumber);
             }
-            proposedNumber = proposedNumber + 1;//try next number
-        }
+
+            return proposeNumber(attempt + 1, proposedNumber + 1);
+        }).thenCompose(x -> x);
     }
 
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
-        PrepareResponse response;
-        if (generation >= nextNumberRequest.getNumber()) {
-            response = new PrepareResponse(false);
-        } else {
+        if (nextNumberRequest.getNumber() > generation) { //accept only if 'strictly greater'
             generation = nextNumberRequest.getNumber();
-            response = new PrepareResponse(true);
+            logger.info("accepting " + generation + " in " + getName());
+            return new PrepareResponse(true);
         }
-        return response;
+        logger.info("rejecting " + generation + " in " + getName());
+        return new PrepareResponse(false);
     }
 }

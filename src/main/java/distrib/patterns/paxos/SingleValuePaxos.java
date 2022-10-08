@@ -65,6 +65,7 @@ public class SingleValuePaxos extends Replica {
     int maxAttempts = 2;
 
     //Paxos State
+    //TODO:Refactor so that all implementations have the same state representation.
     MonotonicId promisedGeneration = MonotonicId.empty();
     Optional<MonotonicId> acceptedGeneration = Optional.empty();
     Optional<String> acceptedValue = Optional.empty();
@@ -197,7 +198,7 @@ public class SingleValuePaxos extends Replica {
             return blockAndGetQuorumResponses()
                     .values()
                     .stream()
-                    .filter(p -> p.isPromised()).count() >= quorum;
+                    .filter(p -> p.promised).count() >= quorum;
         }
     }
 

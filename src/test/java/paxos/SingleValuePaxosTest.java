@@ -9,6 +9,7 @@ import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,10 +53,33 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(Optional.empty(), response.value);
     }
 
-    @Test
+    @Test @Ignore//TODO: Write a test for partial writes.
     public void singleValuePaxosGetTest() throws IOException {
         var client = new NetworkClient();
+
+        //only athens has value Microservices
+        //byzantium is empty, cyrene is empty
+        athens.dropMessagesToAfter(byzantium, 1);
+        athens.dropMessagesToAfter(cyrene, 1);
+
         var response = client.sendAndReceive(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress(), SetValueResponse.class);
+
+        assertEquals("Microservices", response.result);
+
+        //only byzantium will have value Distributed Systems
+        //athens has Microservices
+        //cyrene is empty.
+        byzantium.dropMessagesTo(athens);
+        byzantium.dropMessagesToAfter(cyrene, 1);
+        response = client.sendAndReceive(new SetValueRequest("title", "Distributed Systems"), byzantium.getClientConnectionAddress(), SetValueResponse.class);
+
+        assertEquals("Microservices", response.result);
+
+        //only cyrene will have value "Event Driven Microservices" 1
+        //athens has Microservices 2
+        //byzantium has Distributed Systems. 3
+        cyrene.dropMessagesToAfter(byzantium, 1);
+        response = client.sendAndReceive(new SetValueRequest("title", "Event Driven Microservices"), cyrene.getClientConnectionAddress(), SetValueResponse.class);
 
         assertEquals("Microservices", response.result);
 

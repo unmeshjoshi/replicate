@@ -7,9 +7,9 @@ import distrib.patterns.common.RequestId;
 import java.util.Optional;
 
 public class PrepareResponse extends Request {
-    boolean promised;
-    public Optional<String> acceptedValue;
-    public Optional<MonotonicId> acceptedGeneration;
+    public final boolean promised;
+    public final  Optional<String> acceptedValue;
+    public final  Optional<MonotonicId> acceptedGeneration;
 
     public PrepareResponse(boolean success, Optional<String> acceptedValue, Optional<MonotonicId> acceptedGeneration) {
         super(RequestId.Promise);
@@ -20,14 +20,5 @@ public class PrepareResponse extends Request {
 
     public PrepareResponse(boolean success) {
         this(success, Optional.empty(), Optional.empty());
-    }
-
-    //for jackson
-    private PrepareResponse() {
-        super(RequestId.Promise);
-    }
-
-    public boolean isPromised() {
-        return promised;
     }
 }

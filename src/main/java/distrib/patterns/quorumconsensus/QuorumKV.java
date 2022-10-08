@@ -51,13 +51,13 @@ public class QuorumKV extends Replica {
     }
 
     private CompletableFuture<SetValueResponse> assignVersionAndSetValue(SetValueRequest clientSetValueRequest, List<MonotonicId> existingVersions) {
-        VersionedSetValueRequest requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.key,
+        var requestToReplicas = new VersionedSetValueRequest(clientSetValueRequest.key,
                 clientSetValueRequest.value,
                 getNextId(existingVersions)
         ); //assign timestamp to request.
         var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
         sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
-        CompletableFuture<Map<InetAddressAndPort, SetValueResponse>> quorumFuture = quorumCallback.getQuorumFuture();
+        var quorumFuture = quorumCallback.getQuorumFuture();
         return quorumFuture.thenApply(r -> {
             //TODO:Find how to handle multiple values;
             return r.values().stream().findFirst().get();
