@@ -117,6 +117,9 @@ class Network {
 
     public void reconnectTo(InetAddressAndPort address) {
         dropRequestsTo.remove(address);
+        dropAfter.remove(address);
+        delayMessagesAfter.remove(address);
+
     }
 
     public void dropMessagesAfter(InetAddressAndPort address, int dropAfterNoOfMessages) {

@@ -14,6 +14,45 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * For every node to know if all other nodes have accepted a command, needs
+ * execution in two phases.
+ * Phase1: Tell every node to accept a command to execute
+ *         Nodes return a response telling that they have acccepted a command.
+ * Phase2: Once majority of the nodes accept the command. Tell everyone to commit it.
+ *         This way everyone knows that all other nodes will also be executing the command.
+ *
+ * +-------+              +--------+          +--------+       +--------+
+ * |       |              |        |          |        |       |        |
+ * |Client |              | node1  |          | node2  |       | node3  |
+ * |       |              |        |          |        |       |        |
+ * +---+---+              +---+----+          +---+----+       +----+---+
+ *     |                      |                   |                 |
+ *     |     command          |                   |                 |
+ *     +--------------------->+                   |                 |
+ *     |                      +---+               |                 |
+ *     |                      |   |   propose     |                 |
+ *     |                      +<--                |                 |
+ *     |                      |------------------>+                 |
+ *     |                      +<------------------+                 |
+ *     |                      |       accepted    |                 |
+ *     |                      +------------------------------------->
+ *     |                      |<------------------------------------+
+ *     |                      +                   |                 |
+ *     |                      |                   |                 |
+ *     |                      +---+               |                 |
+ *     |                      |   |               |                 |
+ *     |                      +<--+               |                 |
+ *     |                      |       commit      |                 |
+ *     |                      +------------------->                 |
+ *     |                      <-------------------|                 +
+ *     |                      |------------------------------------>|
+ *     |                      +<------------------------------------+
+ *     |                     ++
+ *     |<--------------------+
+ *
+ */
+
 public class TwoPhaseExecution extends Replica {
     Command acceptedCommand;
     DurableKVStore kvStore;
@@ -47,11 +86,11 @@ public class TwoPhaseExecution extends Replica {
         throw new IllegalArgumentException("Unknown command " + command);
     }
 
-    private static Command getCommand(byte[] command) {
+    static Command getCommand(byte[] command) {
         return Command.deserialize(new ByteArrayInputStream(command));
     }
 
-    private ExecuteCommandResponse handleExecute(ExecuteCommandRequest t) {
+    ExecuteCommandResponse handleExecute(ExecuteCommandRequest t) {
         ProposeRequest proposal = new ProposeRequest(getCommand(t.command).serialize());
         List<ProposeResponse> proposalResponses = blockingSendToReplicas(proposal.getRequestId(), proposal);
         if (proposalResponses.stream().filter(r -> r.isAccepted()).count() >= quorum()) {
@@ -61,7 +100,7 @@ public class TwoPhaseExecution extends Replica {
         return ExecuteCommandResponse.notCommitted();
     }
 
-    private CommitCommandResponse sendCommitRequest(CommitCommandRequest r) {
+    CommitCommandResponse sendCommitRequest(CommitCommandRequest r) {
         List<CommitCommandResponse> proposalResponses = blockingSendToReplicas(r.getRequestId(), r);
         return proposalResponses.get(0);
     }
@@ -70,7 +109,7 @@ public class TwoPhaseExecution extends Replica {
         return getNoOfReplicas() / 2 + 1;
     }
 
-    private ProposeResponse handlePropose(ProposeRequest proposeRequest) {
+    ProposeResponse handlePropose(ProposeRequest proposeRequest) {
         acceptedCommand = getCommand(proposeRequest.getCommand());
         return new ProposeResponse(true);
     }
