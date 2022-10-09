@@ -246,10 +246,15 @@ public abstract class Replica {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleSync = wrapHandler(handler);
         requestMap.put(requestId, (message)-> {
-            deserialize
-                    .andThen(handleSync)
-                    .andThen(syncRespondToSender)
-                    .apply(message);
+            try {
+                deserialize
+                        .andThen(handleSync)
+                        .andThen(syncRespondToSender)
+                        .apply(message);
+            } catch(Exception e) {
+                RequestOrResponse request = message.getRequest();
+                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), serialize(e), request.getCorrelationId()).setError());
+            }
         });
         return new SyncBuilder<Res>();
     }

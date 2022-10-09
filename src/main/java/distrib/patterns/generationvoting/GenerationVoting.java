@@ -44,20 +44,20 @@ import distrib.patterns.common.*;
 import distrib.patterns.generationvoting.messages.NextNumberRequest;
 import distrib.patterns.generationvoting.messages.PrepareRequest;
 import distrib.patterns.net.InetAddressAndPort;
-import distrib.patterns.paxos.WriteTimeoutException;
 import distrib.patterns.paxos.messages.PrepareResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GenerationVoting extends Replica {
     //epoch/term/generation
     int generation = 0;
     private Logger logger = LogManager.getLogger(GenerationVoting.class);
+    private int maxAttmpts = 4;
 
     public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
@@ -72,23 +72,29 @@ public class GenerationVoting extends Replica {
     }
 
     CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
-        int proposedNumber = 1;
-        return proposeNumber(proposedNumber, 1);
+        int proposedNumber = 0;
+        return proposeNumber(proposedNumber);
     }
 
-    private CompletableFuture<Integer> proposeNumber(int proposedNumber, int attempt) {
-        PrepareRequest nr = new PrepareRequest(proposedNumber);
-        var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
+    private CompletableFuture<Integer> proposeNumber(int proposedNumber) {
+        int maxAttempts = 5;
+        AtomicInteger proposal = new AtomicInteger(proposedNumber);
+        return FutureUtils.retryWithRandomDelay(() -> {
+            var resultFuture = new CompletableFuture<Integer>();
+            PrepareRequest nr = new PrepareRequest(proposal.incrementAndGet());
+            var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+            sendMessageToReplicas(callback, RequestId.Prepare, nr);
+            callback.getQuorumFuture().whenComplete((result, exception) -> {
+                if (exception != null) {
+                    resultFuture.completeExceptionally(exception);
+                } else {
+                    resultFuture.complete(proposal.intValue());
+                }
+            });
+            return resultFuture;
+        }, maxAttempts, retryExecutor);
 
-        sendMessageToReplicas(callback, RequestId.Prepare, nr);
-
-        return callback.getQuorumFuture().handle((r, e) -> {
-            if (e == null) {
-                return CompletableFuture.completedFuture(proposedNumber);
-            }
-
-            return proposeNumber(attempt + 1, proposedNumber + 1);
-        }).thenCompose(x -> x);
     }
 
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
