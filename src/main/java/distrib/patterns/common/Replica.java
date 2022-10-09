@@ -7,7 +7,6 @@ import distrib.patterns.net.NIOSocketListener;
 import distrib.patterns.net.requestwaitinglist.RequestCallback;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
 import distrib.patterns.singularupdatequeue.SingularUpdateQueue;
-import distrib.patterns.vsr.messages.Commit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -230,7 +229,7 @@ public abstract class Replica {
     //Sends response from the handler to the sender.
     //This is request-response  communication or rpc.
     //The sender expects a response to the request on the same connection.
-    public <T  extends Request, Res> void handlesRequestAsync(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
+    public <T  extends Request, Res> Replica handlesRequestAsync(RequestId requestId, Function<T, CompletableFuture<Res>> handler, Class<T> requestClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleAsync = asyncWrapHandler(handler);
         requestMap.put(requestId, (message)-> {
@@ -239,6 +238,7 @@ public abstract class Replica {
                     .andThen(asyncRespondToSender)
                     .apply(message);
         });
+        return this;
     }
 
     private Map<RequestId, Class> responseClasses = new HashMap();

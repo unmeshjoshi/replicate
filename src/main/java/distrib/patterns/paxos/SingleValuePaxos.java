@@ -1,6 +1,5 @@
 package distrib.patterns.paxos;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.paxos.messages.*;
@@ -11,13 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Paxos operates in three phases
@@ -81,10 +77,10 @@ public class SingleValuePaxos extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequest(RequestId.SetValueRequest, this::handleSetValueRequest, SetValueRequest.class)
+        handlesRequestAsync(RequestId.SetValueRequest, this::handleSetValueRequest, SetValueRequest.class)
                 .respondsWith(RequestId.SetValueResponse, SetValueResponse.class);
 
-        handlesRequest(RequestId.GetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
+        handlesRequestAsync(RequestId.GetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
                 .respondsWith(RequestId.GetValueRequest, GetValueResponse.class);
 
         //peer to peer message passing
@@ -98,14 +94,12 @@ public class SingleValuePaxos extends Replica {
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
-    private SetValueResponse handleSetValueRequest(SetValueRequest setValueRequest) {
-        Optional<String> value = doPaxos(setValueRequest.getValue());
-        return new SetValueResponse(value.orElse(""));
+    private CompletableFuture<SetValueResponse> handleSetValueRequest(SetValueRequest setValueRequest) {
+        return doPaxos(setValueRequest.getValue()).thenApply(value -> new SetValueResponse(value.orElse("")));
     }
 
-    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
-        Optional<String> value = doPaxos(null); //null is the default value
-        return new GetValueResponse(value);
+    private CompletableFuture<GetValueResponse> handleGetValueRequest(GetValueRequest getValueRequest) {
+        return doPaxos(null).thenApply(value -> new GetValueResponse(value));
     }
 
     private CommitResponse handlePaxosCommit(CommitRequest req) {
@@ -116,23 +110,15 @@ public class SingleValuePaxos extends Replica {
         return new CommitResponse(false);
     }
 
-    private Optional<String> doPaxos(String value) {
-        int attempts = 0;
-        while (attempts <= maxAttempts) {
-            attempts++;
-            //Alice id=2 //fail
-            //Bob id=4
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            PaxosResult paxosResult = doPaxos(monotonicId, value);
-            if (paxosResult.success) {
-                return paxosResult.value;
-            } //else {
-            //maxKnownPaxosRoundId = paxosResult.maxKnownNumber;
-            //}
-            Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-            logger.warn("Experienced Paxos contention. Attempting with higher generation");
-        }
-        throw new WriteTimeoutException(attempts);
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
+
+    private CompletableFuture<Optional<String>> doPaxos(String value) {
+        int maxAttempts = 5;
+        MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+        return FutureUtils.retryWithRandomDelay(() -> {
+            return doPaxos(monotonicId, value);
+        }, maxAttempts, retryExecutor).thenApply(result -> result.value);
+
     }
 
     static class PaxosResult {
@@ -145,17 +131,28 @@ public class SingleValuePaxos extends Replica {
         }
     }
 
-    private PaxosResult doPaxos(MonotonicId monotonicId, String value) {
-        PrepareCallback prepareCallback = sendPrepareRequest(value, monotonicId);
-        if (prepareCallback.isQuorumPrepared()) {
-            String proposedValue = prepareCallback.getProposedValue();
-            ProposalCallback proposalCallback = sendProposeRequest(proposedValue, monotonicId);
-            if (proposalCallback.isQuorumAccepted()) {
-                sendCommitRequest(monotonicId, proposedValue);
-                return new PaxosResult(Optional.ofNullable(proposedValue), true);
-            }
-        }
-        return new PaxosResult(Optional.empty(), false);
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, String value) {
+        AsyncQuorumCallback<PrepareResponse> prepareCallback = sendPrepareRequest(value, monotonicId);
+        return prepareCallback.getQuorumFuture().thenCompose((result)->{
+            String proposedValue = getProposalValue(value, result.values());
+            return sendProposeRequest(proposedValue, monotonicId);
+        }).thenApply(result -> {
+            sendCommitRequest(monotonicId, value);
+            return new PaxosResult(Optional.of(value), true);
+        });
+    }
+
+
+    private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
+        PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
+        String proposedValue
+                = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
+                initialValue : mostRecentAcceptedValue.acceptedValue.get();
+        return proposedValue;
+    }
+
+    private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
+        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
     }
 
     private BlockingQuorumCallback sendCommitRequest(MonotonicId monotonicId, String value) {
@@ -164,10 +161,10 @@ public class SingleValuePaxos extends Replica {
         return commitCallback;
     }
 
-    private ProposalCallback sendProposeRequest(String proposedValue, MonotonicId monotonicId) {
-        ProposalCallback proposalCallback = new ProposalCallback(getNoOfReplicas());
+    private CompletableFuture<String> sendProposeRequest(String proposedValue, MonotonicId monotonicId) {
+        AsyncQuorumCallback<ProposalResponse> proposalCallback = new AsyncQuorumCallback(getNoOfReplicas());
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, proposedValue));
-        return proposalCallback;
+        return proposalCallback.getQuorumFuture().thenApply(result -> proposedValue);
     }
 
     public static class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
@@ -202,10 +199,10 @@ public class SingleValuePaxos extends Replica {
         }
     }
 
-    private PrepareCallback sendPrepareRequest(String proposedValue, MonotonicId monotonicId) {
-        PrepareCallback prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(monotonicId));
-        return prepareCallback;
+    private AsyncQuorumCallback sendPrepareRequest(String proposedValue, MonotonicId monotonicId) {
+        var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+        sendMessageToReplicas(callback, RequestId.Prepare, new PrepareRequest(monotonicId));
+        return callback;
     }
 
     private ProposalResponse handlePaxosProposal(ProposalRequest request) {

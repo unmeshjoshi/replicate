@@ -53,7 +53,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(Optional.empty(), response.value);
     }
 
-    @Test @Ignore//TODO: Write a test for partial writes.
+    @Test//TODO: Write a test for partial writes.
     public void singleValuePaxosGetTest() throws IOException {
         var client = new NetworkClient();
 
