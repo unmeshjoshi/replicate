@@ -105,7 +105,7 @@ public class SingleValuePaxos extends Replica {
     private CommitResponse handlePaxosCommit(CommitRequest req) {
         if (canAccept(req.getGeneration())) {
             logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + promisedGeneration + " req generation=" + req.getGeneration());
-            this.acceptedValue = Optional.of(req.getValue());
+            this.acceptedValue = Optional.ofNullable(req.getValue());
             return new CommitResponse(true);
         }
         return new CommitResponse(false);
@@ -115,8 +115,9 @@ public class SingleValuePaxos extends Replica {
 
     private CompletableFuture<Optional<String>> doPaxos(String value) {
         int maxAttempts = 5;
-        MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
         return FutureUtils.retryWithRandomDelay(() -> {
+            //Each retry with higher generation/epoch
+            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
             return doPaxos(monotonicId, value);
         }, maxAttempts, retryExecutor).thenApply(result -> result.value);
 

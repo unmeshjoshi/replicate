@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
+/**
+ * Completes the associated future once quorum predicate succeeds.
+ */
 public class AsyncQuorumCallback<T> implements RequestCallback<T> {
     private final int totalResponses;
     List<Exception> exceptions = new ArrayList<>();
@@ -18,7 +21,7 @@ public class AsyncQuorumCallback<T> implements RequestCallback<T> {
     private Predicate<T> successCondition;
 
     public AsyncQuorumCallback(int totalResponses) {
-        //This is default implementation. But its good to provide a specific quorum condition.
+        //This is default implementation. it's good to provide a specific quorum condition.
         this(totalResponses, (responses)->true);
     }
 

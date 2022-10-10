@@ -272,7 +272,7 @@ public class QuorumReadWriteTest {
 
         //Bob is surprised to read the different value after his compareAndSwap was successful.
         response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
-        assertEquals("Distributed Systems", response);
+        assertEquals("Nitroservices", response);
     }
 
 

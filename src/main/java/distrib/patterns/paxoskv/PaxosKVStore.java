@@ -76,8 +76,9 @@ public class PaxosKVStore extends Replica {
 
     private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(String key, String value) {
         int maxAttempts = 5;
-        MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
         return FutureUtils.retryWithRandomDelay(() -> {
+            //Each retry with higher generation/epoch
+            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
             return doPaxos(monotonicId, key, value);
         }, maxAttempts, retryExecutor);
 

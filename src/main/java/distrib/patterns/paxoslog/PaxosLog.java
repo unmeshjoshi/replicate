@@ -1,10 +1,8 @@
 package distrib.patterns.paxoslog;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.net.requestwaitinglist.RequestWaitingList;
-import distrib.patterns.paxos.*;
 import distrib.patterns.paxos.messages.CommitResponse;
 import distrib.patterns.paxos.messages.GetValueResponse;
 import distrib.patterns.paxos.messages.ProposalResponse;
@@ -28,10 +26,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class PaxosLog extends Replica {
     private static Logger logger = LogManager.getLogger(PaxosLog.class);
@@ -68,9 +65,8 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
         var callback = new CompletionCallback<ExecuteCommandResponse>();
-
         //todo append should be async.
-        int logIndex = append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
+        append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
 
         return callback.getFuture();
     }
@@ -78,8 +74,6 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var callback = new CompletionCallback<ExecuteCommandResponse>();
-
-
         var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0), callback);
         return callback.getFuture().thenApply(r -> {
             return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
@@ -94,20 +88,8 @@ public class PaxosLog extends Replica {
     int maxAttempts = 2;
 
     //conver to async
-    public int append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
-        int attempts = 0;
-        while(attempts <= maxAttempts) {
-            attempts++;
-            var requestId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            var paxosResult = doPaxos(requestId, logIndex, initialValue, callback);
-            if (paxosResult.value.isPresent() && paxosResult.value.get() == initialValue) {
-                return logIndex;
-            }
-            Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-            logger.warn("Experienced Paxos contention. Attempting with higher generation");
-            logIndex++;
-        }
-        throw new WriteTimeoutException(attempts);
+    public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+        return doPaxos(initialValue, callback);
     }
 
     static class PaxosResult {
@@ -120,73 +102,63 @@ public class PaxosLog extends Replica {
         }
     }
 
-    private PaxosResult doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
-        PrepareCallback prepareCallback = sendPrepareMessage(index , initialValue, monotonicId);
-        if (prepareCallback.isQuorumPrepared()) {
-            var proposedValue = prepareCallback.getProposedValue();
-            var proposalCallback = sendProposeRequest(index, proposedValue, monotonicId);
-            if (proposalCallback.isQuorumAccepted()) {
-                //TODO:Fix this awkward assignment. The request should be responded with only after commit happens for this request.
-                if (proposedValue == initialValue) {
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
+    private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
+        int maxAttempts = 5;
+        return FutureUtils.retryWithRandomDelay(() -> {
+            //Each retry with higher generation/epoch
+            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+            CompletableFuture<PaxosResult> result = doPaxos(monotonicId, logIndex, value, callback);
+            logIndex++;//Increment so that next attempt is done for higher index.
+            return result;
+        }, maxAttempts, retryExecutor);
+
+    }
+
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
+        return sendPrepareRequest(index, monotonicId).
+                thenCompose((result) -> {
+                    WALEntry proposedValue = getProposalValue(value, result.values());
+                    return sendProposeRequest(index, proposedValue, monotonicId);
+
+                }).thenCompose(proposedValue -> {
+                    //Once the index at which the command is committed reaches 'high-watemark', return the result.
                     requestWaitingList.add(index, callback);
-                }
-                sendCommitRequest(index, proposedValue, monotonicId);
-                return new PaxosResult(Optional.ofNullable(proposedValue), true);
-            }
-        }
-        return new PaxosResult(Optional.empty(), false);
+                    return sendCommitRequest(index, proposedValue, monotonicId)
+                            .thenApply(r -> new PaxosResult(Optional.of(proposedValue), true));
+                });
     }
 
 
-    private BlockingQuorumCallback sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
-        var commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
+    private WALEntry getProposalValue(WALEntry initialValue, Collection<PrepareResponse> promises) {
+        var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
+        var proposedValue
+                = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
+                initialValue : mostRecentAcceptedValue.acceptedValue.get();
+        return proposedValue;
+    }
+
+    private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
+        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
+    }
+
+    private CompletableFuture<Boolean> sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
+        AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
-        return commitCallback;
+        return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
 
-    private distrib.patterns.paxos.ProposalCallback sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
-        var proposalCallback = new distrib.patterns.paxos.ProposalCallback(getNoOfReplicas());
+    private CompletableFuture<WALEntry> sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+        var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
-        return proposalCallback;
+        return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
-    public static class PrepareCallback extends BlockingQuorumCallback<PrepareResponse> {
-        private WALEntry proposedValue;
-
-        public PrepareCallback(WALEntry proposedValue, int clusterSize) {
-            super(clusterSize);
-            this.proposedValue = proposedValue;
-        }
-
-        public WALEntry getProposedValue() {
-            return getProposalValue(proposedValue, responses.values());
-        }
-
-        private WALEntry getProposalValue(WALEntry initialValue, Collection<PrepareResponse> promises) {
-            var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
-            var proposedValue
-                    = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
-                    initialValue : mostRecentAcceptedValue.acceptedValue.get();
-            return proposedValue;
-        }
-
-        private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
-            return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
-        }
-
-        public boolean isQuorumPrepared() {
-            return blockAndGetQuorumResponses()
-                    .values()
-                    .stream()
-                    .filter(p -> p.promised).count() >= quorum;
-        }
-    }
-
-    private PrepareCallback sendPrepareMessage(int index, WALEntry proposedValue, MonotonicId monotonicId) {
-        var prepareCallback = new PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(index, monotonicId));
-        return prepareCallback;
+    private CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> sendPrepareRequest(int index, MonotonicId monotonicId) {
+        var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+        sendMessageToReplicas(callback, RequestId.Prepare, new PrepareRequest(index, monotonicId));
+        return callback.getQuorumFuture();
     }
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
