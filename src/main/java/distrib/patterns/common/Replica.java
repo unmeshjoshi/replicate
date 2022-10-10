@@ -98,19 +98,15 @@ public abstract class Replica {
     //@see sendRequestToReplicas which expects a message from the peer.
     //TODO:Check why its needed to send the peer address.
     public <T extends Request> void sendOneway(InetAddressAndPort address, T request, int correlationId) {
-        send(address, new RequestOrResponse(request.getRequestId().getId(), serialize(request), correlationId, getPeerConnectionAddress()) );
+        try {
+            network.sendOneWay(address, new RequestOrResponse(request.getRequestId().getId(), serialize(request), correlationId, getPeerConnectionAddress()));
+        } catch (IOException e) {
+            logger.error("Communication failure sending request to " + address + " from " + getName());
+        }
     }
 
     public <T extends Request> void sendOneway(InetAddressAndPort address, T request) {
         sendOneway(address, request, nextRequestId());
-    }
-
-    public void send(InetAddressAndPort address, RequestOrResponse message) {
-        try {
-            network.sendOneWay(address, message);
-        } catch (IOException e) {
-            logger.error("Communication failure sending request to " + address + " from " + getName());
-        }
     }
 
     //Send message to peer and expect a separate message as response.
@@ -126,8 +122,16 @@ public abstract class Replica {
     }
 
     public void sendMessageToReplica(RequestCallback callback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
-        requestWaitingList.add(request.getCorrelationId(), callback);
-        send(replicaAddress, request);
+        try {
+            logger.debug(getName() + " Sending " + RequestId.valueOf(request.getRequestId()) + " to " + replicaAddress + " with CorrelationId:" + request.getCorrelationId());
+            requestWaitingList.add(request.getCorrelationId(), callback);
+            network.sendOneWay(replicaAddress, request);
+         } catch (IOException e) {
+            logger.error("Communication failure sending request to " + replicaAddress + " from " + getName());
+            //If communication fails, it should immidiately report it to the callback.
+            //Otherwise if a quorum of replica could not be reached, the callback will never complete.
+            requestWaitingList.handleError(request.getCorrelationId(), e);
+         }
     }
 
     public <T extends Request> void sendOnewayMessageToReplicas(T requestToReplicas) {
@@ -262,7 +266,7 @@ public abstract class Replica {
                         .apply(message);
             } catch(Exception e) {
                 RequestOrResponse request = message.getRequest();
-                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), serialize(e), request.getCorrelationId()).setError());
+                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), serialize(e.getMessage()), request.getCorrelationId()).setError());
             }
             });
         });
@@ -302,14 +306,14 @@ public abstract class Replica {
     };
 
     Function<AsyncStage, Void> asyncRespondToSender = (stage) -> {
-        var response = stage.getRequest();
+        CompletableFuture<?> responseFuture = stage.getRequest();
         Message<RequestOrResponse> message = stage.getMessage();
         RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
         var correlationId = request.getCorrelationId();
-        response.whenComplete((res , e)-> {
+        responseFuture.whenComplete((res , throwable)-> {
             ClientConnection clientConnection = message.getClientConnection();
-            if (e != null) {
-                clientConnection.write(new RequestOrResponse(request.getRequestId(), serialize(e), correlationId).setError());
+            if (throwable != null) {
+                clientConnection.write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(throwable.getMessage()), correlationId).setError());
             } else {
                 clientConnection.write(new RequestOrResponse(request.getRequestId(), serialize(res), correlationId));
             }
@@ -384,7 +388,7 @@ public abstract class Replica {
         network.reconnectTo(n.getPeerConnectionAddress());
     }
 
-    public void dropMessagesToAfter(Replica n, int dropAfterNoOfMessages) {
+    public void dropAfterNMessagesTo(Replica n, int dropAfterNoOfMessages) {
         network.dropMessagesAfter(n.getPeerConnectionAddress(), dropAfterNoOfMessages);
     }
 

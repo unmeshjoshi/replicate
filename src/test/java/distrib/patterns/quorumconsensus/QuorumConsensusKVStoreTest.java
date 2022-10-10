@@ -1,17 +1,11 @@
 package distrib.patterns.quorumconsensus;
 
 import common.TestUtils;
-import distrib.patterns.common.Config;
 import distrib.patterns.common.MonotonicId;
-import distrib.patterns.common.SystemClock;
-import distrib.patterns.generationvoting.GenerationVoting;
-import distrib.patterns.net.InetAddressAndPort;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -56,7 +50,7 @@ public class QuorumConsensusKVStoreTest {
         QuorumKV byzantium = kvStores.get("byzantium");
         QuorumKV cyrene = kvStores.get("cyrene");
 
-        athens.dropMessagesToAfter(byzantium, 1);
+        athens.dropAfterNMessagesTo(byzantium, 1);
         athens.dropMessagesTo(cyrene);
 
         KVClient kvClient = new KVClient();

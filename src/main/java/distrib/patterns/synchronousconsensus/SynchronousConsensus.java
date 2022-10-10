@@ -33,6 +33,7 @@ public class SynchronousConsensus extends Replica {
         for (int i = 1; i <= f + 1; i++) {
             values.add(s.getValue());
             sendOnewayMessageToOtherReplicas(s);
+
         }
         return new SetValueResponse(values.stream().findFirst().get());
     }
@@ -41,6 +42,7 @@ public class SynchronousConsensus extends Replica {
         if (!values.contains(s.getValue())) {
             values.add(s.getValue());
             sendOnewayMessageToOtherReplicas(s);
+
         }
         return null;
     }

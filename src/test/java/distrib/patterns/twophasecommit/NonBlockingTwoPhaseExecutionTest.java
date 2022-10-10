@@ -31,8 +31,8 @@ public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwo
         //but it failed to communicate at this point.
         //commit messages to byzantium and cyrene are dropped.
         //byzantium and cyrene do not know what to do.
-        athens.dropMessagesToAfter(byzantium, 1);
-        athens.dropMessagesToAfter(cyrene, 1);
+        athens.dropAfterNMessagesTo(byzantium, 1);
+        athens.dropAfterNMessagesTo(cyrene, 1);
 
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");

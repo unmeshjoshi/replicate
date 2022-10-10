@@ -97,7 +97,7 @@ public class QuorumReadWriteTest {
         assertEquals("", byzantium.get("title").getValue());
 
         cyrene.dropMessagesTo(athens);
-        cyrene.dropMessagesToAfter(byzantium, 1);
+        cyrene.dropAfterNMessagesTo(byzantium, 1);
         //cyrene will read from itself and byzantium. byzantium has stale value, so it will try read-repair.
         //but read-repair call fails.
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
@@ -127,7 +127,7 @@ public class QuorumReadWriteTest {
         assertEquals("", byzantium.get("title").getValue());
 
         cyrene.dropMessagesTo(athens);
-        cyrene.dropMessagesToAfter(byzantium, 1);
+        cyrene.dropAfterNMessagesTo(byzantium, 1);
         //cyrene will read from itself and byzantium. byzantium has stale value, so it will try read-repair.
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Error", value);

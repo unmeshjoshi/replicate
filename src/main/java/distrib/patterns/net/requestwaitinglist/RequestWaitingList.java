@@ -23,7 +23,9 @@ public class RequestWaitingList<Key, Response> {
     private InetAddressAndPort NONE;
 
     public void add(Key key, RequestCallback<Response> callback) {
-        pendingRequests.put(key, new CallbackDetails(callback, clock.nanoTime()));
+        long now = clock.nanoTime();
+        logger.debug("RequestWaitingList adding " + key + " at " + now);
+        pendingRequests.put(key, new CallbackDetails(callback, now));
     }
 
     private SystemClock clock;

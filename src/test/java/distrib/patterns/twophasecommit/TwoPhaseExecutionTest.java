@@ -74,8 +74,8 @@ public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
         TwoPhaseExecution cyrene = nodes.get("cyrene");
 
         //commit messages to byzantium and cyrene are dropped.
-        athens.dropMessagesToAfter(byzantium, 1);
-        athens.dropMessagesToAfter(cyrene, 1);
+        athens.dropAfterNMessagesTo(byzantium, 1);
+        athens.dropAfterNMessagesTo(cyrene, 1);
 
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");

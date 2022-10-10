@@ -119,7 +119,6 @@ class Network {
         dropRequestsTo.remove(address);
         dropAfter.remove(address);
         delayMessagesAfter.remove(address);
-
     }
 
     public void dropMessagesAfter(InetAddressAndPort address, int dropAfterNoOfMessages) {

@@ -92,7 +92,7 @@ public class PaxosKVStore extends Replica {
 
                 }).thenCompose(proposedValue -> {
                     return sendCommitRequest(key, proposedValue, monotonicId)
-                            .thenApply(r -> new SingleValuePaxos.PaxosResult(Optional.of(proposedValue), true));
+                            .thenApply(r -> new SingleValuePaxos.PaxosResult(Optional.ofNullable(proposedValue), true));
                 });
     }
 

@@ -56,15 +56,14 @@ import java.util.concurrent.ScheduledExecutorService;
 public class SingleValuePaxos extends Replica {
     private static Logger logger = LogManager.getLogger(SingleValuePaxos.class);
 
-    int maxKnownPaxosRoundId = 1;
+    int maxKnownPaxosRoundId = 0;
     int serverId;
-    int maxAttempts = 2;
 
     //Paxos State
     //TODO:Refactor so that all implementations have the same state representation.
-    MonotonicId promisedGeneration = MonotonicId.empty();
-    Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    Optional<String> acceptedValue = Optional.empty();
+    public MonotonicId promisedGeneration = MonotonicId.empty();
+    public Optional<MonotonicId> acceptedGeneration = Optional.empty();
+    public Optional<String> acceptedValue = Optional.empty();
 
     Optional<String> committedValue = Optional.empty();
     Optional<MonotonicId> committedGeneration = Optional.empty();
@@ -84,13 +83,13 @@ public class SingleValuePaxos extends Replica {
                 .respondsWith(RequestId.GetValueRequest, GetValueResponse.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
+        handlesMessage(RequestId.ProposeRequest, this::handleProposal, ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
+        handlesMessage(RequestId.Commit, this::handleCommit, CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
@@ -102,7 +101,7 @@ public class SingleValuePaxos extends Replica {
         return doPaxos(null).thenApply(value -> new GetValueResponse(value));
     }
 
-    private CommitResponse handlePaxosCommit(CommitRequest req) {
+    private CommitResponse handleCommit(CommitRequest req) {
         if (canAccept(req.getGeneration())) {
             logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + promisedGeneration + " req generation=" + req.getGeneration());
             this.acceptedValue = Optional.ofNullable(req.getValue());
@@ -114,10 +113,11 @@ public class SingleValuePaxos extends Replica {
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
 
     private CompletableFuture<Optional<String>> doPaxos(String value) {
-        int maxAttempts = 5;
+        int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+            maxKnownPaxosRoundId = maxKnownPaxosRoundId + 1;
+            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId, serverId);
             return doPaxos(monotonicId, value);
         }, maxAttempts, retryExecutor).thenApply(result -> result.value);
 
@@ -134,26 +134,24 @@ public class SingleValuePaxos extends Replica {
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, String value) {
+        logger.info(getName() + ": Sending Prepare with " + monotonicId);
         var prepareFuture = sendPrepareRequest(monotonicId);
         return prepareFuture
                 .thenCompose((result) -> {
                     String proposedValue = getProposalValue(value, result.values());
-                    logger.info("Proposing " + value + " for generation " + monotonicId);
+                    logger.info(getName() + ": Proposing " + proposedValue + " for generation " + monotonicId);
                     return sendProposeRequest(proposedValue, monotonicId);
-                }).thenCompose(result -> {
-                    logger.info("Committing value " + value + " for generation " + monotonicId);
-                    return sendCommitRequest(monotonicId, value)
-                            .thenApply(r -> new PaxosResult(Optional.of(value), true));
+                }).thenCompose(acceptedValue -> {
+                    logger.info(getName() + ": Committing value " +  acceptedValue + " for generation " + monotonicId);
+                    return sendCommitRequest(monotonicId, acceptedValue)
+                            .thenApply(r -> new PaxosResult(Optional.ofNullable(acceptedValue), true));
                 });
     }
 
 
     private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
         PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
-        String proposedValue
-                = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
-                initialValue : mostRecentAcceptedValue.acceptedValue.get();
-        return proposedValue;
+        return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
     }
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
@@ -178,7 +176,7 @@ public class SingleValuePaxos extends Replica {
         return callback.getQuorumFuture();
     }
 
-    private ProposalResponse handlePaxosProposal(ProposalRequest request) {
+    private ProposalResponse handleProposal(ProposalRequest request) {
         MonotonicId generation = request.getMonotonicId();
         if (canAccept(generation)) {
             this.promisedGeneration = generation;
@@ -193,7 +191,7 @@ public class SingleValuePaxos extends Replica {
         return generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration);
     }
 
-    public PrepareResponse prepare(PrepareRequest prepareRequest) {
+    public PrepareResponse handlePrepare(PrepareRequest prepareRequest) {
         MonotonicId generation = prepareRequest.monotonicId;
         if (promisedGeneration.isAfter(generation)) {
             return new PrepareResponse(false, acceptedValue, acceptedGeneration);

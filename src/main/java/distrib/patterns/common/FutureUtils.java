@@ -45,8 +45,8 @@ public class FutureUtils {
             final CompletableFuture<T> operationResultFuture = operation.get();
             operationResultFuture.whenComplete(
                     (t, throwable) -> {
-
                         if (throwable != null) {
+                            throwable.printStackTrace();
                             logger.info("Attempt failed with " + throwable);
 
                             if (throwable instanceof CancellationException) {

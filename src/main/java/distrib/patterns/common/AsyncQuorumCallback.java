@@ -38,11 +38,15 @@ public class AsyncQuorumCallback<T> implements RequestCallback<T> {
     @Override
     public void onResponse(T r, InetAddressAndPort fromAddress) {
         responses.put(fromAddress, r);
+        tryCompletingFuture();
+    }
+
+    private void tryCompletingFuture() {
         if (quorumSucceeded(responses)) {
             quorumFuture.complete(responses);
             return;
         }
-        if (responses.size() == totalResponses) {
+        if (responses.size() + exceptions.size() == totalResponses) {
             quorumFuture.completeExceptionally(new RuntimeException("Quorum condition not met after " + totalResponses + " responses"));
         }
     }
@@ -56,9 +60,7 @@ public class AsyncQuorumCallback<T> implements RequestCallback<T> {
     @Override
     public void onError(Exception e) {
         exceptions.add(e);
-        if (exceptions.size() == majorityQuorum()) {
-            quorumFuture.completeExceptionally(new QuorumCallException(exceptions));
-        }
+        tryCompletingFuture();
     }
 
     public CompletableFuture<Map<InetAddressAndPort, T>> getQuorumFuture() {

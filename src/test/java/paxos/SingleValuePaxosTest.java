@@ -2,14 +2,15 @@ package paxos;
 
 import common.ClusterTest;
 import common.TestUtils;
+import distrib.patterns.common.MonotonicId;
 import distrib.patterns.common.NetworkClient;
+import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.paxos.SingleValuePaxos;
 import distrib.patterns.paxos.messages.GetValueResponse;
 import distrib.patterns.quorum.messages.GetValueRequest;
 import distrib.patterns.quorum.messages.SetValueRequest;
 import distrib.patterns.quorum.messages.SetValueResponse;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,8 +40,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
     @Test
     public void singleValuePaxosTest() throws IOException {
-        var client = new NetworkClient();
-        var response = client.sendAndReceive(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress(), SetValueResponse.class);
+        var response = setValue(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
 
         assertEquals("Microservices", response.result);
     }
@@ -49,43 +49,62 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
     public void singleValueNullPaxosGetTest() throws IOException {
         var client = new NetworkClient();
         var response = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
-
         assertEquals(Optional.empty(), response.value);
     }
 
-    @Ignore//TODO: Write a test for partial writes.
-    public void singleValuePaxosGetTest() throws IOException {
-        var client = new NetworkClient();
-
+    @Test
+    public void AllNodesChooseOneValueEvenWithIncompleteWrites() throws IOException {
         //only athens has value Microservices
         //byzantium is empty, cyrene is empty
-        athens.dropMessagesToAfter(byzantium, 1);
-        athens.dropMessagesToAfter(cyrene, 1);
+        athens.dropAfterNMessagesTo(byzantium, 1);
+        athens.dropAfterNMessagesTo(cyrene, 1);
+        //prepare succeeds on athens, byzantium and cyrene.
+        //propose succeeds only on athens
+        var response = setValue(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
+        assertEquals("Error", response.result);
 
-        var response = client.sendAndReceive(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress(), SetValueResponse.class);
-
-        assertEquals("Microservices", response.result);
+        assertEquals(athens.promisedGeneration, new MonotonicId(2, 1)); //prepare from second attempt
+        assertEquals(athens.acceptedGeneration, Optional.of(new MonotonicId(1, 1)));
+        assertEquals(athens.acceptedValue, Optional.of("Microservices"));
 
         //only byzantium will have value Distributed Systems
         //athens has Microservices
         //cyrene is empty.
-        byzantium.dropMessagesTo(athens);
-        byzantium.dropMessagesToAfter(cyrene, 1);
-        response = client.sendAndReceive(new SetValueRequest("title", "Distributed Systems"), byzantium.getClientConnectionAddress(), SetValueResponse.class);
+        byzantium.dropAfterNMessagesTo(cyrene, 1);
+        response = setValue(new SetValueRequest("title", "Distributed Systems"), byzantium.getClientConnectionAddress());
 
-        assertEquals("Microservices", response.result);
+        assertEquals("Error", response.result);
+        assertEquals(byzantium.promisedGeneration, new MonotonicId(2, 2)); //prepare from second attempt
+        assertEquals(byzantium.acceptedGeneration,  Optional.of(new MonotonicId(1, 2)));
+        assertEquals(byzantium.acceptedValue, Optional.of("Distributed Systems"));
 
         //only cyrene will have value "Event Driven Microservices" 1
         //athens has Microservices 2
         //byzantium has Distributed Systems. 3
-        cyrene.dropMessagesToAfter(byzantium, 1);
-        response = client.sendAndReceive(new SetValueRequest("title", "Event Driven Microservices"), cyrene.getClientConnectionAddress(), SetValueResponse.class);
+        athens.reconnectTo(cyrene);
+        byzantium.reconnectTo(cyrene);
 
-        assertEquals("Microservices", response.result);
+        response = setValue(new SetValueRequest("title", "Event Driven Microservices"), cyrene.getClientConnectionAddress());
 
-        var getValueResponse = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
+        assertEquals("Distributed Systems", response.result);
+        assertEquals(cyrene.promisedGeneration, new MonotonicId(2, 3)); //prepare from second attempt
+        assertEquals(cyrene.acceptedGeneration, Optional.of(new MonotonicId(2, 3)));
+        assertEquals(cyrene.acceptedValue, Optional.of("Distributed Systems"));
 
-        assertEquals(Optional.of("Microservices"), getValueResponse.value);
+
+//
+//        var getValueResponse = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
+//
+//        assertEquals(Optional.of("Microservices"), getValueResponse.value);
+    }
+
+    private SetValueResponse setValue(SetValueRequest request, InetAddressAndPort clientConnectionAddress) {
+        try {
+            NetworkClient client = new NetworkClient();
+            return client.sendAndReceive(request, clientConnectionAddress, SetValueResponse.class);
+        } catch (Exception e) {
+            return new SetValueResponse("Error");
+        }
     }
 
 }

@@ -10,6 +10,9 @@ public class NetworkClient {
         try(SocketClient<Object> client = new SocketClient<>(address)){
             RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
                     JsonSerDes.serialize(request)));
+            if (getResponse.isError()) {
+                throw new RuntimeException(JsonSerDes.deserialize(getResponse.getMessageBodyJson(), String.class));
+            };
             Res response = JsonSerDes.deserialize(getResponse.getMessageBodyJson(), responseClass);
             return response;
         }
