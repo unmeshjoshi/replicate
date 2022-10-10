@@ -92,16 +92,6 @@ public class PaxosLog extends Replica {
         return doPaxos(initialValue, callback);
     }
 
-    static class PaxosResult {
-        Optional<WALEntry> value;
-        boolean success;
-
-        public PaxosResult(Optional<WALEntry> value, boolean success) {
-            this.value = value;
-            this.success = success;
-        }
-    }
-
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
         int maxAttempts = 5;
