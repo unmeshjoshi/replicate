@@ -153,7 +153,10 @@ public class PaxosLog extends Replica {
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
-        paxosState.committedGeneration = Optional.of(request.monotonicId);
+        //Because commit is invoked only after successful prepare and propose.
+        assert paxosState.promisedGeneration.equals(request.generation) || request.generation.isAfter(paxosState.promisedGeneration);
+
+        paxosState.committedGeneration = Optional.of(request.generation);
         paxosState.committedValue = Optional.of(request.proposedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
         return new CommitResponse(true);

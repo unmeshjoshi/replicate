@@ -68,11 +68,11 @@ public class TwoPhaseExecution extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesRequest(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class)
+        handlesRequestBlocking(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class)
                 .respondsWith(RequestId.ProposeResponse, ProposeResponse.class);
-        handlesRequest(RequestId.Commit, this::handleCommit, CommitCommandRequest.class)
+        handlesRequestBlocking(RequestId.Commit, this::handleCommit, CommitCommandRequest.class)
                 .respondsWith(RequestId.CommitResponse, CommitCommandResponse.class);
-        handlesRequest(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class)
+        handlesRequestBlocking(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class)
                 .respondsWith(RequestId.ExcuteCommandResponse, ExecuteCommandResponse.class);
     }
 

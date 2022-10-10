@@ -53,7 +53,7 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
     @Override
     protected void registerHandlers() {
         super.registerHandlers();
-        handlesRequest(RequestId.Prepare, this::handlePrepare, PrepareRequest.class)
+        handlesRequestBlocking(RequestId.Prepare, this::handlePrepare, PrepareRequest.class)
                 .respondsWith(RequestId.Promise, PrepareResponse.class);
     }
 

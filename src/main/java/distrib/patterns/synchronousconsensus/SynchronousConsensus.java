@@ -23,7 +23,7 @@ public class SynchronousConsensus extends Replica {
         handlesMessage(RequestId.SetValueRequest, this::setValue, SetValueRequest.class);
 
 
-        handlesRequest(RequestId.SetValue, this::handleSetValueRequest, SetValueRequest.class)
+        handlesRequestBlocking(RequestId.SetValue, this::handleSetValueRequest, SetValueRequest.class)
                 .respondsWith(RequestId.SetValueResponse, SetValueResponse.class);
         ;
     }

@@ -14,14 +14,21 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /*
+    The clients communicate with a Replica. For processing client requests, Replicas
+    communicate with each other.
+    Basic mechanism to support blocking and non-blocking communication
+    The blocking communication happens in separate thread handled by blockingExecutor
 
- */
+    All the communication between Replicas is done by message passing.
+*/
 
 public abstract class Replica {
     private static Logger logger = LogManager.getLogger(Replica.class);
@@ -159,7 +166,7 @@ public abstract class Replica {
     }
 
     SingularUpdateQueue<Message<RequestOrResponse>, Void> singularUpdateQueue = new SingularUpdateQueue<Message<RequestOrResponse>, Void>((message) -> {
-        markHeartbeatReceived();
+        markHeartbeatReceived(); //TODO: Mark heartbeats in message handlings explcitily. As this can be user request as well.
         RequestOrResponse request = message.getRequest();
         Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
         consumer.accept(message);
@@ -179,9 +186,7 @@ public abstract class Replica {
     //handles requests sent by clients of the cluster.
     //rpc requests are sent by clients on the clientConnectionAddress
     public void handleClientRequest(Message<RequestOrResponse> message) {
-        RequestOrResponse request = message.getRequest();
-        Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
-        consumer.accept(message);
+        singularUpdateQueue.submit(message);
     }
 
     //Configures a handler to process a message.
@@ -241,11 +246,15 @@ public abstract class Replica {
         return this;
     }
 
+
+    private Executor blockingExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+
     private Map<RequestId, Class> responseClasses = new HashMap();
-    public <T  extends Request, Res extends Request> SyncBuilder<Res> handlesRequest(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
+    public <T  extends Request, Res extends Request> SyncBuilder<Res> handlesRequestBlocking(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
         Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
         var handleSync = wrapHandler(handler);
         requestMap.put(requestId, (message)-> {
+            blockingExecutor.execute(() -> {
             try {
                 deserialize
                         .andThen(handleSync)
@@ -255,6 +264,7 @@ public abstract class Replica {
                 RequestOrResponse request = message.getRequest();
                 message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), serialize(e), request.getCorrelationId()).setError());
             }
+            });
         });
         return new SyncBuilder<Res>();
     }

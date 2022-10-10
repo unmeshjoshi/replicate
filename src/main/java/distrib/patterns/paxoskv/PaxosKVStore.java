@@ -131,6 +131,10 @@ public class PaxosKVStore extends Replica {
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         PaxosState paxosState = getOrCreatePaxosState(request.key);
+
+        //Because commit is invoked only after successful prepare and propose.
+        assert paxosState.promisedGeneration.equals(request.generation) || request.generation.isAfter(paxosState.promisedGeneration);
+
         paxosState.committedGeneration = Optional.of(request.generation);
         paxosState.committedValue = Optional.ofNullable(request.value);
         return new CommitResponse(true);
