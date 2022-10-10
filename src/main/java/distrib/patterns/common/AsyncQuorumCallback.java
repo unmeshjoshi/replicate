@@ -37,6 +37,7 @@ public class AsyncQuorumCallback<T> implements RequestCallback<T> {
         responses.put(fromAddress, r);
         if (quorumSucceeded(responses)) {
             quorumFuture.complete(responses);
+            return;
         }
         if (responses.size() == totalResponses) {
             quorumFuture.completeExceptionally(new RuntimeException("Quorum condition not met after " + totalResponses + " responses"));

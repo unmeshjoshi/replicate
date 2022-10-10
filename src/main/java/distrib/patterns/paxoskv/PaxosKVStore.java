@@ -1,6 +1,5 @@
 package distrib.patterns.paxoskv;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import distrib.patterns.common.*;
 import distrib.patterns.net.InetAddressAndPort;
 import distrib.patterns.paxos.*;
@@ -18,13 +17,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
-
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 class PaxosState {
     MonotonicId promisedGeneration = MonotonicId.empty();
@@ -51,8 +47,8 @@ public class PaxosKVStore extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequest(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        handlesRequest(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
         handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
@@ -65,76 +61,72 @@ public class PaxosKVStore extends Replica {
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
-    private GetValueResponse handleClientGetValueRequest(GetValueRequest request) {
-        Optional<String> value = doPaxos(request.getKey(), null);
-        return new GetValueResponse(value);
+    private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
+        return doPaxos(request.getKey(), null).thenApply(result -> new GetValueResponse(result.value));
     }
 
-    private SetValueResponse handleClientSetValueRequest(SetValueRequest setValueRequest) {
-        Optional<String> value = doPaxos(setValueRequest.getKey(), setValueRequest.getValue());
-        return new SetValueResponse(value.get());
+    private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest setValueRequest) {
+        return doPaxos(setValueRequest.getKey(), setValueRequest.getValue())
+                .thenApply(result -> new SetValueResponse(result.value.orElse("")));
     }
 
     int maxKnownPaxosRoundId = 1;
     int serverId = 1;
-    int maxAttempts = 2;
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
 
-    private Optional<String> doPaxos(String key, String value) {
-        int attempts = 0;
-        while (attempts <= maxAttempts) {
-            attempts++;
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            PaxosResult paxosResult = doPaxos(monotonicId, key, value);
-            if (paxosResult.success) {
-                return paxosResult.value;
-            }
-            Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-            logger.warn("Experienced Paxos contention. Attempting with higher generation");
-        }
-        throw new WriteTimeoutException(attempts);
+    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(String key, String value) {
+        int maxAttempts = 5;
+        MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+        return FutureUtils.retryWithRandomDelay(() -> {
+            return doPaxos(monotonicId, key, value);
+        }, maxAttempts, retryExecutor);
+
     }
 
-    static class PaxosResult {
-        Optional<String> value;
-        boolean success;
+    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(MonotonicId monotonicId, String key, String value) {
+        return sendPrepareRequest(key, monotonicId).
+                thenCompose((result) -> {
+                    String proposedValue = getProposalValue(value, result.values());
+                    return sendProposeRequest(key, proposedValue, monotonicId);
 
-        public PaxosResult(Optional<String> value, boolean success) {
-            this.value = value;
-            this.success = success;
-        }
+                }).thenCompose(proposedValue -> {
+                    return sendCommitRequest(key, proposedValue, monotonicId)
+                            .thenApply(r -> new SingleValuePaxos.PaxosResult(Optional.of(proposedValue), true));
+                });
     }
 
-    private PaxosResult doPaxos(MonotonicId monotonicId, String key, String value) {
-        SingleValuePaxos.PrepareCallback prepareCallback = sendPrepareRequest(key, value, monotonicId);
-        if (prepareCallback.isQuorumPrepared()) {
-            String proposedValue = prepareCallback.getProposedValue();
-            distrib.patterns.paxos.ProposalCallback proposalCallback = sendProposeRequest(key, proposedValue, monotonicId);
-            if (proposalCallback.isQuorumAccepted()) {
-                sendCommitRequest(key, proposedValue, monotonicId);
-                return new PaxosResult(Optional.ofNullable(proposedValue), true);
-            }
-        }
-        return new PaxosResult(Optional.empty(), false);
+    private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
+        PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
+        String proposedValue
+                = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
+                initialValue : mostRecentAcceptedValue.acceptedValue.get();
+        return proposedValue;
     }
 
-    private BlockingQuorumCallback sendCommitRequest(String key, String value, MonotonicId monotonicId) {
-        BlockingQuorumCallback commitCallback = new BlockingQuorumCallback<>(getNoOfReplicas());
+
+    private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
+        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
+    }
+
+    private CompletableFuture<Boolean> sendCommitRequest(String key, String value, MonotonicId monotonicId) {
+        AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(key, value, monotonicId));
-        return commitCallback;
+        return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
-
-    private distrib.patterns.paxos.ProposalCallback sendProposeRequest(String key, String proposedValue, MonotonicId monotonicId) {
-        distrib.patterns.paxos.ProposalCallback proposalCallback = new distrib.patterns.paxos.ProposalCallback(getNoOfReplicas());
+    private CompletableFuture<String> sendProposeRequest(String key, String proposedValue, MonotonicId monotonicId) {
+        AsyncQuorumCallback<ProposalResponse> proposalCallback = new AsyncQuorumCallback(getNoOfReplicas());
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, key, proposedValue));
-        return proposalCallback;
+        return proposalCallback.getQuorumFuture().thenApply(result -> proposedValue);
     }
 
-    private SingleValuePaxos.PrepareCallback sendPrepareRequest(String key, String proposedValue, MonotonicId monotonicId) {
-        SingleValuePaxos.PrepareCallback prepareCallback = new SingleValuePaxos.PrepareCallback(proposedValue, getNoOfReplicas());
-        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(key, monotonicId));
-        return prepareCallback;
+
+    private CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> sendPrepareRequest(String key, MonotonicId monotonicId) {
+        var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+        sendMessageToReplicas(callback, RequestId.Prepare, new PrepareRequest(key, monotonicId));
+        return callback.getQuorumFuture();
     }
+
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         PaxosState paxosState = getOrCreatePaxosState(request.key);

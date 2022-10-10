@@ -4,15 +4,10 @@ import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
 public class CommitResponse extends Request {
-    boolean success;
+    public final boolean success;
 
     public CommitResponse(boolean success) {
-        this();
-        this.success = success;
-    }
-
-    //for jackson
-    private CommitResponse() {
         super(RequestId.CommitResponse);
+        this.success = success;
     }
 }

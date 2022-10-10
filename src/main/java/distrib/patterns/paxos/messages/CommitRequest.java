@@ -5,16 +5,16 @@ import distrib.patterns.common.Request;
 import distrib.patterns.common.RequestId;
 
 public class CommitRequest extends Request {
-    private MonotonicId id;
+    private MonotonicId generation;
     private String value;
-    public CommitRequest(MonotonicId id, String value) {
+    public CommitRequest(MonotonicId generation, String value) {
         this();
-        this.id = id;
+        this.generation = generation;
         this.value = value;
     }
 
-    public MonotonicId getId() {
-        return id;
+    public MonotonicId getGeneration() {
+        return generation;
     }
 
     public String getValue() {
