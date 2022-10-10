@@ -84,10 +84,10 @@ public class PaxosKVStore extends Replica {
 
     }
 
-    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(MonotonicId monotonicId, String key, String value) {
+    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(MonotonicId monotonicId, String key, String initialValue) {
         return sendPrepareRequest(key, monotonicId).
                 thenCompose((result) -> {
-                    String proposedValue = getProposalValue(value, result.values());
+                    String proposedValue = getProposalValue(initialValue, result.values());
                     return sendProposeRequest(key, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {

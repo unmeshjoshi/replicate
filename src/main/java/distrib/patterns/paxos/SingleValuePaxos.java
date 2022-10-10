@@ -151,10 +151,12 @@ public class SingleValuePaxos extends Replica {
 
     private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
         PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
+        logger.debug("Most Recent promise " + mostRecentAcceptedValue);
         return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
     }
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
+        logger.debug("Picking up values from " + prepareResponses);
         return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
     }
 

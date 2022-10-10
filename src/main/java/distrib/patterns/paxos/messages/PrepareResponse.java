@@ -21,4 +21,13 @@ public class PrepareResponse extends Request {
     public PrepareResponse(boolean success) {
         this(success, Optional.empty(), Optional.empty());
     }
+
+    @Override
+    public String toString() {
+        return "PrepareResponse{" +
+                "promised=" + promised +
+                ", acceptedValue=" + acceptedValue +
+                ", acceptedGeneration=" + acceptedGeneration +
+                '}';
+    }
 }

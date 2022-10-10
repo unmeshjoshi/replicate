@@ -96,7 +96,6 @@ public abstract class Replica {
 
     //Send message without expecting any messages as a response from the peer
     //@see sendRequestToReplicas which expects a message from the peer.
-    //TODO:Check why its needed to send the peer address.
     public <T extends Request> void sendOneway(InetAddressAndPort address, T request, int correlationId) {
         try {
             network.sendOneWay(address, new RequestOrResponse(request.getRequestId().getId(), serialize(request), correlationId, getPeerConnectionAddress()));
@@ -121,6 +120,8 @@ public abstract class Replica {
         }
     }
 
+    //Sends message to replica and expects that the replica will send back a message with the same correlationId.
+    //The message is kept waiting in the RequestWaitingList and expired if the replica fails to send message back.
     public void sendMessageToReplica(RequestCallback callback, InetAddressAndPort replicaAddress, RequestOrResponse request) {
         try {
             logger.debug(getName() + " Sending " + RequestId.valueOf(request.getRequestId()) + " to " + replicaAddress + " with CorrelationId:" + request.getCorrelationId());

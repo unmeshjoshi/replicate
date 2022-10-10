@@ -105,10 +105,10 @@ public class PaxosLog extends Replica {
 
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendPrepareRequest(index, monotonicId).
                 thenCompose((result) -> {
-                    WALEntry proposedValue = getProposalValue(value, result.values());
+                    WALEntry proposedValue = getProposalValue(initialValue, result.values());
                     return sendProposeRequest(index, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {
