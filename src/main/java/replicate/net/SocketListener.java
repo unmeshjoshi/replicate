@@ -1,6 +1,5 @@
 package replicate.net;
 
-import distrib.patterns.common.*;
 import replicate.common.*;
 
 import java.io.IOException;

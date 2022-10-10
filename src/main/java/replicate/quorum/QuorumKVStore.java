@@ -1,13 +1,11 @@
 package replicate.quorum;
 
-import distrib.patterns.common.*;
-import replicate.common.*;
-import replicate.net.InetAddressAndPort;
-import distrib.patterns.quorum.messages.*;
-import replicate.quorum.messages.*;
-import replicate.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import replicate.common.*;
+import replicate.net.InetAddressAndPort;
+import replicate.quorum.messages.*;
+import replicate.wal.DurableKVStore;
 
 import java.io.File;
 import java.io.IOException;

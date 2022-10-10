@@ -40,18 +40,19 @@ package replicate.generationvoting;
 // A proposer can keep the state stored on the disk and keep retrying..
 // But what if the proposer fails?
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import replicate.common.*;
 import replicate.generationvoting.messages.NextNumberRequest;
 import replicate.generationvoting.messages.PrepareRequest;
 import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.PrepareResponse;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import replicate.common.*;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class GenerationVoting extends Replica {

@@ -1,6 +1,5 @@
 package replicate.synchronousconsensus;
 
-import distrib.patterns.common.*;
 import replicate.common.Config;
 import replicate.common.Replica;
 import replicate.common.RequestId;

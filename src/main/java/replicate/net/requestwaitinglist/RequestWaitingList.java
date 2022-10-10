@@ -1,9 +1,9 @@
 package replicate.net.requestwaitinglist;
 
-import replicate.common.SystemClock;
-import replicate.net.InetAddressAndPort;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import replicate.common.SystemClock;
+import replicate.net.InetAddressAndPort;
 
 import java.time.Duration;
 import java.util.List;

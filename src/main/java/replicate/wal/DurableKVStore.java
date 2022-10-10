@@ -3,7 +3,10 @@ package replicate.wal;
 import replicate.common.Config;
 
 import java.io.ByteArrayInputStream;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class DurableKVStore {
     private final Map<String, String> kv = new HashMap<>();

@@ -1,13 +1,11 @@
 package replicate.quorumconsensus;
 
-import distrib.patterns.common.*;
-import replicate.common.*;
-import replicate.net.InetAddressAndPort;
-import distrib.patterns.quorumconsensus.messages.*;
-import replicate.quorumconsensus.messages.*;
-import replicate.wal.DurableKVStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import replicate.common.*;
+import replicate.net.InetAddressAndPort;
+import replicate.quorumconsensus.messages.*;
+import replicate.wal.DurableKVStore;
 
 import java.io.IOException;
 import java.util.List;

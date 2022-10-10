@@ -1,17 +1,17 @@
 package replicate.paxos;
 
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 import replicate.common.ClusterTest;
-import replicate.common.TestUtils;
 import replicate.common.MonotonicId;
 import replicate.common.NetworkClient;
+import replicate.common.TestUtils;
 import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;

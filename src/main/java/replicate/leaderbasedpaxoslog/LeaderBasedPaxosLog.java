@@ -1,6 +1,7 @@
 package replicate.leaderbasedpaxoslog;
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.leaderbasedpaxoslog.messages.FullLogPrepareResponse;
 import replicate.net.InetAddressAndPort;
@@ -9,9 +10,9 @@ import replicate.paxos.messages.CommitResponse;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.paxos.messages.ProposalResponse;
 import replicate.paxoslog.PaxosResult;
+import replicate.paxoslog.messages.CommitRequest;
 import replicate.paxoslog.messages.PrepareRequest;
 import replicate.paxoslog.messages.ProposalRequest;
-import replicate.paxoslog.messages.CommitRequest;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.twophasecommit.messages.ExecuteCommandRequest;
 import replicate.twophasecommit.messages.ExecuteCommandResponse;
@@ -20,8 +21,6 @@ import replicate.wal.Command;
 import replicate.wal.EntryType;
 import replicate.wal.SetValueCommand;
 import replicate.wal.WALEntry;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

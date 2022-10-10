@@ -1,15 +1,13 @@
 package replicate.paxos;
 
-import distrib.patterns.common.*;
-import replicate.net.InetAddressAndPort;
-import distrib.patterns.paxos.messages.*;
-import replicate.quorum.messages.GetValueRequest;
-import replicate.quorum.messages.SetValueRequest;
-import replicate.quorum.messages.SetValueResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import replicate.common.*;
+import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.*;
+import replicate.quorum.messages.GetValueRequest;
+import replicate.quorum.messages.SetValueRequest;
+import replicate.quorum.messages.SetValueResponse;
 
 import java.io.IOException;
 import java.util.*;

@@ -1,5 +1,7 @@
 package replicate.vsr;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.Config;
 import replicate.common.Replica;
 import replicate.common.RequestId;
@@ -8,12 +10,9 @@ import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.RequestWaitingList;
 import replicate.twophasecommit.messages.ExecuteCommandRequest;
 import replicate.twophasecommit.messages.ExecuteCommandResponse;
-import distrib.patterns.vsr.messages.*;
 import replicate.vsr.messages.*;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

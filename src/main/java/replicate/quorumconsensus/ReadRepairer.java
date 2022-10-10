@@ -1,12 +1,11 @@
 package replicate.quorumconsensus;
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.quorumconsensus.messages.GetValueResponse;
 import replicate.quorumconsensus.messages.VersionedSetValueRequest;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.Comparator;
 import java.util.List;

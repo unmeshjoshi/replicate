@@ -5,7 +5,6 @@ import replicate.common.Replica;
 import replicate.common.RequestId;
 import replicate.common.SystemClock;
 import replicate.net.InetAddressAndPort;
-import distrib.patterns.twophasecommit.messages.*;
 import replicate.twophasecommit.messages.*;
 import replicate.wal.Command;
 import replicate.wal.DurableKVStore;

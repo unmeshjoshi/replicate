@@ -1,8 +1,7 @@
 package replicate.net;
 
-import distrib.patterns.common.*;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 
 import java.io.IOException;

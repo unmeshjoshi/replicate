@@ -1,12 +1,11 @@
 package replicate.quorum;
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.quorum.messages.GetValueResponse;
 import replicate.quorum.messages.VersionedSetValueRequest;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.Comparator;
 import java.util.List;

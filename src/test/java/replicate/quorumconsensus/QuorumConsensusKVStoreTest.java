@@ -1,9 +1,9 @@
 package replicate.quorumconsensus;
 
-import replicate.common.TestUtils;
-import replicate.common.MonotonicId;
 import org.junit.Assert;
 import org.junit.Test;
+import replicate.common.MonotonicId;
+import replicate.common.TestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;

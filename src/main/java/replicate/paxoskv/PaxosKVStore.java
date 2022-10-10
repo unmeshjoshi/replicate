@@ -1,9 +1,9 @@
 package replicate.paxoskv;
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
-import distrib.patterns.paxos.*;
 import replicate.paxos.SingleValuePaxos;
 import replicate.paxos.messages.CommitResponse;
 import replicate.paxos.messages.GetValueResponse;
@@ -15,8 +15,6 @@ import replicate.paxoskv.messages.ProposalRequest;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.*;

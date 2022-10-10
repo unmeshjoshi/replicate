@@ -1,9 +1,9 @@
 package replicate.net;
 
-import replicate.common.JsonSerDes;
-import replicate.common.RequestOrResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import replicate.common.JsonSerDes;
+import replicate.common.RequestOrResponse;
 
 import java.io.Closeable;
 import java.io.DataInputStream;

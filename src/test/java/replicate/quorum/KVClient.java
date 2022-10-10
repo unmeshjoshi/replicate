@@ -1,14 +1,13 @@
 package replicate.quorum;
 
-import distrib.patterns.common.*;
+import replicate.common.JsonSerDes;
+import replicate.common.RequestId;
+import replicate.common.RequestOrResponse;
 import replicate.net.InetAddressAndPort;
 import replicate.net.SocketClient;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
-import replicate.common.JsonSerDes;
-import replicate.common.RequestId;
-import replicate.common.RequestOrResponse;
 
 import java.io.IOException;
 import java.util.Random;

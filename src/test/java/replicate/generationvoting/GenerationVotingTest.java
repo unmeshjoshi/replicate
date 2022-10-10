@@ -1,10 +1,10 @@
 package replicate.generationvoting;
 
-import replicate.common.ClusterTest;
-import replicate.common.TestUtils;
-import replicate.common.NetworkClient;
-import replicate.generationvoting.messages.NextNumberRequest;
 import org.junit.Test;
+import replicate.common.ClusterTest;
+import replicate.common.NetworkClient;
+import replicate.common.TestUtils;
+import replicate.generationvoting.messages.NextNumberRequest;
 
 import java.io.IOException;
 import java.util.Arrays;

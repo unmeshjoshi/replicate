@@ -1,10 +1,10 @@
 package replicate.common;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import replicate.net.InetAddressAndPort;
-import replicate.net.requestwaitinglist.RequestCallback;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import replicate.net.InetAddressAndPort;
+import replicate.net.requestwaitinglist.RequestCallback;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,17 +1,16 @@
 package replicate.paxoslog;
 
+import org.junit.Before;
+import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.NetworkClient;
 import replicate.common.TestUtils;
-import distrib.patterns.common.*;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.twophasecommit.CompareAndSwap;
 import replicate.twophasecommit.messages.ExecuteCommandRequest;
 import replicate.twophasecommit.messages.ExecuteCommandResponse;
 import replicate.wal.SetValueCommand;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;

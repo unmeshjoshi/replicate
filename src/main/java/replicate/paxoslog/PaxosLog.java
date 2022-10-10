@@ -1,6 +1,7 @@
 package replicate.paxoslog;
 
-import distrib.patterns.common.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.RequestWaitingList;
@@ -20,8 +21,6 @@ import replicate.wal.Command;
 import replicate.wal.EntryType;
 import replicate.wal.SetValueCommand;
 import replicate.wal.WALEntry;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

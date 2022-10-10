@@ -1,18 +1,17 @@
 package replicate.twophasecommit;
 
+import org.junit.Test;
 import replicate.common.ClusterTest;
-import replicate.common.TestUtils;
 import replicate.common.NetworkClient;
+import replicate.common.TestUtils;
 import replicate.twophasecommit.messages.ExecuteCommandRequest;
 import replicate.twophasecommit.messages.ExecuteCommandResponse;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertEquals;
 
 public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwoPhaseExecution> {
 

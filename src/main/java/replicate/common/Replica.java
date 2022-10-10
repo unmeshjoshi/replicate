@@ -1,5 +1,7 @@
 package replicate.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.heartbeat.HeartBeatScheduler;
 import replicate.net.ClientConnection;
 import replicate.net.InetAddressAndPort;
@@ -7,8 +9,6 @@ import replicate.net.NIOSocketListener;
 import replicate.net.requestwaitinglist.RequestCallback;
 import replicate.net.requestwaitinglist.RequestWaitingList;
 import replicate.singularupdatequeue.SingularUpdateQueue;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.time.Duration;

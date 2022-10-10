@@ -1,8 +1,8 @@
 package replicate.net.requestwaitinglist;
 
+import org.junit.Test;
 import replicate.common.SystemClock;
 import replicate.vsr.CompletionCallback;
-import org.junit.Test;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;

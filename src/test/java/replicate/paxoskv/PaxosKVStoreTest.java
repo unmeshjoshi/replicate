@@ -1,21 +1,20 @@
 package replicate.paxoskv;
 
+import org.junit.Before;
+import org.junit.Test;
 import replicate.common.ClusterTest;
+import replicate.common.NetworkClient;
 import replicate.common.TestUtils;
-import distrib.patterns.common.*;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
-import org.junit.Before;
-import org.junit.Test;
-import replicate.common.NetworkClient;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
 

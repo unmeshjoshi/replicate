@@ -1,9 +1,9 @@
 package replicate.common;
 
-import replicate.paxos.messages.PrepareResponse;
 import org.junit.Test;
+import replicate.paxos.messages.PrepareResponse;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
 
 public class AsyncQuorumCallbackTest {
     @Test

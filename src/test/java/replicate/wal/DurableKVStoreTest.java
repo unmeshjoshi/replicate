@@ -1,8 +1,8 @@
 package replicate.wal;
 
-import replicate.common.TestUtils;
-import replicate.common.Config;
 import org.junit.Test;
+import replicate.common.Config;
+import replicate.common.TestUtils;
 
 import java.io.File;
 

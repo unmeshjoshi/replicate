@@ -1,18 +1,18 @@
 package replicate.quorum;
 
-import replicate.common.TestUtils;
-import replicate.common.Config;
-import replicate.common.SystemClock;
-import replicate.net.InetAddressAndPort;
 import org.junit.Ignore;
 import org.junit.Test;
+import replicate.common.Config;
+import replicate.common.SystemClock;
+import replicate.common.TestUtils;
+import replicate.net.InetAddressAndPort;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class QuorumReadWriteTest {
      //Read Your Own Writes should give the same value written by me or a later value.
