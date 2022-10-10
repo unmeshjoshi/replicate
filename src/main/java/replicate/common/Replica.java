@@ -180,7 +180,8 @@ public abstract class Replica {
 
     //handles messages sent by peers in the cluster in message passing style.
     //peer to peer communication happens on peerConnectionAddress
-    public void handlePeerMessage(Message<RequestOrResponse> message) {
+    public void handlePeerMessage(Message<RequestOrResponse> message)
+    {
         singularUpdateQueue.submit(message);
     }
 
@@ -195,10 +196,37 @@ public abstract class Replica {
     }
 
     //Configures a handler to process a message.
-    //Sends the response from the handler as a message to the sender.
-    //This is async message-passing communication.
-    //The sender does not expect a response to the request on the same connection.
-    //deserialize.andThen(handler.apply).andThen(sendResponseToPeer)
+    //Sends the response from the handler
+    // as a separate message to the sender.
+
+    /**
+     * One way message passing communication.
+     * But the receiver of the message is supposed to send message to sender
+     * The message handler returns a response which is sent as a message to the sender.
+     * @see RequestWaitingList comes in handy here, as the response message is expected
+     * by the sender and passed to the RequestWaitingList to handle.
+     * @see replicate.paxos.SingleValuePaxos as an example.
+     *
+     * +----------+                +----------------+             +-----------+
+     * |          |                |Request         |             |           |
+     * |node1     |                |WaitingList     |             | node2     |
+     * |          |                |                |             |           |
+     * +----+-----+                +--------+-------+             +-----+-----+
+     *      |                               |                           |
+     *      | add(correlationId, callback)  |                           |
+     *      +------------------------------>+                           |
+     *      |                               |                           |
+     *      |   message(correlationId)      |                           |
+     *      +----------------------------------------------------------->
+     *      |                               |                           |
+     *      |                               |                           |
+     *      |  message(correlationId)       |                           |
+     *      <-----------------------------------------------------------+
+     *      |                               |                           |
+     *      |   handleResponse(message)     |                           |
+     *      +------------------------------>+                           |
+     *      |                               |                           |
+     * */
     public <Req extends Request, Res extends Request> ResponseMessageBuilder<Res> handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
@@ -211,6 +239,42 @@ public abstract class Replica {
         return new ResponseMessageBuilder<Res>();
     }
 
+    /**
+     * One way message passing communication. The message handler does not return a response.
+     * But is expected to send a messages as part of its handling the message. The message
+     * is not necessarily sent to the sender but might be broadcasted.
+     * Not RequestWaitingList as such is needed here. But each peer needs to track the state
+     * needed for handling and responding to the messages.
+     * @see replicate.vsr.ViewStampedReplication
+     * +--------------+                +-----------------+          +---------------+
+     * |              |                |                 |          |               |
+     * | node1        |                |  node2          |          |   node3       |
+     * |              |                |                 |          |               |
+     * |              |                |                 |          |               |
+     * +----+---------+                +------+----------+          +--------+------+
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |         message1                |                              |
+     *      +-------------------------------->+                              |
+     *      |                                 |        message2              |
+     *      |                                 +------------------------------>
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 |          message3            |
+     *      |                                 <------------------------------+
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                   message3      |                              |
+     *      <----------------------------------------------------------------+
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 |                              |
+     *      |                                 ++                             +
+     *     ++                               |                           |
+     * */
     public <Req extends Request> void handlesMessage(RequestId requestId, BiConsumer<InetAddressAndPort, Req> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         Function<Stage<Req>, Void> applyHandler = wrapConsumer(handler);
