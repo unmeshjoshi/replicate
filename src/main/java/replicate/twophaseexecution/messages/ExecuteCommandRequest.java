@@ -1,4 +1,4 @@
-package replicate.twophasecommit.messages;
+package replicate.twophaseexecution.messages;
 
 import replicate.common.Request;
 import replicate.common.RequestId;

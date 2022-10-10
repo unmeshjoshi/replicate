@@ -1,4 +1,4 @@
-package replicate.twophasecommit;
+package replicate.twophaseexecution;
 
 import replicate.common.JsonSerDes;
 import replicate.wal.Command;

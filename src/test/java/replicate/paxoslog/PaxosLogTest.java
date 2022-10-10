@@ -7,9 +7,9 @@ import replicate.common.NetworkClient;
 import replicate.common.TestUtils;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
-import replicate.twophasecommit.CompareAndSwap;
-import replicate.twophasecommit.messages.ExecuteCommandRequest;
-import replicate.twophasecommit.messages.ExecuteCommandResponse;
+import replicate.twophaseexecution.CompareAndSwap;
+import replicate.twophaseexecution.messages.ExecuteCommandRequest;
+import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.wal.SetValueCommand;
 
 import java.io.IOException;

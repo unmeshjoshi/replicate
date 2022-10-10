@@ -1,11 +1,11 @@
-package replicate.twophasecommit;
+package replicate.twophaseexecution;
 
 import replicate.common.Config;
 import replicate.common.Replica;
 import replicate.common.RequestId;
 import replicate.common.SystemClock;
 import replicate.net.InetAddressAndPort;
-import replicate.twophasecommit.messages.*;
+import replicate.twophaseexecution.messages.*;
 import replicate.wal.Command;
 import replicate.wal.DurableKVStore;
 

@@ -1,11 +1,11 @@
-package replicate.twophasecommit.messages;
+package replicate.twophaseexecution.messages;
 
 import replicate.common.Request;
 import replicate.common.RequestId;
 
-public class CommitCommandRequest extends Request {
+public class ProposeRequest extends Request {
     byte[] command;
-    public CommitCommandRequest(byte[] serialize) {
+    public ProposeRequest(byte[] serialize) {
         this();
         this.command = serialize;
     }
@@ -14,7 +14,7 @@ public class CommitCommandRequest extends Request {
         return command;
     }
 
-    private CommitCommandRequest() {
-        super(RequestId.Commit);
+    private ProposeRequest() {
+        super(RequestId.ProposeRequest);
     }
 }

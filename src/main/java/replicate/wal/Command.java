@@ -1,7 +1,7 @@
 package replicate.wal;
 
 
-import replicate.twophasecommit.CompareAndSwap;
+import replicate.twophaseexecution.CompareAndSwap;
 
 import java.io.*;
 

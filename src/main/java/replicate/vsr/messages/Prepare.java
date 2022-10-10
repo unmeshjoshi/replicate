@@ -2,7 +2,7 @@ package replicate.vsr.messages;
 
 import replicate.common.Request;
 import replicate.common.RequestId;
-import replicate.twophasecommit.messages.ExecuteCommandRequest;
+import replicate.twophaseexecution.messages.ExecuteCommandRequest;
 
 public class Prepare extends Request {
     public final int viewNumber;
