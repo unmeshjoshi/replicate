@@ -1,10 +1,6 @@
+The 'replicator' is a basic framework to quickly build and test replication algorithms.
+It has basic mechanism to establish request-response and message passing communication
+between replicas. It also has test utilities to quickly form a cluster of replicas,
+introduce network failures and assert on the state of the replicas.
 This repo has example code for the distributed system workshop.
 For building, just run './gradlew clean test'
-#Assignments
-1. Make KVStore durable with write ahead log.
-2. Pass the DurableKVStoreTest
-   Append the key values added to the kv store into write ahead log
-2. Make quorum test pass. Complete WriteQuorumCallback
-3. Make readRepair pass. Complete ReadQuorumCallback
-3. Pass QuorumReadWriteTest#nodesShouldRejectRequestsFromPreviousGenerationNode
-   Add logic to reject requests from older generation in QuorumKVStore#handleSetValueRequest
