@@ -13,7 +13,6 @@ import distrib.patterns.paxoslog.messages.PrepareRequest;
 import distrib.patterns.paxoslog.messages.ProposalRequest;
 import distrib.patterns.paxoslog.messages.CommitRequest;
 import distrib.patterns.quorum.messages.GetValueRequest;
-import distrib.patterns.quorum.messages.SetValueResponse;
 import distrib.patterns.twophasecommit.messages.ExecuteCommandRequest;
 import distrib.patterns.twophasecommit.messages.ExecuteCommandResponse;
 import distrib.patterns.vsr.CompletionCallback;
@@ -28,7 +27,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -129,18 +127,28 @@ public class LeaderBasedPaxosLog extends Replica {
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
-    public void runElection() throws Exception {
-        //TODO: convert to async
-        this.fullLogPromisedGeneration = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-        var fullLogPrepareCallback = sendFullLogPrepare(fullLogPromisedGeneration);
-        if (fullLogPrepareCallback.isQuorumPrepared()) {
-            isLeader = true;
-            List<FullLogPrepareResponse> promises = fullLogPrepareCallback.blockAndGetQuorumResponses().values().stream().toList();
-            for (FullLogPrepareResponse promise : promises) {
-                mergeLog(promise);
-                sendProposalRequestsForUnCommittedEntries().get(); //wait for all the proposals to complete.
-            }
-        }
+    public void blockingElectionRun() throws Exception {
+        runElection().get();
+    }
+
+    public CompletableFuture<Void> runElection() throws Exception {
+        int maxAttempts = 5;
+        return FutureUtils.retryWithRandomDelay(() -> {
+            //TODO: convert to async
+            this.fullLogPromisedGeneration = new MonotonicId(maxKnownPaxosRoundId++, serverId);
+            return sendFullLogPrepare(fullLogPromisedGeneration).thenCompose(prepareResponse -> {
+                List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
+                for (FullLogPrepareResponse promise : promises) {
+                    mergeLog(promise);
+                }
+                return sendProposalRequestsForUnCommittedEntries();
+            }).whenComplete((result, throwable)-> {
+                if (throwable == null) {
+                    this.isLeader = true;
+                }
+            });
+        }, maxAttempts, retryExecutor);
+
     }
 
     boolean isLeader = false;
@@ -186,10 +194,10 @@ public class LeaderBasedPaxosLog extends Replica {
         return false;
     }
 
-    private FullLogPrepareCallback sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
-        var prepareCallback = new FullLogPrepareCallback(getNoOfReplicas());
+    private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
+        var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r->r.promised);
         sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
-        return prepareCallback;
+        return prepareCallback.getQuorumFuture();
     }
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {

@@ -26,11 +26,12 @@ public class LeaderBasedPaxosLogTest extends ClusterTest<LeaderBasedPaxosLog> {
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new LeaderBasedPaxosLog(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
 
     }
+
     @Test
     public void singleValuePaxosTest() throws Exception {
         var athens = nodes.get("athens");
 
-        athens.runElection();
+        athens.blockingElectionRun();
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
@@ -42,7 +43,7 @@ public class LeaderBasedPaxosLogTest extends ClusterTest<LeaderBasedPaxosLog> {
     public void singleValueNullPaxosGetTest() throws Exception {
         var athens = nodes.get("athens");
 
-        athens.runElection();
+        athens.blockingElectionRun();
 
         var networkClient = new NetworkClient();
         var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
@@ -53,7 +54,7 @@ public class LeaderBasedPaxosLogTest extends ClusterTest<LeaderBasedPaxosLog> {
     public void singleValuePaxosGetTest() throws Exception {
         var athens = nodes.get("athens");
 
-        athens.runElection();
+        athens.blockingElectionRun();
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
