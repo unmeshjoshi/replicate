@@ -1,4 +1,5 @@
 .gradle/*
+.gradle
 *.iws
 out
 *.avsc
