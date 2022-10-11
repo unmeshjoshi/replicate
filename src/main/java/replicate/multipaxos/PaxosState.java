@@ -1,4 +1,4 @@
-package replicate.leaderbasedpaxoslog;
+package replicate.multipaxos;
 
 import replicate.common.MonotonicId;
 import replicate.wal.WALEntry;

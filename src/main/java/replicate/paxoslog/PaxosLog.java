@@ -65,20 +65,21 @@ public class PaxosLog extends Replica {
     }
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
-        var callback = new CompletionCallback<ExecuteCommandResponse>();
+        var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
 
-        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
+        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(t.command), commitCallback);
 
-        return appendFuture.thenCompose(f -> callback.getFuture());
+        return appendFuture.thenCompose(f -> commitCallback.getFuture());
     }
 
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
-        var callback = new CompletionCallback<ExecuteCommandResponse>();
-        var appendFuture = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0), callback);
-        return appendFuture.thenCompose(f -> callback.getFuture().thenApply(r -> {
-            return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
-        }));
+        var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
+        var appendFuture = append(new WALEntry(NO_OP_COMMAND.serialize()), commitCallback);
+        return appendFuture
+                .thenCompose(f ->
+                        commitCallback.getFuture()
+                                .thenApply(r -> new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())))));
     }
 
 

@@ -1,4 +1,4 @@
-package replicate.leaderbasedpaxoslog;
+package replicate.multipaxos;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -6,6 +6,7 @@ import replicate.common.ClusterTest;
 import replicate.common.NetworkClient;
 import replicate.common.TestUtils;
 import replicate.paxos.messages.GetValueResponse;
+import replicate.paxoslog.PaxosLog;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.twophaseexecution.messages.ExecuteCommandRequest;
 import replicate.twophaseexecution.messages.ExecuteCommandResponse;
@@ -28,9 +29,7 @@ public class LeaderBasedPaxosLogTest extends ClusterTest<LeaderBasedPaxosLog> {
     @Test
     public void singleValuePaxosTest() throws Exception {
         var athens = nodes.get("athens");
-
         athens.blockingElectionRun();
-
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
@@ -60,5 +59,27 @@ public class LeaderBasedPaxosLogTest extends ClusterTest<LeaderBasedPaxosLog> {
 
         var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
         assertEquals(Optional.of("Microservices"), getValueResponse.value);
+    }
+
+
+    @Test
+    public void leaderElectionCompletesInCompletePaxosRuns() throws Exception {
+        LeaderBasedPaxosLog athens = nodes.get("athens");
+        LeaderBasedPaxosLog byzantium = nodes.get("byzantium");
+        LeaderBasedPaxosLog cyrene = nodes.get("cyrene");
+
+        athens.blockingElectionRun();
+
+        var networkClient = new NetworkClient();
+        byte[] command = new SetValueCommand("title", "Microservices").serialize();
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+
+        athens.dropAfterNMessagesTo(byzantium, 1);
+        athens.dropAfterNMessagesTo(cyrene, 1);
+
+        command = new SetValueCommand("title", "Microservices").serialize();
+        setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+
+
     }
 }

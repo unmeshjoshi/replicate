@@ -1,8 +1,8 @@
-package replicate.leaderbasedpaxoslog.messages;
+package replicate.multipaxos.messages;
 
 import replicate.common.Request;
 import replicate.common.RequestId;
-import replicate.leaderbasedpaxoslog.PaxosState;
+import replicate.multipaxos.PaxosState;
 
 import java.util.Map;
 

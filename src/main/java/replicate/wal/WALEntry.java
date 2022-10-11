@@ -12,6 +12,10 @@ public class WALEntry {
 //</codeFragment>
     private final Long generation;
 
+    public WALEntry(byte[] data) {
+        this(-1l, data, EntryType.DATA, 0);
+    };
+
     public WALEntry(Long entryIndex, byte[] data, EntryType entryType, long generation) {
         this.entryIndex = entryIndex;
         this.data = data;

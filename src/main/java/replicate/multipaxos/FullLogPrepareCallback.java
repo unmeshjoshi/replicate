@@ -1,7 +1,7 @@
-package replicate.leaderbasedpaxoslog;
+package replicate.multipaxos;
 
 import replicate.common.BlockingQuorumCallback;
-import replicate.leaderbasedpaxoslog.messages.FullLogPrepareResponse;
+import replicate.multipaxos.messages.FullLogPrepareResponse;
 
 public class FullLogPrepareCallback extends BlockingQuorumCallback<FullLogPrepareResponse> {
 
