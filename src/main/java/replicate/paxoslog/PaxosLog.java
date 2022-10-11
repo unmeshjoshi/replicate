@@ -65,19 +65,19 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
         var callback = new CompletionCallback<ExecuteCommandResponse>();
-        //todo append should be async.
-        append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
 
-        return callback.getFuture();
+        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(0l, t.command, EntryType.DATA, 0), callback);
+
+        return appendFuture.thenCompose(f -> callback.getFuture());
     }
 
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var callback = new CompletionCallback<ExecuteCommandResponse>();
-        var logIndex = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0), callback);
-        return callback.getFuture().thenApply(r -> {
+        var appendFuture = append(new WALEntry(0l, NO_OP_COMMAND.serialize(), EntryType.DATA, 0), callback);
+        return appendFuture.thenCompose(f -> callback.getFuture().thenApply(r -> {
             return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
-        });
+        }));
     }
 
 
@@ -85,35 +85,42 @@ public class PaxosLog extends Replica {
     int maxKnownPaxosRoundId = 1;
     int logIndex = 0;
     int serverId = 1;
-    int maxAttempts = 2;
 
-    //conver to async
     public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
-        return doPaxos(initialValue, callback);
+        CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
+        return appendFuture.thenCompose((result)->{
+           if (result.value.stream().allMatch(v -> v != initialValue)) {
+               logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
+               logIndex = logIndex + 1;
+               return doPaxos(initialValue, callback);
+           }
+           return CompletableFuture.completedFuture(result);
+        });
     }
 
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
-        int maxAttempts = 5;
+        int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
             MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
             CompletableFuture<PaxosResult> result = doPaxos(monotonicId, logIndex, value, callback);
-            logIndex++;//Increment so that next attempt is done for higher index.
             return result;
         }, maxAttempts, retryExecutor);
-
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendPrepareRequest(index, monotonicId).
                 thenCompose((result) -> {
                     WALEntry proposedValue = getProposalValue(initialValue, result.values());
+                    logger.debug(getName() + " proposing " + proposedValue + " for index " + index + " Initial value is " + initialValue);
                     return sendProposeRequest(index, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {
                     //Once the index at which the command is committed reaches 'high-watemark', return the result.
-                    requestWaitingList.add(index, callback);
+                    if (proposedValue == initialValue) {
+                        requestWaitingList.add(index, callback);
+                    }
                     return sendCommitRequest(index, proposedValue, monotonicId)
                             .thenApply(r -> new PaxosResult(Optional.of(proposedValue), true));
                 });
@@ -121,11 +128,9 @@ public class PaxosLog extends Replica {
 
 
     private WALEntry getProposalValue(WALEntry initialValue, Collection<PrepareResponse> promises) {
+        logger.debug(getName() + " got promises " + promises);
         var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
-        var proposedValue
-                = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
-                initialValue : mostRecentAcceptedValue.acceptedValue.get();
-        return proposedValue;
+        return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
     }
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {

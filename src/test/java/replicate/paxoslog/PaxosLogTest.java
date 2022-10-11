@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PaxosLogTest extends ClusterTest<PaxosLog> {
     @Before
@@ -92,4 +93,62 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
         assertEquals(Optional.of("Event Driven Microservices"), getValueResponse.value);
     }
+
+
+    @Test
+    public void selectsNextIndexIfOtherValueIsSelectedForIndexInPraxosPrepare() throws IOException {
+        var networkClient = new NetworkClient();
+        PaxosLog athens = nodes.get("athens");
+        PaxosLog byzantium = nodes.get("byzantium");
+        PaxosLog cyrene = nodes.get("cyrene");
+
+        athens.dropMessagesTo(byzantium);
+        athens.dropMessagesTo(cyrene);
+        var command = new SetValueCommand("title", "Microservices");
+        try {
+            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+            fail("Except an exception, as quorum communication fails after multiple attempts");
+        } catch (Exception e) {
+
+        }
+
+        byzantium.dropAfterNMessagesTo(cyrene, 2);
+
+        try {
+            command = new SetValueCommand("title", "Distributed Systems");
+            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
+            fail("Except an exception, as quorum communication fails after multiple attempts");
+        } catch (Exception e) {
+
+        }
+        assertEquals(1, nodes.get("athens").paxosLog.size());
+        assertEquals(1, nodes.get("byzantium").paxosLog.size());
+        assertEquals(1, nodes.get("cyrene").paxosLog.size());
+
+
+        try {
+            command = new SetValueCommand("title", "Event Driven Microservices");
+            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
+            fail("Except an exception, as quorum communication fails after multiple attempts");
+        } catch (Exception e) {
+        }
+        assertEquals(1, nodes.get("athens").paxosLog.size());
+        assertEquals(1, nodes.get("byzantium").paxosLog.size());
+        assertEquals(1, nodes.get("cyrene").paxosLog.size());
+
+
+        byzantium.reconnectTo(cyrene);
+        try {
+            command = new SetValueCommand("title", "Event Driven Microservices");
+            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
+            assertEquals(setValueResponse.getResponse(), Optional.of("Event Driven Microservices"));
+        } catch (Exception e) {
+            fail("Should be able to commit");
+        }
+
+        assertEquals(1, nodes.get("athens").paxosLog.size());
+        assertEquals(2, nodes.get("byzantium").paxosLog.size());
+        assertEquals(2, nodes.get("cyrene").paxosLog.size());
+    }
+
 }

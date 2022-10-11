@@ -17,4 +17,13 @@ public class PrepareResponse extends Request {
         this.acceptedValue = acceptedValue;
         this.acceptedGeneration = acceptedGeneration;
     }
+
+    @Override
+    public String toString() {
+        return "PrepareResponse{" +
+                "promised=" + promised +
+                ", acceptedValue=" + acceptedValue +
+                ", acceptedGeneration=" + acceptedGeneration +
+                '}';
+    }
 }
