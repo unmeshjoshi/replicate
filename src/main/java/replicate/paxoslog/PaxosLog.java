@@ -38,10 +38,11 @@ public class PaxosLog extends Replica {
 
     Map<String, String> kv = new HashMap<>();
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
-
+    int serverId;
     RequestWaitingList requestWaitingList;
     public PaxosLog(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
+        this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
     }
 
@@ -84,7 +85,6 @@ public class PaxosLog extends Replica {
 
     int maxKnownPaxosRoundId = 1;
     int logIndex = 0;
-    int serverId = 1;
 
     public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
@@ -92,7 +92,7 @@ public class PaxosLog extends Replica {
            if (result.value.stream().allMatch(v -> v != initialValue)) {
                logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
                logIndex = logIndex + 1;
-               return doPaxos(initialValue, callback);
+               return append(initialValue, callback);
            }
            return CompletableFuture.completedFuture(result);
         });
@@ -112,7 +112,7 @@ public class PaxosLog extends Replica {
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendPrepareRequest(index, monotonicId).
                 thenCompose((result) -> {
-                    WALEntry proposedValue = getProposalValue(initialValue, result.values());
+                    WALEntry proposedValue = getProposalValue(index, initialValue, result.values());
                     logger.debug(getName() + " proposing " + proposedValue + " for index " + index + " Initial value is " + initialValue);
                     return sendProposeRequest(index, proposedValue, monotonicId);
 
@@ -127,8 +127,8 @@ public class PaxosLog extends Replica {
     }
 
 
-    private WALEntry getProposalValue(WALEntry initialValue, Collection<PrepareResponse> promises) {
-        logger.debug(getName() + " got promises " + promises);
+    private WALEntry getProposalValue(int index, WALEntry initialValue, Collection<PrepareResponse> promises) {
+        logger.debug(getName() + " got promises " + promises + " for index " + index);
         var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
         return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
     }
@@ -158,8 +158,7 @@ public class PaxosLog extends Replica {
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
-        //Because commit is invoked only after successful prepare and propose.
-        assert paxosState.promisedGeneration.equals(request.generation) || request.generation.isAfter(paxosState.promisedGeneration);
+        //Because commit is invoked only after successful prepare and propose. accept a commit message
 
         paxosState.committedGeneration = Optional.of(request.generation);
         paxosState.committedValue = Optional.of(request.proposedValue);
@@ -219,6 +218,7 @@ public class PaxosLog extends Replica {
             paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
             return new ProposalResponse(true);
         }
+        logger.info(getName() + " rejecting proposal " + request.generation + " as paxosState.promisedGeneration=" + paxosState.promisedGeneration);
         return new ProposalResponse(false);
     }
 
@@ -240,4 +240,8 @@ public class PaxosLog extends Replica {
         }
         return paxosState;
    }
+
+    public String getValue(String title) {
+        return kv.get(title);
+    }
 }

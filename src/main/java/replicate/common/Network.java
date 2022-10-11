@@ -13,6 +13,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 class Network {
+    public static final int MESSAGE_DELAY = 1000;
+
     List<InetAddressAndPort> dropRequestsTo = new ArrayList<>();
     Map<InetAddressAndPort, Integer> noOfMessages = new HashMap<>();
     Map<InetAddressAndPort, Integer> dropAfter = new HashMap<>();
@@ -26,7 +28,7 @@ class Network {
         }
 
         if (shouldDelayMessagesTo(address)) {
-            sendAfterDelay(address, message, 1000);
+            sendAfterDelay(address, message, MESSAGE_DELAY);
             return;
         }
 
@@ -70,7 +72,7 @@ class Network {
         if ((delayAfterNRequests == null) || (noOfRequestsSent == null)) {
             return false;
         }
-        return noOfRequestsSent > delayAfterNRequests;
+        return noOfRequestsSent >= delayAfterNRequests;
     }
 
     Map<InetAddressAndPort, SocketClient> connectionPool = new HashMap<>();
@@ -119,6 +121,7 @@ class Network {
         dropRequestsTo.remove(address);
         dropAfter.remove(address);
         delayMessagesAfter.remove(address);
+        noOfMessages.remove(address); //also reset message counter to specific address.
     }
 
     public void dropMessagesAfter(InetAddressAndPort address, int dropAfterNoOfMessages) {

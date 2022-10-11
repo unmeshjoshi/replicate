@@ -11,6 +11,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.fail;
@@ -148,11 +149,10 @@ public class TestUtils {
         SystemClock clock = new SystemClock();
         List<InetAddressAndPort> addresses = TestUtils.createNAddresses(clusterSize);
         List<InetAddressAndPort> clientInterfaceAddresses = TestUtils.createNAddresses(clusterSize);
-
         for (int i = 0; i < clusterSize; i++) {
             //public static void main(String[]args) {
             Config config = new Config(TestUtils.tempDir("clusternode_" + i).getAbsolutePath());
-
+            config.setServerId(i);
             String nodeName = nodeNames.get(i);
             T replica =  factory.create(nodeName, config, clock, clientInterfaceAddresses.get(i), addresses.get(i), addresses);
             replica.start();

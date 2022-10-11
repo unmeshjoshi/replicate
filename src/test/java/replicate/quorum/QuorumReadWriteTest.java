@@ -158,7 +158,7 @@ public class QuorumReadWriteTest {
     }
 
     //With async read-repair, a client reading after another client can see older values.
-    @Test
+    @Test 
     public void laterReadsGetOlderValue() throws IOException {
         Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {

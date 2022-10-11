@@ -16,8 +16,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class PaxosLogTest extends ClusterTest<PaxosLog> {
     @Before
@@ -121,20 +120,20 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         } catch (Exception e) {
 
         }
-        assertEquals(1, nodes.get("athens").paxosLog.size());
-        assertEquals(1, nodes.get("byzantium").paxosLog.size());
-        assertEquals(1, nodes.get("cyrene").paxosLog.size());
+        assertEquals(1, athens.paxosLog.size());
+        assertEquals(1, byzantium.paxosLog.size());
+        assertEquals(1, cyrene.paxosLog.size());
 
 
         try {
             command = new SetValueCommand("title", "Event Driven Microservices");
             var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Except an exception, as quorum communication fails after multiple attempts");
+            fail("Expect an exception, as quorum communication fails after multiple attempts");
         } catch (Exception e) {
         }
-        assertEquals(1, nodes.get("athens").paxosLog.size());
-        assertEquals(1, nodes.get("byzantium").paxosLog.size());
-        assertEquals(1, nodes.get("cyrene").paxosLog.size());
+        assertEquals(1, athens.paxosLog.size());
+        assertEquals(1, byzantium.paxosLog.size());
+        assertEquals(1, cyrene.paxosLog.size());
 
 
         byzantium.reconnectTo(cyrene);
@@ -146,9 +145,49 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
             fail("Should be able to commit");
         }
 
-        assertEquals(1, nodes.get("athens").paxosLog.size());
-        assertEquals(2, nodes.get("byzantium").paxosLog.size());
-        assertEquals(2, nodes.get("cyrene").paxosLog.size());
+        assertEquals(2, athens.paxosLog.size());
+        assertEquals(2, byzantium.paxosLog.size());
+        assertEquals(2, cyrene.paxosLog.size());
+
+        assertEquals("Event Driven Microservices", athens.getValue("title"));
+        assertEquals("Event Driven Microservices", byzantium.getValue("title"));
+        assertEquals("Event Driven Microservices", cyrene.getValue("title"));
+
+    }
+
+
+    @Test
+    public void triesNextLogIndexOnlyAfterCommittingValueAtCurrentIndex() throws IOException, InterruptedException {
+        var networkClient = new NetworkClient();
+        PaxosLog athens = nodes.get("athens");
+        PaxosLog byzantium = nodes.get("byzantium");
+        PaxosLog cyrene = nodes.get("cyrene");
+
+        athens.dropAfterNMessagesTo(byzantium, 1); //prepare succeeds, propose fails. So propose succeeds only on athens.
+        athens.dropMessagesTo(cyrene);
+        try {
+            var command = new SetValueCommand("title", "Microservices");
+            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+            fail("Except an exception, as quorum communication fails after multiple attempts");
+        } catch (Exception e) {
+
+        }
+        assertEquals(1, athens.paxosLog.size());
+        assertEquals(1, byzantium.paxosLog.size());
+        assertEquals(0, cyrene.paxosLog.size());
+
+        athens.reconnectTo(cyrene);
+
+        var command = new SetValueCommand("newTitle", "Event Driven Microservices");
+        ExecuteCommandRequest request = new ExecuteCommandRequest(command.serialize());
+        var setValueResponse = networkClient.sendAndReceive(request, cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertEquals(Optional.of("Event Driven Microservices"), setValueResponse.getResponse());
+
+
+        assertEquals(2, byzantium.paxosLog.size());
+        assertEquals(2, cyrene.paxosLog.size());
+        assertEquals(2, athens.paxosLog.size());
+
     }
 
 }
