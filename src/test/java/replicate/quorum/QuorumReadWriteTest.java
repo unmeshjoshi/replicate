@@ -272,37 +272,4 @@ public class QuorumReadWriteTest {
         response = bob.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Nitroservices", response);
     }
-
-
-    @Ignore //FIXME Modify handling of generations.
-    @Test
-    public void nodesShouldRejectRequestsFromPreviousGenerationNode() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore primaryClusterNode = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
-        KVClient client = new KVClient();
-
-        InetAddressAndPort oldPrimaryAddress = primaryClusterNode.getClientConnectionAddress();
-        assertEquals("Success", client.setValue(oldPrimaryAddress, "key", "value"));
-
-        assertEquals("value", client.getValue(oldPrimaryAddress, "key"));
-        //Garbage collection pause...
-
-        //Simulates starting a new primary instance because the first went under a GC pause.
-        Config config = new Config(primaryClusterNode.getConfig().getWalDir().getAbsolutePath());
-        InetAddressAndPort newClientAddress = TestUtils.randomLocalAddress();
-        QuorumKVStore newInstance = new QuorumKVStore("athens1", config, new SystemClock(), newClientAddress, TestUtils.randomLocalAddress(), Arrays.asList(byzantium.getPeerConnectionAddress(), cyrene.getPeerConnectionAddress()));
-
-
-        assertEquals(2, newInstance.getGeneration());
-        String responseForNewWrite = client.setValue(newClientAddress, "key1", "value1");
-        assertEquals("Success", responseForNewWrite);
-
-        //Comes out of Garbage Collection pause.
-        assertEquals("Rejecting request from generation 1 as already accepted from generation 2", client.setValue(oldPrimaryAddress, "key2", "value2"));
-    }
 }

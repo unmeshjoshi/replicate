@@ -18,7 +18,6 @@ import replicate.twophaseexecution.messages.ExecuteCommandRequest;
 import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
-import replicate.wal.EntryType;
 import replicate.wal.SetValueCommand;
 import replicate.wal.WALEntry;
 
@@ -26,20 +25,23 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class LeaderBasedPaxosLog extends Replica {
-    private static Logger logger = LogManager.getLogger(LeaderBasedPaxosLog.class);
+public class MultiPaxos extends Replica {
+    private static Logger logger = LogManager.getLogger(MultiPaxos.class);
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     //Paxos State
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
 
     Map<String, String> kv = new HashMap<>();
-
-    public LeaderBasedPaxosLog(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
+    final int serverId;
+    public MultiPaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
+        this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
     }
 
@@ -50,7 +52,7 @@ public class LeaderBasedPaxosLog extends Replica {
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::fullLogPrepare, PrepareRequest.class)
+        handlesMessage(RequestId.Prepare, this::handleFullLogPrepare, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, FullLogPrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
@@ -60,20 +62,16 @@ public class LeaderBasedPaxosLog extends Replica {
                 .respondsWithMessage(RequestId.CommitResponse,  CommitResponse.class);
     }
 
-
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
-        var callback = new CompletionCallback<ExecuteCommandResponse>();
-        //todo append should be async.
-        append(new WALEntry(t.command), callback);
-
-        return callback.getFuture();
+        var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
+        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(t.command), commitCallback);
+        return appendFuture.thenCompose(r -> commitCallback.getFuture());
     }
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
-        var callback = new CompletionCallback<ExecuteCommandResponse>();
-
-        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(NO_OP_COMMAND.serialize()), callback);
-        return appendFuture.thenCompose(r -> callback.getFuture())
+        var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
+        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(NO_OP_COMMAND.serialize()), commitCallback);
+        return appendFuture.thenCompose(r -> commitCallback.getFuture())
                 .thenApply(r -> {
                     return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
                 });
@@ -81,16 +79,14 @@ public class LeaderBasedPaxosLog extends Replica {
 
     RequestWaitingList requestWaitingList;
 
-    int maxKnownPaxosRoundId = 1;
-    int logIndex = 0;
-    int serverId = 1;
+    AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
+    AtomicInteger logIndex = new AtomicInteger(0);
 
     public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
         return appendFuture.thenCompose((result)->{
             if (result.value.stream().allMatch(v -> v != initialValue)) {
                 logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
-                logIndex = logIndex + 1;
                 return append(initialValue, callback);
             }
             return CompletableFuture.completedFuture(result);
@@ -98,24 +94,17 @@ public class LeaderBasedPaxosLog extends Replica {
     }
 
 
-    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
-        int maxAttempts = 2;
-        return FutureUtils.retryWithRandomDelay(() -> {
-            //Each retry with higher generation/epoch
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            CompletableFuture<PaxosResult> result = doPaxos(monotonicId, logIndex, value, callback);
-            logIndex++;//Increment so that next attempt is done for higher index.
-            return result;
-        }, maxAttempts, retryExecutor);
-
+        return doPaxos(fullLogBallot, logIndex.getAndIncrement(), value, callback);
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendProposeRequest(index, initialValue, monotonicId)
                 .thenCompose(proposedValue -> {
                     //Once the index at which the command is committed reaches 'high-watemark', return the result.
-                    requestWaitingList.add(index, callback);
+                    if (proposedValue == initialValue) {
+                        requestWaitingList.add(index, callback);
+                    }
                     return sendCommitRequest(index, proposedValue, monotonicId)
                             .thenApply(r -> new PaxosResult(Optional.of(proposedValue), true));
                 });
@@ -131,27 +120,34 @@ public class LeaderBasedPaxosLog extends Replica {
 
     private CompletableFuture<WALEntry> sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
+        logger.debug(getName() + " proposing " + proposedValue + " for index " + index);
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
-    public void blockingElectionRun() {
+    public void blockingElectionRun() throws ExecutionException, InterruptedException {
+        //if future completes successfully, phase1 is complete and this node can be the leader.
         runElection().whenComplete((result, throwable)-> {
             if (throwable == null) {
+                logger.info(getName() + " is leader for " + fullLogBallot);
                 this.isLeader = true;
             }
-        });
+        }).get();
     }
 
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     public CompletableFuture<Void> runElection() {
-        this.fullLogBallot = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-        return sendFullLogPrepare(fullLogBallot).thenCompose(prepareResponse -> {
-            List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
-            for (FullLogPrepareResponse promise : promises) {
-                mergeLog(promise);
-            }
-            return sendProposalRequestsForUnCommittedEntries();
-        });
+        int maxAttempts = 2;
+        return FutureUtils.retryWithRandomDelay(() -> {
+            this.fullLogBallot = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
+            return sendFullLogPrepare(fullLogBallot).thenCompose(prepareResponse -> {
+                List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
+                for (FullLogPrepareResponse promise : promises) {
+                    mergeLog(promise);
+                }
+                return sendProposalRequestsForUnCommittedEntries();
+            });
+        }, maxAttempts, retryExecutor);
     }
 
     boolean isLeader = false;
@@ -204,11 +200,9 @@ public class LeaderBasedPaxosLog extends Replica {
 
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
-        //Because commit is invoked only after successful prepare and propose.
-        assert paxosState.promisedGeneration.equals(request.generation) || request.generation.isAfter(paxosState.promisedGeneration);
-
+        //Accept commit, because commit is invoked only after successful prepare and propose.
         paxosState.committedGeneration = Optional.of(request.generation);
-        paxosState.committedValue = Optional.of(request.proposedValue);
+        paxosState.committedValue = Optional.of(request.committedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
         return new CommitResponse(true);
     }
@@ -224,18 +218,18 @@ public class LeaderBasedPaxosLog extends Replica {
             }
         }
         if (allPreviousCommitted) {
-            addAndApply(commitRequest.index, commitRequest.proposedValue);
+            addAndApply(commitRequest.index, commitRequest.committedValue);
         }
 
-        //see if there are entries above this logIndex which are commited, apply those entries.
+        //see if there are entries above this logIndex which are committed, apply those entries.
         for(int startIndex = commitRequest.index + 1; ;startIndex++) {
             PaxosState paxosState = paxosLog.get(startIndex);
-            if (paxosState == null) {
+            if (paxosState == null || paxosState.committedValue.isEmpty()) {
                 break;
             }
             WALEntry committed = paxosState.committedValue.get();
             addAndApply(startIndex, committed);
-        }
+        } //convert to streaming..
     }
 
     private void addAndApply(int index, WALEntry walEnty) {
@@ -262,7 +256,7 @@ public class LeaderBasedPaxosLog extends Replica {
 
     MonotonicId fullLogBallot = MonotonicId.empty();
 
-    private FullLogPrepareResponse fullLogPrepare(PrepareRequest request) {
+    private FullLogPrepareResponse handleFullLogPrepare(PrepareRequest request) {
         MonotonicId generation = request.monotonicId;
         if (fullLogBallot.isAfter(generation)) {
             return new FullLogPrepareResponse(false, Collections.EMPTY_MAP);
@@ -277,7 +271,7 @@ public class LeaderBasedPaxosLog extends Replica {
         Set<Integer> indexes = paxosLog.keySet();
         for (Integer index : indexes) {
             PaxosState paxosState = paxosLog.get(index);
-            if (paxosState.committedValue.isPresent()) {
+            if (paxosState.committedValue.isEmpty()) {
                 uncommittedEntries.put(index, paxosState);
             }
         }
@@ -291,5 +285,9 @@ public class LeaderBasedPaxosLog extends Replica {
             paxosLog.put(index, paxosState);
         }
         return paxosState;
+    }
+
+    public String getValue(String title) {
+        return kv.get(title);
     }
 }

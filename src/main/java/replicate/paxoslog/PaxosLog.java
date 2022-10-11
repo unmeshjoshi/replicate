@@ -18,7 +18,6 @@ import replicate.twophaseexecution.messages.ExecuteCommandRequest;
 import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
-import replicate.wal.EntryType;
 import replicate.wal.SetValueCommand;
 import replicate.wal.WALEntry;
 
@@ -162,7 +161,7 @@ public class PaxosLog extends Replica {
         //Because commit is invoked only after successful prepare and propose. accept a commit message
 
         paxosState.committedGeneration = Optional.of(request.generation);
-        paxosState.committedValue = Optional.of(request.proposedValue);
+        paxosState.committedValue = Optional.of(request.committedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
         return new CommitResponse(true);
     }
@@ -178,7 +177,7 @@ public class PaxosLog extends Replica {
             }
         }
         if (allPreviousCommitted) {
-            addAndApply(commitRequest.index, commitRequest.proposedValue);
+            addAndApply(commitRequest.index, commitRequest.committedValue);
         }
 
         //see if there are entries above this logIndex which are commited, apply those entries.

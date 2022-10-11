@@ -110,7 +110,7 @@ class Network {
     private boolean noOfMessagesReachedLimit(InetAddressAndPort address) {
         Integer dropAfterMessages = dropAfter.get(address);
         Integer noOfMessages = this.noOfMessages.get(address);
-        return dropAfterMessages == null?false:(noOfMessages != null && noOfMessages == dropAfterMessages);
+        return dropAfterMessages == null?false:(noOfMessages != null && noOfMessages >= dropAfterMessages);
     }
 
     public void dropMessagesTo(InetAddressAndPort address) {
@@ -125,6 +125,7 @@ class Network {
     }
 
     public void dropMessagesAfter(InetAddressAndPort address, int dropAfterNoOfMessages) {
+        noOfMessages.remove(address); //only count messages here after.
         dropAfter.put(address, dropAfterNoOfMessages);
     }
 
