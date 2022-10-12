@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,7 +43,7 @@ public abstract class Replica {
     protected final RequestWaitingList requestWaitingList;
     protected SystemClock clock;
     private List<InetAddressAndPort> peerAddresses;
-    private volatile long heartbeatReceivedNs;
+    private volatile long heartbeatReceivedNs = 0;
 
     Map<RequestId, Consumer<Message<RequestOrResponse>>> requestMap = new HashMap<>();
 
@@ -56,6 +57,7 @@ public abstract class Replica {
         this.config = config;
         this.requestWaitingList = new RequestWaitingList(clock);
         this.clock = clock;
+        this.heartbeatReceivedNs = clock.nanoTime();
         this.peerAddresses = peerAddresses;
         this.clientConnectionAddress = clientConnectionAddress;
         this.peerConnectionAddress = peerConnectionAddress;
@@ -80,10 +82,10 @@ public abstract class Replica {
     protected Duration heartbeatTimeout = Duration.ofMillis(500);
 
     protected HeartBeatScheduler heartbeatChecker = new HeartBeatScheduler(()->{
-        checkPrimary();
+        checkLeader();
     }, 1000l);
 
-    protected void checkPrimary() {
+    protected void checkLeader() {
         //no-op. implemented by implementations.
     }
 
@@ -92,6 +94,8 @@ public abstract class Replica {
         peerListener.start();
         clientListener.start();
         singularUpdateQueue.start();
+        heartbeatChecker.start();
+        //heartbeatscheduler is only started by the leader.
     }
 
     //Send message without expecting any messages as a response from the peer
@@ -479,6 +483,8 @@ public abstract class Replica {
         peerListener.shudown();
         clientListener.shudown();
         singularUpdateQueue.shutdown();
+        heartbeatChecker.stop();
+        heartBeatScheduler.stop();
     }
 
     public Duration elapsedTimeSinceLastHeartbeat() {

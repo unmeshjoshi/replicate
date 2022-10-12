@@ -23,26 +23,33 @@ import replicate.wal.WALEntry;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+enum ServerRole {
+    Leader,Follower,LookingForLeader
+}
 
 public class MultiPaxos extends Replica {
     private static Logger logger = LogManager.getLogger(MultiPaxos.class);
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     //Paxos State
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
-
     Map<String, String> kv = new HashMap<>();
     final int serverId;
+    ServerRole role;
+
     public MultiPaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
+//        this.role = ServerRole.Follower;
     }
 
     @Override
@@ -60,9 +67,41 @@ public class MultiPaxos extends Replica {
 
         handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
                 .respondsWithMessage(RequestId.CommitResponse,  CommitResponse.class);
+
+        handlesMessage(RequestId.HeartBeatRequest, this::handleHeartbeatRequest, HeartbeatRequest.class);
+    }
+
+    private void handleHeartbeatRequest(InetAddressAndPort inetAddressAndPort, HeartbeatRequest heartbeatRequest) {
+        markHeartbeatReceived();
+    }
+
+//Following heartbeat implementation can be used for two purposes
+// 1. Auto trigger election by checking if existing leader fails.
+// 2. For leader to notify followers about its availability.
+
+    @Override
+    public void sendHeartbeats() {
+//       super.sendOnewayMessageToOtherReplicas(new HeartbeatRequest());
+    }
+
+    @Override
+    public void checkLeader() {
+//
+//        Duration timeSinceLastHeartbeat = elapsedTimeSinceLastHeartbeat();
+//
+//        if (timeSinceLastHeartbeat.compareTo(heartbeatTimeout) > 0) {
+//            logger.info(getName() + " heartbeat timedOut after " + timeSinceLastHeartbeat.toMillis() + "ms");
+//            this.role = ServerRole.LookingForLeader;
+//            heartbeatChecker.stop();
+//            heartBeatScheduler.stop();
+//            leaderElection();
+//        }
     }
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
+        if (role != ServerRole.Leader) {
+            return CompletableFuture.failedFuture(new RuntimeException("Can not process requests as the node is not the leader"));
+        }
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
         CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(t.command), commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture());
@@ -101,7 +140,7 @@ public class MultiPaxos extends Replica {
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendProposeRequest(index, initialValue, monotonicId)
                 .thenCompose(proposedValue -> {
-                    //Once the index at which the command is committed reaches 'high-watemark', return the result.
+                    //Once the index at which the command is committed reaches 'high-watermark', return the result.
                     if (proposedValue == initialValue) {
                         requestWaitingList.add(index, callback);
                     }
@@ -125,29 +164,31 @@ public class MultiPaxos extends Replica {
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
-    public void blockingElectionRun() throws ExecutionException, InterruptedException {
+    public void leaderElection() {
+        logger.info(getName() + " triggering election");
+        heartbeatChecker.stop();
         //if future completes successfully, phase1 is complete and this node can be the leader.
         runElection().whenComplete((result, throwable)-> {
             if (throwable == null) {
                 logger.info(getName() + " is leader for " + fullLogBallot);
                 this.isLeader = true;
+                this.role = ServerRole.Leader;
+                heartbeatChecker.stop();
+                heartBeatScheduler.start();
             }
-        }).get();
+        });
     }
 
-    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     public CompletableFuture<Void> runElection() {
-        int maxAttempts = 2;
-        return FutureUtils.retryWithRandomDelay(() -> {
-            this.fullLogBallot = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
-            return sendFullLogPrepare(fullLogBallot).thenCompose(prepareResponse -> {
-                List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
-                for (FullLogPrepareResponse promise : promises) {
-                    mergeLog(promise);
-                }
-                return sendProposalRequestsForUnCommittedEntries();
-            });
-        }, maxAttempts, retryExecutor);
+        logger.info(getName() + " triggering election.");
+        this.fullLogBallot = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
+        return sendFullLogPrepare(fullLogBallot).thenCompose(prepareResponse -> {
+            List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
+            for (FullLogPrepareResponse promise : promises) {
+                mergeLog(promise);
+            }
+            return sendProposalRequestsForUnCommittedEntries();
+        });
     }
 
     boolean isLeader = false;
@@ -194,6 +235,7 @@ public class MultiPaxos extends Replica {
 
     private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
         var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r->r.promised);
+        logger.info(getName() + " sending prepare request for " + fullLogPromisedGeneration);
         sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
         return prepareCallback.getQuorumFuture();
     }
@@ -257,11 +299,15 @@ public class MultiPaxos extends Replica {
     MonotonicId fullLogBallot = MonotonicId.empty();
 
     private FullLogPrepareResponse handleFullLogPrepare(PrepareRequest request) {
-        MonotonicId generation = request.monotonicId;
-        if (fullLogBallot.isAfter(generation)) {
+        MonotonicId ballot = request.monotonicId;
+        if (fullLogBallot.isAfter(ballot)) {
             return new FullLogPrepareResponse(false, Collections.EMPTY_MAP);
         }
-        fullLogBallot = generation;
+        logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
+        fullLogBallot = ballot;
+        this.role = ServerRole.Follower;
+        heartBeatScheduler.stop();
+        heartbeatChecker.start();
         return new FullLogPrepareResponse(true, getUncommitedValues());
     }
 
@@ -289,5 +335,9 @@ public class MultiPaxos extends Replica {
 
     public String getValue(String title) {
         return kv.get(title);
+    }
+
+    public boolean isLeader() {
+        return role == ServerRole.Leader;
     }
 }

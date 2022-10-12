@@ -1,7 +1,6 @@
 package replicate.multipaxos;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.NetworkClient;
@@ -13,6 +12,7 @@ import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.wal.SetValueCommand;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -29,7 +29,10 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     @Test
     public void setsSingleValue() throws Exception {
         var athens = nodes.get("athens");
-        athens.blockingElectionRun();
+        athens.leaderElection();
+        TestUtils.waitUntilTrue(()->{
+            return athens.isLeader();
+        }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
@@ -41,7 +44,10 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     public void singleValueNullPaxosGetTest() throws Exception {
         var athens = nodes.get("athens");
 
-        athens.blockingElectionRun();
+        athens.leaderElection();
+        TestUtils.waitUntilTrue(()->{
+            return athens.isLeader();
+        }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
         var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
@@ -52,7 +58,10 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     public void singleValuePaxosGetTest() throws Exception {
         var athens = nodes.get("athens");
 
-        athens.blockingElectionRun();
+        athens.leaderElection();
+        TestUtils.waitUntilTrue(()->{
+            return athens.isLeader();
+        }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
@@ -69,7 +78,11 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         MultiPaxos byzantium = nodes.get("byzantium");
         MultiPaxos cyrene = nodes.get("cyrene");
 
-        athens.blockingElectionRun();
+        athens.leaderElection();
+
+        TestUtils.waitUntilTrue(()->{
+            return athens.isLeader();
+        }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
@@ -79,7 +92,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         athens.dropMessagesTo(cyrene); //propose messages fail
 
         try {
-            command = new SetValueCommand("title2", "Distributed Systems").serialize();
+            command = new SetValueCommand("author", "Martin").serialize();
             setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
             fail("Expected to fail because athens will be unable to reach quorum");
         } catch (Exception e) {
@@ -98,17 +111,21 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         athens.reconnectTo(byzantium);
         athens.reconnectTo(cyrene);
 
-        assertNull(athens.getValue("title2"));
+        assertNull(athens.getValue("author"));
 
-        byzantium.blockingElectionRun();
+        //election which is equivalent to prepare phase of basic paxos, checks
+        //and completes pending log entries from majority quorum of the servers.
+        byzantium.leaderElection();
+        TestUtils.waitUntilTrue(()->{
+            return byzantium.isLeader();
+        }, "Waiting for leader election", Duration.ofSeconds(2));
 
         assertEquals(2, athens.paxosLog.size());
         assertEquals(2, byzantium.paxosLog.size());
         assertEquals(2, cyrene.paxosLog.size());
 
-        assertEquals("Distributed Systems", athens.getValue("title2"));
-        assertEquals("Distributed Systems", byzantium.getValue("title2"));
-        assertEquals("Distributed Systems", cyrene.getValue("title2"));
-
+        assertEquals("Martin", athens.getValue("author"));
+        assertEquals("Martin", byzantium.getValue("author"));
+        assertEquals("Martin", cyrene.getValue("author"));
     }
 }

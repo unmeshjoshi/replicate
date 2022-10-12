@@ -30,7 +30,11 @@ public class ViewStampedReplication extends Replica {
     }
 
     @Override
-    protected void checkPrimary() {
+    protected void checkLeader() {
+        checkPrimary();
+    }
+
+    private void checkPrimary() {
         logger.info(getName() + " checking heartbeat status at " + clock.nanoTime());
         Duration timeSinceLastHeartbeat = elapsedTimeSinceLastHeartbeat();
         if (timeSinceLastHeartbeat.compareTo(heartbeatTimeout) > 0) {
