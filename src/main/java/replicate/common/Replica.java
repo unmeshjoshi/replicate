@@ -57,7 +57,6 @@ public abstract class Replica {
         this.config = config;
         this.requestWaitingList = new RequestWaitingList(clock);
         this.clock = clock;
-        this.heartbeatReceivedNs = clock.nanoTime();
         this.peerAddresses = peerAddresses;
         this.clientConnectionAddress = clientConnectionAddress;
         this.peerConnectionAddress = peerConnectionAddress;
@@ -94,8 +93,6 @@ public abstract class Replica {
         peerListener.start();
         clientListener.start();
         singularUpdateQueue.start();
-        heartbeatChecker.start();
-        //heartbeatscheduler is only started by the leader.
     }
 
     //Send message without expecting any messages as a response from the peer
