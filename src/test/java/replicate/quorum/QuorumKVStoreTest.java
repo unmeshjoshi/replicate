@@ -1,9 +1,6 @@
 package replicate.quorum;
 
-import org.junit.Ignore;
 import org.junit.Test;
-import replicate.common.Config;
-import replicate.common.SystemClock;
 import replicate.common.TestUtils;
 import replicate.net.InetAddressAndPort;
 
@@ -14,11 +11,9 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-public class QuorumReadWriteTest {
+public class QuorumKVStoreTest {
      //Read Your Own Writes should give the same value written by me or a later value.
-    //Monotonic Reads
-    //Monotonic Reads across clients without relying on system timestamp. //linearizable reads
-    @Test
+     @Test
     public void quorumReadWriteTest() throws IOException {
         Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));

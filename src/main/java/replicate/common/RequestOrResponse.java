@@ -88,9 +88,11 @@ public class RequestOrResponse {
     public String toString() {
         return "RequestOrResponse{" +
                 "requestId=" + requestId +
-                ", messageBodyJson='" + messageBodyJson + '\'' +
+                ", messageBodyJson=" + Arrays.toString(messageBodyJson) +
                 ", correlationId=" + correlationId +
-                ", groupId=" + generation +
+                ", generation=" + generation +
+                ", fromAddress=" + fromAddress +
+                ", isError=" + isError +
                 '}';
     }
 

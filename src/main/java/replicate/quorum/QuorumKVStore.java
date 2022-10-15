@@ -69,13 +69,21 @@ public class QuorumKVStore extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class)
-                .respondsWithMessage(RequestId.SetValueResponse, SetValueResponse.class);
-        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
-                .respondsWithMessage(RequestId.GetValueResponse, GetValueResponse.class);
+        handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
+        handlesMessage(RequestId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
+        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        handlesMessage(RequestId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
 
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+    }
+
+    private void handleGetValueResponse(Message<GetValueResponse> message) {
+        handleResponse(message);
+    }
+
+    private void handleSetValueResponse(Message<SetValueResponse> message) {
+        handleResponse(message);
     }
 
     ///t1 = clientState.getTimestamp()
@@ -156,7 +164,8 @@ public class QuorumKVStore extends Replica {
         return new GetValueResponse(storedValue);
     }
 
-    private SetValueResponse handleSetValueRequest(VersionedSetValueRequest setValueRequest) {
+    private void handleSetValueRequest(Message<VersionedSetValueRequest> message) {
+        var setValueRequest = message.getRequest();
         StoredValue storedValue = get(setValueRequest.getKey());
 
         if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.
@@ -166,6 +175,6 @@ public class QuorumKVStore extends Replica {
             logger.info("Not setting value " + setValueRequest.getValue() + " because timestamp higher " + storedValue.getTimestamp() + " than request " + setValueRequest.getTimestamp());
 
         }
-        return new SetValueResponse("Success");
+        sendOneway(message.getFromAddress(), new SetValueResponse("Success"), message.getCorrelationId());
     }
 }

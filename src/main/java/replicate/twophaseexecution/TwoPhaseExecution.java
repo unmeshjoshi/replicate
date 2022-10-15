@@ -55,10 +55,12 @@ import java.util.Optional;
  */
 
 public class TwoPhaseExecution extends Replica {
-    Command acceptedCommand; //intermediate storage waiting for confirmation. //what to do with other requests?
+    Command acceptedCommand; //intermediate storage waiting for confirmation.
+                                // what to do with other requests?
                                 //if not accepting other requests..
                                 //how to repair nodes which missed commit requests..
-                             // What if commit requests are lost?
+                              // What if commit requests are lost?
+
     DurableKVStore kvStore; //final storage exposed to clients.
 
     public TwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {

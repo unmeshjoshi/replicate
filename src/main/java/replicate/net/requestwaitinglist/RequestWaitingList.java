@@ -60,6 +60,7 @@ public class RequestWaitingList<Key, Response> {
         if (!pendingRequests.containsKey(key)) {
             return;
         }
+        logger.debug("RequestWaitingList received response for " + key + " at " + clock.nanoTime());
         CallbackDetails callbackDetails = pendingRequests.remove(key);
         NONE = null;
         callbackDetails.getRequestCallback().onResponse(response, NONE);//TODO:Possibly use Optional
@@ -67,6 +68,8 @@ public class RequestWaitingList<Key, Response> {
     }
 
     public void handleResponse(Key key, Response response, InetAddressAndPort fromNode) {
+        logger.debug("RequestWaitingList received response for " + key + " at " + clock.nanoTime());
+
         if (!pendingRequests.containsKey(key)) {
             return;
         }

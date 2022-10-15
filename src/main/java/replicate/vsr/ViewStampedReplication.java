@@ -2,10 +2,7 @@ package replicate.vsr;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import replicate.common.Config;
-import replicate.common.Replica;
-import replicate.common.RequestId;
-import replicate.common.SystemClock;
+import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.RequestWaitingList;
 import replicate.twophaseexecution.messages.ExecuteCommandRequest;
@@ -107,7 +104,8 @@ public class ViewStampedReplication extends Replica {
         handlesMessage(RequestId.StartView, this::handleStartView, StartView.class);
     }
 
-    private void handleStartView(InetAddressAndPort addressAndPort, StartView startView) {
+    private void handleStartView(Message<StartView> message) {
+        var startView = message.getRequest();
         logger.info(getName()  + " starting view " + this.viewNumber);
         this.log = startView.log;
         this.opNumber = startView.opNumber;
@@ -119,11 +117,13 @@ public class ViewStampedReplication extends Replica {
     }
 
     List<DoViewChange> doViewChangeMessages = new ArrayList<>();
-    private void handleDoViewChange(InetAddressAndPort fromAddress, DoViewChange doViewChange) {
+
+    private void handleDoViewChange(Message<DoViewChange> message) {
+        var doViewChange = message.getRequest();
         if (viewNumber > doViewChange.viewNumber) { //ignore messages from smaller view numbers;
             return;
         }
-        logger.info(getName() + " Received DoViewChange from " + fromAddress + " for view " + doViewChange.viewNumber);
+        logger.info(getName() + " Received DoViewChange from " + message.getFromAddress() + " for view " + doViewChange.viewNumber);
         doViewChangeCounter++;
         doViewChangeMessages.add(doViewChange);
         if (doViewChangeCounter == quorum()) {
@@ -152,7 +152,8 @@ public class ViewStampedReplication extends Replica {
                 .thenComparingInt(d -> d.opNumber)).get();
     }
 
-    private void handleStartViewChange(InetAddressAndPort fromAddress, StartViewChange startViewChange) {
+    private void handleStartViewChange(Message<StartViewChange> message) {
+        var startViewChange = message.getRequest();
         if (viewNumber < startViewChange.viewNumber) {
             transitionToViewChange();
         }
@@ -164,8 +165,9 @@ public class ViewStampedReplication extends Replica {
         }
     }
 
-    private void handleCommit(InetAddressAndPort addressAndPort, Commit commit) {
-        logger.info(getName() + " Handling commit/heartbeat request from " + addressAndPort + " at " + super.clock.now());
+    private void handleCommit(Message<Commit> message) {
+        var commit = message.getRequest();
+        logger.info(getName() + " Handling commit/heartbeat request from " + message.getFromAddress() + " at " + super.clock.now());
         markHeartbeatReceived();
         //TODO: if missing log entries upto commitNumber, initiate state change
         if (commit.viewNumber == this.viewNumber && this.commitNumber < commit.commitNumber) {
@@ -174,7 +176,8 @@ public class ViewStampedReplication extends Replica {
         }
     }
 
-    private void handlePrepareOk(InetAddressAndPort fromAddress, PrepareOK prepareOK) {
+    private void handlePrepareOk(Message<PrepareOK> message) {
+        var prepareOK = message.getRequest();
         LogEntry logEntry = log.get(prepareOK.opNumber);
         logEntry.prepareOK();
         maybeIncrementCommitNumberAndApply();
@@ -240,11 +243,12 @@ public class ViewStampedReplication extends Replica {
         return callback.getFuture();
     }
 
-    public void handlePrepare(InetAddressAndPort fromAddress, Prepare prepare) {
+    public void handlePrepare(Message<Prepare> message) {
+        Prepare prepare = message.getRequest();
         if (this.viewNumber == prepare.viewNumber) {
             this.opNumber = this.opNumber + 1;
             this.log.put(opNumber, new LogEntry(prepare.request));
-            sendOneway(fromAddress, new PrepareOK(this.viewNumber, this.opNumber, getReplicaIndex(), true));
+            sendOneway(message.getFromAddress(), new PrepareOK(this.viewNumber, this.opNumber, getReplicaIndex(), true));
         }
     }
 

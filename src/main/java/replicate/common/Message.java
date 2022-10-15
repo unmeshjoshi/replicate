@@ -2,30 +2,22 @@ package replicate.common;
 
 
 import replicate.net.ClientConnection;
+import replicate.net.InetAddressAndPort;
+
 
 public class Message<T> {
     private final T clientRequest;
     private final ClientConnection clientSocket;
-    private RequestId requestId;
-    private int groupId;
+    final Header header;
 
-    public Message(T t, RequestId requestId) {
-        this(t, requestId, null);
+    public Message(T t, Header header) {
+        this(t, header, null);
     }
 
-    public Message(T t, RequestId requestId, ClientConnection clientSocket) {
-        this(t, -1, requestId, clientSocket);
-    }
-
-    public Message(T t, int groupId, RequestId requestId, ClientConnection clientSocket) {
+    public Message(T t,  Header header, ClientConnection clientSocket) {
+        this.header = header;
         this.clientRequest = t;
-        this.groupId = groupId;
-        this.requestId = requestId;
         this.clientSocket = clientSocket;
-    }
-
-    public Message(RequestId requestId) {
-        this(null, requestId);
     }
 
     public T getRequest() {
@@ -37,10 +29,17 @@ public class Message<T> {
     }
 
     public RequestId getRequestId() {
-        return requestId;
+        return header.requestId;
     }
 
-    public int getGroupId() {
-        return groupId;
+    public int getCorrelationId() {
+        return header.correlationId;
     }
+
+    public InetAddressAndPort getFromAddress() {
+        return header.fromAddress;
+    }
+
+    public record Header(InetAddressAndPort fromAddress, int correlationId, RequestId requestId){};
+
 }

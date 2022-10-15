@@ -2,6 +2,7 @@ package replicate.paxos;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.MonotonicId;
@@ -50,7 +51,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(Optional.empty(), response.value);
     }
 
-    @Test
+   @Test
     public void AllNodesChooseOneValueEvenWithIncompleteWrites() throws IOException {
         //only athens has value Microservices
         //byzantium is empty, cyrene is empty

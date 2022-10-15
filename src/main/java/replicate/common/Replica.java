@@ -244,7 +244,7 @@ public abstract class Replica {
      * One way message passing communication. The message handler does not return a response.
      * But is expected to send a messages as part of its handling the message. The message
      * is not necessarily sent to the sender but might be broadcasted.
-     * Not RequestWaitingList as such is needed here. But each peer needs to track the state
+     * No RequestWaitingList as such is needed here. But each peer needs to track the state
      * needed for handling and responding to the messages.
      * @see replicate.vsr.ViewStampedReplication
      * +--------------+                +-----------------+          +---------------+
@@ -276,7 +276,7 @@ public abstract class Replica {
      *      |                                 ++                             +
      *     ++                               |                           |
      * */
-    public <Req extends Request> void handlesMessage(RequestId requestId, BiConsumer<InetAddressAndPort, Req> handler, Class<Req> requestClass) {
+    public <Req extends Request> void handlesMessage(RequestId requestId, Consumer<Message<Req>> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         Function<Stage<Req>, Void> applyHandler = wrapConsumer(handler);
         requestMap.put(requestId, (message)->{
@@ -284,6 +284,10 @@ public abstract class Replica {
                     .andThen(applyHandler)
                     .apply(message);
         });
+    }
+
+    protected <T> void handleResponse(Message<T> message) {
+        requestWaitingList.handleResponse(message.getCorrelationId(), message.getRequest(), message.getFromAddress());
     }
 
     public class SyncBuilder<T extends Request> {
@@ -355,7 +359,7 @@ public abstract class Replica {
 
     Function<Stage, Void> sendMessageToSender = stage -> {
         Message<RequestOrResponse> message = stage.getMessage();
-        Replica.this.sendOneway(message.getRequest().getFromAddress(), stage.request, message.getRequest().getCorrelationId());
+        Replica.this.sendOneway(message.getFromAddress(), stage.request, message.getCorrelationId());
         return null;
     };
 
@@ -409,9 +413,9 @@ public abstract class Replica {
         return applyHandler;
     }
 
-    private <Req extends Request, Void> Function<Stage<Req>, Void> wrapConsumer(BiConsumer<InetAddressAndPort, Req> handler) {
+    private <Req extends Request, Void> Function<Stage<Req>, Void> wrapConsumer(Consumer<Message<Req>> handler) {
         Function<Stage<Req>, Void> applyHandler = (stage) -> {
-            handler.accept(stage.getMessage().getRequest().getFromAddress(), (Req) stage.request);
+            handler.accept(new Message(stage.getRequest(), stage.getMessage().header));
             return null;
         };
         return applyHandler;

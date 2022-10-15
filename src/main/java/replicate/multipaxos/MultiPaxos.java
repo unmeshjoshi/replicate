@@ -71,7 +71,7 @@ public class MultiPaxos extends Replica {
         handlesMessage(RequestId.HeartBeatRequest, this::handleHeartbeatRequest, HeartbeatRequest.class);
     }
 
-    private void handleHeartbeatRequest(InetAddressAndPort inetAddressAndPort, HeartbeatRequest heartbeatRequest) {
+    private void handleHeartbeatRequest(Message<HeartbeatRequest> heartbeatRequest) {
         markHeartbeatReceived();
     }
 
