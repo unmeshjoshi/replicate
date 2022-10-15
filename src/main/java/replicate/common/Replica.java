@@ -227,7 +227,9 @@ public abstract class Replica {
      *      |   handleResponse(message)     |                           |
      *      +------------------------------>+                           |
      *      |                               |                           |
+     *      @deprecated use the handlesMessage
      * */
+    @Deprecated
     public <Req extends Request, Res extends Request> ResponseMessageBuilder<Res> handlesMessage(RequestId requestId, Function<Req, Res> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);
         var applyHandler = wrapHandler(handler);
@@ -486,6 +488,7 @@ public abstract class Replica {
         singularUpdateQueue.shutdown();
         heartbeatChecker.stop();
         heartBeatScheduler.stop();
+        network.closeAllConnections();
     }
 
     public Duration elapsedTimeSinceLastHeartbeat() {

@@ -158,10 +158,11 @@ public class QuorumKVStore extends Replica {
     }
 
 
-    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
+    private void handleGetValueRequest(Message<GetValueRequest> message) {
+        GetValueRequest getValueRequest = message.getRequest();
         StoredValue storedValue = get(getValueRequest.getKey());
         logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue + " from " + getName());
-        return new GetValueResponse(storedValue);
+        sendOneway(message.getFromAddress(), new GetValueResponse(storedValue), message.getCorrelationId());
     }
 
     private void handleSetValueRequest(Message<VersionedSetValueRequest> message) {

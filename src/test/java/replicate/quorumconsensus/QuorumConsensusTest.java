@@ -2,6 +2,7 @@ package replicate.quorumconsensus;
 
 import org.junit.Assert;
 import org.junit.Test;
+import replicate.common.ClusterTest;
 import replicate.common.MonotonicId;
 import replicate.common.TestUtils;
 
@@ -11,15 +12,15 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-public class QuorumConsensusKVStoreTest {
+public class QuorumConsensusTest extends ClusterTest<QuorumConsensus> {
 
     @Test
     public void readRepair() throws IOException {
-        Map<String, QuorumKV> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKV(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
-        QuorumKV athens = kvStores.get("athens");
-        QuorumKV byzantium = kvStores.get("byzantium");
-        QuorumKV cyrene = kvStores.get("cyrene");
+        this.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumConsensus(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
+        QuorumConsensus athens = nodes.get("athens");
+        QuorumConsensus byzantium = nodes.get("byzantium");
+        QuorumConsensus cyrene = nodes.get("cyrene");
 
 
         athens.dropMessagesTo(byzantium);
@@ -45,11 +46,11 @@ public class QuorumConsensusKVStoreTest {
 
     @Test
     public void compareAndSwapIsSuccessfulForTwoConcurrentClients() throws IOException {
-        Map<String, QuorumKV> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKV(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
-        QuorumKV athens = kvStores.get("athens");
-        QuorumKV byzantium = kvStores.get("byzantium");
-        QuorumKV cyrene = kvStores.get("cyrene");
+        Map<String, QuorumConsensus> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumConsensus(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
+        QuorumConsensus athens = kvStores.get("athens");
+        QuorumConsensus byzantium = kvStores.get("byzantium");
+        QuorumConsensus cyrene = kvStores.get("cyrene");
 
         athens.dropAfterNMessagesTo(byzantium, 1);
         athens.dropMessagesTo(cyrene);

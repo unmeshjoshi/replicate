@@ -13,18 +13,22 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-public class QuorumKV extends Replica {
-    private static Logger logger = LogManager.getLogger(QuorumKV.class);
+/**
+ * Quorum consensus algorithm as described by H. Attiya, A. Bar-Noy, and D. Dolev. "Sharing memory robustly in message-passing systems." Journal of the ACM, 42(1):124-142, Jan. 1995
+ * http://web.mit.edu/6.033/2005/wwwdocs/quorum_note.html
+ */
+public class QuorumConsensus extends Replica {
+    private static Logger logger = LogManager.getLogger(QuorumConsensus.class);
 
-    public QuorumKV(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
+    public QuorumConsensus(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, boolean doSyncReadRepair, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock,clientConnectionAddress, peerConnectionAddress, peers);
         this.durableStore = new DurableKVStore(config);
     }
 
     @Override
     protected void registerHandlers() {
-        handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class)
-                .respondsWithMessage(RequestId.GetVersionResponse, GetVersionResponse.class);
+        handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
+        handlesMessage(RequestId.GetVersionResponse, this::handleGetVersionResponse, GetVersionResponse.class);
 
         handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class)
                 .respondsWithMessage(RequestId.SetValueResponse, SetValueResponse.class);
@@ -34,6 +38,10 @@ public class QuorumKV extends Replica {
 
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+    }
+
+    private void handleGetVersionResponse(Message<GetVersionResponse> message) {
+        handleResponse(message);
     }
 
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
@@ -87,10 +95,11 @@ public class QuorumKV extends Replica {
                 });
     }
 
-    private GetVersionResponse handleGetVersionRequest(GetVersionRequest getVersionRequest) {
+    private void handleGetVersionRequest(Message<GetVersionRequest> message) {
+        var getVersionRequest = message.getRequest();
         StoredValue storedValue = get(getVersionRequest.getKey());
         MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
-        return new GetVersionResponse(version);
+        sendOneway(message.getFromAddress(), new GetVersionResponse(version), message.getCorrelationId());
     }
 
     private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
