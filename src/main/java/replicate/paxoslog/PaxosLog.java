@@ -20,6 +20,7 @@ import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
 import replicate.wal.WALEntry;
+import replicate.wal.WriteAheadLog;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

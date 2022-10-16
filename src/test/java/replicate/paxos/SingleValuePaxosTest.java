@@ -2,7 +2,6 @@ package replicate.paxos;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.MonotonicId;
@@ -13,11 +12,12 @@ import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
+import replicate.wal.Command;
+import replicate.wal.SetValueCommand;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 
@@ -28,9 +28,9 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
     @Before
     public void startCluster() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {
-                        return new SingleValuePaxos(name, clock, config, clientConnectionAddress, peerConnectionAddress, peerAddresses);
+                    return new SingleValuePaxos(name, clock, config, clientConnectionAddress, peerConnectionAddress, peerAddresses);
                 });
         athens = nodes.get("athens");
         byzantium = nodes.get("byzantium");
@@ -51,7 +51,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(Optional.empty(), response.value);
     }
 
-   @Test
+    @Test
     public void AllNodesChooseOneValueEvenWithIncompleteWrites() throws IOException {
         //only athens has value Microservices
         //byzantium is empty, cyrene is empty
@@ -64,7 +64,8 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
         assertEquals(athens.promisedGeneration, new MonotonicId(2, 0)); //prepare from second attempt
         assertEquals(athens.acceptedGeneration, Optional.of(new MonotonicId(1, 0)));
-        assertEquals(athens.acceptedValue, Optional.of("Microservices"));
+        SetValueCommand setValueCommand = (SetValueCommand) Command.deserialize(athens.acceptedValue.get());
+        assertEquals(setValueCommand.getValue(), "Microservices");
 
         //only byzantium will have value Distributed Systems
         //athens has Microservices
@@ -74,8 +75,11 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
         Assert.assertEquals("Error", response.result);
         assertEquals(byzantium.promisedGeneration, new MonotonicId(2, 1)); //prepare from second attempt
-        assertEquals(byzantium.acceptedGeneration,  Optional.of(new MonotonicId(1, 1)));
-        assertEquals(byzantium.acceptedValue, Optional.of("Distributed Systems"));
+        assertEquals(byzantium.acceptedGeneration, Optional.of(new MonotonicId(1, 1)));
+
+        setValueCommand = (SetValueCommand) Command.deserialize(byzantium.acceptedValue.get());
+
+        assertEquals(setValueCommand.getValue(), "Distributed Systems");
 
         //only cyrene will have value "Event Driven Microservices" 1
         //athens has Microservices 2
@@ -88,7 +92,10 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         Assert.assertEquals("Distributed Systems", response.result);
         assertEquals(cyrene.promisedGeneration, new MonotonicId(2, 2)); //prepare from second attempt
         assertEquals(cyrene.acceptedGeneration, Optional.of(new MonotonicId(2, 2)));
-        assertEquals(cyrene.acceptedValue, Optional.of("Distributed Systems"));
+
+        setValueCommand = (SetValueCommand) Command.deserialize(cyrene.acceptedValue.get());
+
+        assertEquals(setValueCommand.getValue(), "Distributed Systems");
 
 
 //

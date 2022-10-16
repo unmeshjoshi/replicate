@@ -1,0 +1,34 @@
+!$back = "#F7F8FE"
+!$border = "#070D4A"
+!procedure $box()
+  BackgroundColor $back
+  BorderColor $border
+!endprocedure
+
+skinparam shadowing false
+skinparam sequenceParticipant{
+  $box()
+}
+skinparam sequenceLifeLine {
+ $box()
+}
+skinparam sequence {
+  ArrowColor $border
+}
+
+skinparam Note {
+  $box()
+}
+skinparam Node {
+  $box()
+}
+
+skinparam object {
+  $box()
+}
+
+skinparam actor {
+  $box()
+}
+
+hide footbox

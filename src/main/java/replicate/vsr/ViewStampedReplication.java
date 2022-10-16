@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.RequestWaitingList;
+import replicate.twophaseexecution.CompareAndSwap;
 import replicate.twophaseexecution.messages.ExecuteCommandRequest;
 import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.vsr.messages.*;
@@ -209,6 +210,15 @@ public class ViewStampedReplication extends Replica {
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
             //complete pending client requests;
             pendingRquests.handleResponse(commitNumber, new ExecuteCommandResponse(Optional.of(setValueCommand.getValue()), true));
+        } else if (command instanceof CompareAndSwap casCommand) {
+            String existingValue = kv.get(casCommand.getKey());
+            if (casCommand.getExistingValue().equals(existingValue)) {
+                kv.put(casCommand.getKey(), casCommand.getNewValue());
+                pendingRquests.handleResponse(commitNumber, new ExecuteCommandResponse(Optional.of("Success"), true));
+                return;
+            }
+            //
+            pendingRquests.handleResponse(commitNumber, new ExecuteCommandResponse(Optional.of("Can not execute CAS because existingValue " + existingValue + " does not match " + casCommand.getExistingValue()), false));
         }
     }
 

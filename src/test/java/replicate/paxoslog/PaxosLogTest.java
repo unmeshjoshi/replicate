@@ -106,7 +106,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         var command = new SetValueCommand("title", "Microservices");
         try {
             var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Except an exception, as quorum communication fails after multiple attempts");
+            fail("Expect an exception, as quorum communication fails after multiple attempts");
         } catch (Exception e) {
 
         }
@@ -116,7 +116,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         try {
             command = new SetValueCommand("title", "Distributed Systems");
             var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Except an exception, as quorum communication fails after multiple attempts");
+            fail("Expect an exception, as quorum communication fails after multiple attempts");
         } catch (Exception e) {
 
         }

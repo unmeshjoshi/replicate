@@ -49,6 +49,10 @@ public abstract class Command {
 
     protected abstract void serialize(DataOutputStream os) throws IOException;
 
+    public static Command deserialize(byte[] is) {
+        return deserialize(new ByteArrayInputStream(is));
+    }
+
     public static Command deserialize(InputStream is) {
       try {
           DataInputStream daos = new DataInputStream(is);

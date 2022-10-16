@@ -8,7 +8,10 @@ import replicate.paxos.messages.*;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
+import replicate.wal.Command;
+import replicate.wal.SetValueCommand;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -63,9 +66,9 @@ public class SingleValuePaxos extends Replica {
     //TODO:Refactor so that all implementations have the same state representation.
     public MonotonicId promisedGeneration = MonotonicId.empty();
     public Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    public Optional<String> acceptedValue = Optional.empty();
+    public Optional<byte[]> acceptedValue = Optional.empty();
 
-    Optional<String> committedValue = Optional.empty();
+    Optional<byte[]> committedValue = Optional.empty();
     Optional<MonotonicId> committedGeneration = Optional.empty();
 
     public SingleValuePaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
@@ -83,8 +86,8 @@ public class SingleValuePaxos extends Replica {
                 .respondsWith(RequestId.GetValueRequest, GetValueResponse.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class)
-                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
+        handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
 
         handlesMessage(RequestId.ProposeRequest, this::handleProposal, ProposalRequest.class)
                 .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
@@ -93,8 +96,12 @@ public class SingleValuePaxos extends Replica {
                 .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
     }
 
+    private void handlePromise(Message<PrepareResponse> promise) {
+        handleResponse(promise);
+    }
+
     private CompletableFuture<SetValueResponse> handleSetValueRequest(SetValueRequest setValueRequest) {
-        return doPaxos(setValueRequest.getValue()).thenApply(value -> new SetValueResponse(value.orElse("")));
+        return doPaxos(new SetValueCommand(setValueRequest.getKey(), setValueRequest.getValue()).serialize()).thenApply(value -> new SetValueResponse(value.orElse("")));
     }
 
     private CompletableFuture<GetValueResponse> handleGetValueRequest(GetValueRequest getValueRequest) {
@@ -112,7 +119,7 @@ public class SingleValuePaxos extends Replica {
 
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
 
-    private CompletableFuture<Optional<String>> doPaxos(String value) {
+    private CompletableFuture<Optional<String>> doPaxos(byte[] value) {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
@@ -133,23 +140,41 @@ public class SingleValuePaxos extends Replica {
         }
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, String value) {
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, byte[] value) {
         logger.info(getName() + ": Sending Prepare with " + monotonicId);
         var prepareFuture = sendPrepareRequest(monotonicId);
         return prepareFuture
                 .thenCompose((result) -> {
-                    String proposedValue = getProposalValue(value, result.values());
+                    byte[] proposedValue = getProposalValue(value, result.values());
                     logger.info(getName() + ": Proposing " + proposedValue + " for generation " + monotonicId);
                     return sendProposeRequest(proposedValue, monotonicId);
                 }).thenCompose(acceptedValue -> {
                     logger.info(getName() + ": Committing value " +  acceptedValue + " for generation " + monotonicId);
                     return sendCommitRequest(monotonicId, acceptedValue)
-                            .thenApply(r -> new PaxosResult(Optional.ofNullable(acceptedValue), true));
+                            .thenApply(r -> {
+                                String result = executeCommand(acceptedValue);
+                                return new PaxosResult(Optional.ofNullable(result), true);
+                            });
                 });
     }
 
+    private Map<String, String> kv = new HashMap<>();
 
-    private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
+    private String executeCommand(byte[] acceptedValue) {
+        if (acceptedValue == null) {
+            return null;
+        }
+
+        Command command = Command.deserialize(new ByteArrayInputStream(acceptedValue));
+        if (command instanceof SetValueCommand setValueCommand) {
+            kv.put(setValueCommand.getKey(), setValueCommand.getValue());
+            return setValueCommand.getValue();
+        }
+        throw new IllegalArgumentException("Unknown command to execute");
+    }
+
+
+    private byte[] getProposalValue(byte[] initialValue, Collection<PrepareResponse> promises) {
         PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
         logger.debug("Most Recent promise " + mostRecentAcceptedValue);
         return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
@@ -160,13 +185,13 @@ public class SingleValuePaxos extends Replica {
         return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
     }
 
-    private CompletableFuture<Boolean> sendCommitRequest(MonotonicId monotonicId, String value) {
+    private CompletableFuture<Boolean> sendCommitRequest(MonotonicId monotonicId, byte[] value) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(monotonicId, value));
         return commitCallback.getQuorumFuture().thenApply(r -> true);
     }
 
-    private CompletableFuture<String> sendProposeRequest(String proposedValue, MonotonicId monotonicId) {
+    private CompletableFuture<byte[]> sendProposeRequest(byte[] proposedValue, MonotonicId monotonicId) {
         AsyncQuorumCallback<ProposalResponse> proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(result -> proposedValue);
@@ -193,12 +218,15 @@ public class SingleValuePaxos extends Replica {
         return generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration);
     }
 
-    public PrepareResponse handlePrepare(PrepareRequest prepareRequest) {
+    public void handlePrepare(Message<PrepareRequest> message) {
+        var prepareRequest = message.getRequest();
         MonotonicId generation = prepareRequest.monotonicId;
         if (promisedGeneration.isAfter(generation)) {
-            return new PrepareResponse(false, acceptedValue, acceptedGeneration);
+            sendOneway(message.getFromAddress(), new PrepareResponse(false, acceptedValue, acceptedGeneration), message.getCorrelationId());
+        } else {
+            promisedGeneration = generation;
+            sendOneway(message.getFromAddress(), new PrepareResponse(true, acceptedValue, acceptedGeneration), message.getCorrelationId());
+
         }
-        promisedGeneration = generation;
-        return new PrepareResponse(true, acceptedValue, acceptedGeneration);
     }
 }

@@ -37,7 +37,7 @@ public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
         var client = new NetworkClient();
         var address = nodes.get("athens").getClientConnectionAddress();
         var response = client.sendAndReceive(new GetValueRequest("title"), address, GetValueResponse.class);
-        assertEquals(Optional.empty(), response.value);
+        assertEquals(Optional.of(""), response.value);
     }
 
     @Test

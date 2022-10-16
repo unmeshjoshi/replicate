@@ -6,8 +6,8 @@ import replicate.common.RequestId;
 
 public class CommitRequest extends Request {
     private MonotonicId generation;
-    private String value;
-    public CommitRequest(MonotonicId generation, String value) {
+    private byte[] value;
+    public CommitRequest(MonotonicId generation, byte[] value) {
         this();
         this.generation = generation;
         this.value = value;
@@ -17,7 +17,7 @@ public class CommitRequest extends Request {
         return generation;
     }
 
-    public String getValue() {
+    public byte[] getValue() {
         return value;
     }
 

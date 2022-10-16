@@ -249,34 +249,7 @@ public abstract class Replica {
      * No RequestWaitingList as such is needed here. But each peer needs to track the state
      * needed for handling and responding to the messages.
      * @see replicate.vsr.ViewStampedReplication
-     * +--------------+                +-----------------+          +---------------+
-     * |              |                |                 |          |               |
-     * | node1        |                |  node2          |          |   node3       |
-     * |              |                |                 |          |               |
-     * |              |                |                 |          |               |
-     * +----+---------+                +------+----------+          +--------+------+
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |         message1                |                              |
-     *      +-------------------------------->+                              |
-     *      |                                 |        message2              |
-     *      |                                 +------------------------------>
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 |          message3            |
-     *      |                                 <------------------------------+
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                   message3      |                              |
-     *      <----------------------------------------------------------------+
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 |                              |
-     *      |                                 ++                             +
-     *     ++                               |                           |
+     *
      * */
     public <Req extends Request> void handlesMessage(RequestId requestId, Consumer<Message<Req>> handler, Class<Req> requestClass) {
         var deserialize = createDeserializer(requestClass);

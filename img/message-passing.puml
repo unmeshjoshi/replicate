@@ -1,0 +1,28 @@
+@startuml
+!include style.puml
+skinparam maxAsciiMessageLength 10
+participant athens
+participant RequestWaitingList
+participant byzantium
+
+--> athens  : executeRequest
+
+create Callback
+athens -> Callback  : new
+create Future
+Callback -> Future  : new
+
+athens -> byzantium  : message 1
+athens -> RequestWaitingList: add(1, Callback)
+
+athens <-- byzantium  : response 2
+athens -> RequestWaitingList: onResponse(response)
+RequestWaitingList -> Callback: onResponse
+
+Future <-- Callback : complete
+athens <-- Future
+
+<-- athens : response
+
+
+@enduml

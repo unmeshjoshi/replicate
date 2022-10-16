@@ -50,9 +50,9 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         var primary = getPrimaryNode(primaryAddress);
 
         var client = new NetworkClient();
-        var casCommand = new SetValueCommand("title", "Microservices");
+        var setValueCommand = new SetValueCommand("title", "Microservices");
         var response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(setValueCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
         assertEquals(Optional.of("Microservices"), response.getResponse());
 
         List<ViewStampedReplication> backUpNodes = getBackUpNodes(primaryAddress);

@@ -15,7 +15,10 @@ import replicate.paxoskv.messages.ProposalRequest;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
+import replicate.wal.Command;
+import replicate.wal.SetValueCommand;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -25,9 +28,9 @@ import java.util.concurrent.ScheduledExecutorService;
 class PaxosState {
     MonotonicId promisedGeneration = MonotonicId.empty();
     Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    Optional<String> acceptedValue = Optional.empty();
+    Optional<byte[]> acceptedValue = Optional.empty();
 
-    Optional<String> committedValue = Optional.empty();
+    Optional<byte[]> committedValue = Optional.empty();
     Optional<MonotonicId> committedGeneration = Optional.empty();
 
 }
@@ -79,26 +82,35 @@ public class PaxosKVStore extends Replica {
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
             MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            return doPaxos(monotonicId, key, value);
+            return doPaxos(monotonicId, key, new SetValueCommand(key, value == null?"":value).serialize());
         }, maxAttempts, retryExecutor);
 
     }
 
-    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(MonotonicId monotonicId, String key, String initialValue) {
+    private CompletableFuture<SingleValuePaxos.PaxosResult> doPaxos(MonotonicId monotonicId, String key, byte[] initialValue) {
         return sendPrepareRequest(key, monotonicId).
                 thenCompose((result) -> {
-                    String proposedValue = getProposalValue(initialValue, result.values());
+                    byte[] proposedValue = getProposalValue(initialValue, result.values());
                     return sendProposeRequest(key, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {
                     return sendCommitRequest(key, proposedValue, monotonicId)
-                            .thenApply(r -> new SingleValuePaxos.PaxosResult(Optional.ofNullable(proposedValue), true));
+                            .thenApply(r -> {
+                                String result = execute(proposedValue);
+                                return new SingleValuePaxos.PaxosResult(Optional.ofNullable(result), true);
+                            });
                 });
     }
 
-    private String getProposalValue(String initialValue, Collection<PrepareResponse> promises) {
+    private String execute(byte[] proposedValue) {
+        Command command = Command.deserialize(new ByteArrayInputStream(proposedValue));
+        //TODO.
+        return ((SetValueCommand) command).getValue();
+    }
+
+    private byte[] getProposalValue(byte[] initialValue, Collection<PrepareResponse> promises) {
         PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
-        String proposedValue
+        byte[] proposedValue
                 = mostRecentAcceptedValue.acceptedValue.isEmpty() ?
                 initialValue : mostRecentAcceptedValue.acceptedValue.get();
         return proposedValue;
@@ -109,13 +121,13 @@ public class PaxosKVStore extends Replica {
         return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
     }
 
-    private CompletableFuture<Boolean> sendCommitRequest(String key, String value, MonotonicId monotonicId) {
+    private CompletableFuture<Boolean> sendCommitRequest(String key, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(key, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
-    private CompletableFuture<String> sendProposeRequest(String key, String proposedValue, MonotonicId monotonicId) {
+    private CompletableFuture<byte[]> sendProposeRequest(String key, byte[] proposedValue, MonotonicId monotonicId) {
         AsyncQuorumCallback<ProposalResponse> proposalCallback = new AsyncQuorumCallback(getNoOfReplicas());
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, key, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(result -> proposedValue);

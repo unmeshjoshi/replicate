@@ -16,6 +16,46 @@ import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+/**
+ *       ┌──────┐  ┌──────────────────┐  ┌─────────┐
+ *       │athens│  │RequestWaitingList│  │byzantium│
+ *       └──┬───┘  └────────┬─────────┘  └────┬────┘
+ * executeRequest           │                 │
+ *   ─ ─ ─ ─>               │                 │
+ *          │               │                 │
+ *          │               │   new           │       ┌────────┐
+ *          │ ───────────────────────────────────────>│Callback│
+ *          │               │                 │       └───┬────┘
+ *          │               │                 │           │  new  ┌──────┐
+ *          │               │                 │           │ ─────>│Future│
+ *          │               │                 │           │       └──┬───┘
+ *          │            message 1            │           │          │
+ *          │ ───────────────────────────────>│           │          │
+ *          │               │                 │           │          │
+ *          │add(1, Callback)                 │           │          │
+ *          │ ──────────────>                 │           │          │
+ *          │               │                 │           │          │
+ *          │           response 2            │           │          │
+ *          │ <─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│           │          │
+ *          │               │                 │           │          │
+ *         onResponse(response)               │           │          │
+ *          │ ──────────────>                 │           │          │
+ *          │               │                 │           │          │
+ *          │               │          onResponse         │          │
+ *          │               │ ────────────────────────────>          │
+ *          │               │                 │           │          │
+ *          │               │                 │           │ complete │
+ *          │               │                 │           │  ─ ─ ─ ─ >
+ *          │               │                 │           │          │
+ *          │               │                 │           │          │
+ *          │ <─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+ *          │               │                 │           │          │
+ *  response│               │                 │           │          │
+ *  <─ ─ ─ ─                │                 │           │          │
+ *          │               │                 │           │          │
+ *          │               │                 │           │          │
+ */
+
 public class RequestWaitingList<Key, Response> {
     private static Logger logger = LogManager.getLogger(RequestWaitingList.class);
 

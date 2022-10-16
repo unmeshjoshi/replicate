@@ -7,9 +7,9 @@ import replicate.common.RequestId;
 public class ProposalRequest extends Request {
     public final MonotonicId generation;
     public final String key;
-    public final String proposedValue;
+    public final byte[] proposedValue;
 
-    public ProposalRequest(MonotonicId generation, String key, String proposedValue) {
+    public ProposalRequest(MonotonicId generation, String key, byte[] proposedValue) {
         super(RequestId.ProposeRequest);
         this.generation = generation;
         this.key = key;

@@ -6,9 +6,9 @@ import replicate.common.RequestId;
 
 public class ProposalRequest extends Request {
     private MonotonicId monotonicId;
-    private String proposedValue;
+    private byte[] proposedValue;
 
-    public ProposalRequest(MonotonicId monotonicId, String proposedValue) {
+    public ProposalRequest(MonotonicId monotonicId, byte[] proposedValue) {
         this();
         this.monotonicId = monotonicId;
         this.proposedValue = proposedValue;
@@ -18,7 +18,7 @@ public class ProposalRequest extends Request {
         return monotonicId;
     }
 
-    public String getProposedValue() {
+    public byte[] getProposedValue() {
         return proposedValue;
     }
     //for jackson
