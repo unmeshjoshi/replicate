@@ -5,6 +5,7 @@ import replicate.common.SystemClock;
 import java.util.concurrent.atomic.AtomicLong;
 
 //From https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/service/ClientState.java#L220
+//For experimentation.
 public class ClientState {
     SystemClock clock;
     // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the

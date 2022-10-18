@@ -148,11 +148,6 @@ public class QuorumKVStore extends Replica {
         return JsonSerDes.fromJson(storedValue.getBytes(), StoredValue.class);
     }
 
-    public int maxKnownGeneration() {
-        return durableStore.values().stream().map(kv -> JsonSerDes.fromJson(kv.getBytes(), StoredValue.class))
-                .map(v -> v.generation).max(Integer::compare).orElse(-1);
-    }
-
     public Config getConfig() {
         return config;
     }

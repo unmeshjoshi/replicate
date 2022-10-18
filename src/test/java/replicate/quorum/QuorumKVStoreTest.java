@@ -42,34 +42,6 @@ public class QuorumKVStoreTest {
         assertEquals("Microservices", athens.get("title").getValue());
     }
 
-    @Test
-    public void quorumReadRepairTest() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
-        KVClient kvClient = new KVClient();
-        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
-        assertEquals("Success", response);
-
-        athens.dropMessagesTo(byzantium);
-
-        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
-        assertEquals("Success", response);
-
-        assertEquals("Distributed Systems", athens.get("title").getValue());
-        assertEquals("Distributed Systems", cyrene.get("title").getValue());
-        assertEquals("Microservices", byzantium.get("title").getValue());
-
-
-        String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
-        assertEquals("Distributed Systems", value);
-
-        assertEquals("Distributed Systems", byzantium.get("title").getValue());
-    }
 
     @Test
     public void quorumSynchronousReadRepair() throws IOException {
@@ -98,6 +70,36 @@ public class QuorumKVStoreTest {
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Error", value);
         assertEquals("", byzantium.get("title").getValue());
+    }
+
+
+    @Test
+    public void quorumReadRepairUpdatesStaleValues() throws IOException {
+        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
+
+        QuorumKVStore athens = kvStores.get("athens");
+        QuorumKVStore byzantium = kvStores.get("byzantium");
+        QuorumKVStore cyrene = kvStores.get("cyrene");
+
+        KVClient kvClient = new KVClient();
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
+        assertEquals("Success", response);
+
+        athens.dropMessagesTo(byzantium);
+
+        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
+        assertEquals("Success", response);
+
+        assertEquals("Distributed Systems", athens.get("title").getValue());
+        assertEquals("Distributed Systems", cyrene.get("title").getValue());
+        assertEquals("Microservices", byzantium.get("title").getValue());
+
+
+        String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
+        assertEquals("Distributed Systems", value);
+
+        assertEquals("Distributed Systems", byzantium.get("title").getValue());
     }
 
     @Test
