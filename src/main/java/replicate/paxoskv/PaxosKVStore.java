@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+//TODO: Use PaxosState record
 class PaxosState {
     MonotonicId promisedGeneration = MonotonicId.empty();
     Optional<MonotonicId> acceptedGeneration = Optional.empty();

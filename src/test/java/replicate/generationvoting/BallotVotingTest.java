@@ -11,14 +11,14 @@ import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 
-public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
+public class BallotVotingTest extends ClusterTest<BallotVoting> {
 
     @Test
     public void generateMonotonicNumbersWithQuorumVoting() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new GenerationVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        GenerationVoting athens = nodes.get("athens");
-        GenerationVoting byzantium = nodes.get( "byzantium");
-        GenerationVoting cyrene = nodes.get("cyrene");
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        BallotVoting athens = nodes.get("athens");
+        BallotVoting byzantium = nodes.get( "byzantium");
+        BallotVoting cyrene = nodes.get("cyrene");
 
         NetworkClient client = new NetworkClient();
         Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
@@ -44,12 +44,12 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
 
     @Test
     public void getsMonotonicNumbersWithFailures() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "lamia", "marathon"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new GenerationVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        GenerationVoting athens = nodes.get("athens");
-        GenerationVoting byzantium = nodes.get( "byzantium");
-        GenerationVoting cyrene = nodes.get("cyrene");
-        GenerationVoting lamia = nodes.get("lamia");
-        GenerationVoting marathon = nodes.get("marathon");
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "lamia", "marathon"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        BallotVoting athens = nodes.get("athens");
+        BallotVoting byzantium = nodes.get( "byzantium");
+        BallotVoting cyrene = nodes.get("cyrene");
+        BallotVoting lamia = nodes.get("lamia");
+        BallotVoting marathon = nodes.get("marathon");
 
         athens.dropMessagesTo(byzantium);
 

@@ -15,6 +15,8 @@ import static org.junit.Assert.assertEquals;
 
 public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwoPhaseExecution> {
 
+    //Write Unit test for lost propose.
+
     @Test
     public void executesIncompleteCommits() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
@@ -24,6 +26,7 @@ public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwo
         TwoPhaseExecution cyrene = nodes.get("cyrene");
 
         //athens could send proposals (propose requests) to all the nodes.
+        //athens --> propose ->athens (success)
         //athens --> propose ->byzantium (success)
         //athens --> commit -> byzantium (fails) after first message
         //which means it was fine to commit and execute
@@ -45,6 +48,8 @@ public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwo
         casCommand = new CompareAndSwap("title", Optional.of("Microservices"), "Distributed Systems");
         response
                 = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+
+        //the request executed only the incomplete command from the previous runs.
 
         assertEquals("Microservices", athens.getValue("title"));
         assertEquals("Microservices", byzantium.getValue("title"));

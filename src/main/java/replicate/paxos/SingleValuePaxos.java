@@ -58,18 +58,13 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class SingleValuePaxos extends Replica {
     private static Logger logger = LogManager.getLogger(SingleValuePaxos.class);
+    public PaxosState paxosState = new PaxosState();
 
     int maxKnownPaxosRoundId = 0;
     int serverId;
 
     //Paxos State
     //TODO:Refactor so that all implementations have the same state representation.
-    public MonotonicId promisedGeneration = MonotonicId.empty();
-    public Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    public Optional<byte[]> acceptedValue = Optional.empty();
-
-    Optional<byte[]> committedValue = Optional.empty();
-    Optional<MonotonicId> committedGeneration = Optional.empty();
 
     public SingleValuePaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
@@ -109,9 +104,9 @@ public class SingleValuePaxos extends Replica {
     }
 
     private CommitResponse handleCommit(CommitRequest req) {
-        if (canAccept(req.getGeneration())) {
-            logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + promisedGeneration + " req generation=" + req.getGeneration());
-            this.acceptedValue = Optional.ofNullable(req.getValue());
+        if (paxosState.canAccept(req.getGeneration())) {
+            logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + paxosState.promisedGeneration() + " req generation=" + req.getGeneration());
+            this.paxosState = paxosState.commit(req.getGeneration(), Optional.ofNullable(req.getValue()));
             return new CommitResponse(true);
         }
         return new CommitResponse(false);
@@ -205,28 +200,21 @@ public class SingleValuePaxos extends Replica {
 
     private ProposalResponse handleProposal(ProposalRequest request) {
         MonotonicId generation = request.getMonotonicId();
-        if (canAccept(generation)) {
-            this.promisedGeneration = generation;
-            this.acceptedGeneration = Optional.of(generation);
-            this.acceptedValue = Optional.ofNullable(request.getProposedValue());
+        if (paxosState.canAccept(generation)) {
+            this.paxosState = paxosState.accept(generation, Optional.ofNullable(request.getProposedValue()));
             return new ProposalResponse(true);
         }
         return new ProposalResponse(false);
     }
 
-    private boolean canAccept(MonotonicId generation) {
-        return generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration);
-    }
-
     public void handlePrepare(Message<PrepareRequest> message) {
         var prepareRequest = message.getRequest();
         MonotonicId generation = prepareRequest.monotonicId;
-        if (promisedGeneration.isAfter(generation)) {
-            sendOneway(message.getFromAddress(), new PrepareResponse(false, acceptedValue, acceptedGeneration), message.getCorrelationId());
+        if (paxosState.promisedGeneration().isAfter(generation)) {
+            sendOneway(message.getFromAddress(), new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
         } else {
-            promisedGeneration = generation;
-            sendOneway(message.getFromAddress(), new PrepareResponse(true, acceptedValue, acceptedGeneration), message.getCorrelationId());
-
+            paxosState = paxosState.promise(generation);
+            sendOneway(message.getFromAddress(), new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
         }
     }
 }

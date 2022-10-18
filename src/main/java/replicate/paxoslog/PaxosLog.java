@@ -19,8 +19,6 @@ import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
-import replicate.wal.WALEntry;
-import replicate.wal.WriteAheadLog;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -67,7 +65,7 @@ public class PaxosLog extends Replica {
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
 
-        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(t.command), commitCallback);
+        CompletableFuture<PaxosResult> appendFuture = append(t.command, commitCallback);
 
         return appendFuture.thenCompose(f -> commitCallback.getFuture());
     }
@@ -75,7 +73,7 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
-        var appendFuture = append(new WALEntry(NO_OP_COMMAND.serialize()), commitCallback);
+        var appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
         return appendFuture
                 .thenCompose(f ->
                         commitCallback.getFuture()
@@ -87,7 +85,7 @@ public class PaxosLog extends Replica {
     int maxKnownPaxosRoundId = 1;
     int logIndex = 0;
 
-    public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+    public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
         return appendFuture.thenCompose((result)->{
            if (result.value.stream().allMatch(v -> v != initialValue)) {
@@ -100,7 +98,7 @@ public class PaxosLog extends Replica {
     }
 
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
-    private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
@@ -110,11 +108,11 @@ public class PaxosLog extends Replica {
         }, maxAttempts, retryExecutor);
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendPrepareRequest(index, monotonicId).
                 thenCompose((result) -> {
-                    WALEntry proposedValue = getProposalValue(index, initialValue, result.values());
-                    logger.debug(getName() + " proposing " + proposedValue + " for index " + index + " Initial value is " + initialValue);
+                    byte[] proposedValue = getProposalValue(index, initialValue, result.values());
+                    logger.debug(getName() + " proposing " + Command.deserialize(proposedValue) + " for index " + index + " Initial value is " + Command.deserialize(initialValue));
                     return sendProposeRequest(index, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {
@@ -128,7 +126,7 @@ public class PaxosLog extends Replica {
     }
 
 
-    private WALEntry getProposalValue(int index, WALEntry initialValue, Collection<PrepareResponse> promises) {
+    private byte[] getProposalValue(int index, byte[] initialValue, Collection<PrepareResponse> promises) {
         logger.debug(getName() + " got promises " + promises + " for index " + index);
         var mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
         return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
@@ -138,14 +136,14 @@ public class PaxosLog extends Replica {
         return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
     }
 
-    private CompletableFuture<Boolean> sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
+    private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
 
-    private CompletableFuture<WALEntry> sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+    private CompletableFuture<byte[]> sendProposeRequest(int index, byte[] proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
@@ -192,8 +190,8 @@ public class PaxosLog extends Replica {
         }
     }
 
-    private void addAndApply(int index, WALEntry walEnty) {
-        var command = Command.deserialize(new ByteArrayInputStream(walEnty.getData()));
+    private void addAndApply(int index, byte[] logEntry) {
+        var command = Command.deserialize(logEntry);
         if (command instanceof SetValueCommand) {
             SetValueCommand setValueCommand = (SetValueCommand)command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());

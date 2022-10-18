@@ -19,7 +19,6 @@ import replicate.twophaseexecution.messages.ExecuteCommandResponse;
 import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
-import replicate.wal.WALEntry;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -103,13 +102,13 @@ public class MultiPaxos extends Replica {
             return CompletableFuture.failedFuture(new RuntimeException("Can not process requests as the node is not the leader"));
         }
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
-        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(t.command), commitCallback);
+        CompletableFuture<PaxosResult> appendFuture = append(t.command, commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture());
     }
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
-        CompletableFuture<PaxosResult> appendFuture = append(new WALEntry(NO_OP_COMMAND.serialize()), commitCallback);
+        CompletableFuture<PaxosResult> appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture())
                 .thenApply(r -> {
                     return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
@@ -121,7 +120,7 @@ public class MultiPaxos extends Replica {
     AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
     AtomicInteger logIndex = new AtomicInteger(0);
 
-    public CompletableFuture<PaxosResult> append(WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+    public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
         return appendFuture.thenCompose((result)->{
             if (result.value.stream().allMatch(v -> v != initialValue)) {
@@ -133,11 +132,11 @@ public class MultiPaxos extends Replica {
     }
 
 
-    private CompletableFuture<PaxosResult> doPaxos(WALEntry value, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
         return doPaxos(fullLogBallot, logIndex.getAndIncrement(), value, callback);
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, WALEntry initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         return sendProposeRequest(index, initialValue, monotonicId)
                 .thenCompose(proposedValue -> {
                     //Once the index at which the command is committed reaches 'high-watermark', return the result.
@@ -150,14 +149,14 @@ public class MultiPaxos extends Replica {
     }
 
 
-    private CompletableFuture<Boolean> sendCommitRequest(int index, WALEntry value, MonotonicId monotonicId) {
+    private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
         sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
 
-    private CompletableFuture<WALEntry> sendProposeRequest(int index, WALEntry proposedValue, MonotonicId monotonicId) {
+    private CompletableFuture<byte[]> sendProposeRequest(int index, byte[] proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         logger.debug(getName() + " proposing " + proposedValue + " for index " + index);
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
@@ -197,7 +196,7 @@ public class MultiPaxos extends Replica {
         Map<Integer, PaxosState> uncommitedValues = getUncommitedValues();
         for (Integer index : uncommitedValues.keySet()) {
             PaxosState logEntry = uncommitedValues.get(index);
-            WALEntry proposedValue = logEntry.acceptedValue.get();
+            byte[] proposedValue = logEntry.acceptedValue.get();
             var completeFuture = sendProposeRequest(index, proposedValue, fullLogBallot)
                     .thenCompose(value -> {
                         return sendCommitRequest(index, proposedValue, fullLogBallot);
@@ -269,13 +268,13 @@ public class MultiPaxos extends Replica {
             if (paxosState == null || paxosState.committedValue.isEmpty()) {
                 break;
             }
-            WALEntry committed = paxosState.committedValue.get();
+            byte[] committed = paxosState.committedValue.get();
             addAndApply(startIndex, committed);
         } //convert to streaming..
     }
 
-    private void addAndApply(int index, WALEntry walEnty) {
-        Command command = Command.deserialize(new ByteArrayInputStream(walEnty.getData()));
+    private void addAndApply(int index, byte[] walEnty) {
+        Command command = Command.deserialize(walEnty);
         if (command instanceof SetValueCommand) {
             SetValueCommand setValueCommand = (SetValueCommand)command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());

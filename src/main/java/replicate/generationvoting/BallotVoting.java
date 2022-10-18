@@ -55,13 +55,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class GenerationVoting extends Replica {
+public class BallotVoting extends Replica {
     //epoch/term/generation
     int generation = 0;
-    private Logger logger = LogManager.getLogger(GenerationVoting.class);
+    private Logger logger = LogManager.getLogger(BallotVoting.class);
     private int maxAttmpts = 4;
 
-    public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+    public BallotVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
 
     }
