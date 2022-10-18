@@ -13,6 +13,8 @@ import static org.junit.Assert.assertEquals;
 
 public class QuorumKVStoreTest {
      //Read Your Own Writes should give the same value written by me or a later value.
+    //Try changing this test to have 5 replicas instead of three.
+    //It returns error because Quorum condition will not be met.
      @Test
     public void quorumReadWriteTest() throws IOException {
         Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),

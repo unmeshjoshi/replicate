@@ -69,11 +69,15 @@ public class QuorumKVStore extends Replica {
 
     @Override
     protected void registerHandlers() {
+        //messages handled by replicas.
         handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
         handlesMessage(RequestId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
         handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
         handlesMessage(RequestId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
 
+        //client requests
+        //These handles send messages to replicas using Replica::sendMessageToReplicas
+        //It uses RequestWaitingList to wait for the corresponding response messages.
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
@@ -99,7 +103,7 @@ public class QuorumKVStore extends Replica {
                 clientState.getTimestamp()); //assign timestamp to request.
         AsyncQuorumCallback<String> quorumCallback = new AsyncQuorumCallback<String>(getNoOfReplicas());
         sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
-        return quorumCallback.getQuorumFuture().thenApply(r -> new SetValueResponse("Success")); //TODO:Map quorum responses to
+        return quorumCallback.getQuorumFuture().thenApply(r -> new SetValueResponse("Success"));
     }
 
 

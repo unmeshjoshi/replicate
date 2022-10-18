@@ -14,15 +14,15 @@ public class DurableKVStoreTest {
         //public static void main(String args[]) {
         File walDir = TestUtils.tempDir("distrib/patterns/wal");
         DurableKVStore kv = new DurableKVStore(new Config(walDir.getAbsolutePath()));
-        kv.put("key1", "value1");
+        kv.put("title", "Microservices");
         //client got success;
-        //client is sure that key1 is durable
+        //client is sure that key1 is saved
         //fail.
         //success
-        kv.put("key2", "value2");
-        //client is sure that key2 is durable
-        kv.put("key3", "value3");
-        //client is sure that key3 is durable
+        kv.put("author", "Martin");
+        //client is sure that key2 is saved
+        kv.put("newTitle", "Distributed Systems");
+        //client is sure that key3 is saved
         //}
 
         //KV crashes.
@@ -31,9 +31,9 @@ public class DurableKVStoreTest {
         //simulates process restart. A new instance is created at startup.
         DurableKVStore recoveredKvStore = new DurableKVStore(new Config(walDir.getAbsolutePath()));
 
-        assertEquals(recoveredKvStore.get("key1"), "value1");
-        assertEquals(recoveredKvStore.get("key2"), "value2");
-        assertEquals(recoveredKvStore.get("key3"), "value3");
+        assertEquals(recoveredKvStore.get("title"), "Microservices");
+        assertEquals(recoveredKvStore.get("author"), "Martin");
+        assertEquals(recoveredKvStore.get("newTitle"), "Distributed Systems");
     }
 
 
