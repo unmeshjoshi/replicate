@@ -16,8 +16,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -106,7 +104,7 @@ public abstract class Replica {
     }
 
     public <T extends Request> void sendOneway(InetAddressAndPort address, T request) {
-        sendOneway(address, request, nextRequestId());
+        sendOneway(address, request, newCorrelationId());
     }
 
     //Send message to peer and expect a separate message as response.
@@ -115,7 +113,7 @@ public abstract class Replica {
     //@see responseMessageHandler
     public <T> void sendMessageToReplicas(RequestCallback callback, RequestId requestId, T requestToReplicas) {
         for (InetAddressAndPort replica : peerAddresses) {
-            int correlationId = nextRequestId();
+            int correlationId = newCorrelationId();
             RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
             sendMessageToReplica(callback, replica, request);
         }
@@ -138,14 +136,14 @@ public abstract class Replica {
 
     public <T extends Request> void sendOnewayMessageToReplicas(T requestToReplicas) {
         for (InetAddressAndPort replica : peerAddresses) {
-            int correlationId = nextRequestId();
+            int correlationId = newCorrelationId();
             sendOneway(replica, requestToReplicas, correlationId);
         }
     }
 
     public <T extends Request> void sendOnewayMessageToOtherReplicas(T requestToReplicas) {
         for (InetAddressAndPort replica : otherReplicas()) {
-            int correlationId = nextRequestId();
+            int correlationId = newCorrelationId();
             sendOneway(replica, requestToReplicas, correlationId);
         }
     }
@@ -157,7 +155,7 @@ public abstract class Replica {
     public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas) {
         List<Res> responses = new ArrayList<>();
         for (InetAddressAndPort replica : peerAddresses) {
-            int correlationId = nextRequestId();
+            int correlationId = newCorrelationId();
             RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
             try {
                 RequestOrResponse response = network.sendRequestResponse(replica, request);
@@ -405,7 +403,7 @@ public abstract class Replica {
         return deserialize;
     }
 
-    private int nextRequestId() {
+    private int newCorrelationId() {
         return new Random().nextInt();
     }
 

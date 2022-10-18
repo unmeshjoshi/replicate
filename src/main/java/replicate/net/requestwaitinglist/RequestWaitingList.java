@@ -17,6 +17,17 @@ import java.util.stream.Collectors;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
+ * The nodes expecting messages from other nodes as response
+ * to some messages, wait in a RequestWaitingList instance.
+ * The messages are linked by a unique correlationId.
+ * #see Replica:newCorrelationId
+ * A callback is registered with each correlationId,
+ * which is invoked once the message is received for that correlationId.
+ *
+ * The client can then use the future associated with the callback
+ * to compose asynchronous actions.
+ * @See AsyncQuorumCallback
+ *
  *       ┌──────┐  ┌──────────────────┐  ┌─────────┐
  *       │athens│  │RequestWaitingList│  │byzantium│
  *       └──┬───┘  └────────┬─────────┘  └────┬────┘
@@ -35,7 +46,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *          │add(1, Callback)                 │           │          │
  *          │ ──────────────>                 │           │          │
  *          │               │                 │           │          │
- *          │           response 2            │           │          │
+ *          │           response 1            │           │          │
  *          │ <─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│           │          │
  *          │               │                 │           │          │
  *         onResponse(response)               │           │          │
