@@ -62,8 +62,8 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         var response = setValue(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
         Assert.assertEquals("Error", response.result);
 
-        assertEquals(athens.paxosState.promisedGeneration(), new MonotonicId(2, 0)); //prepare from second attempt
-        assertEquals(athens.paxosState.acceptedGeneration(), Optional.of(new MonotonicId(1, 0)));
+        assertEquals(athens.paxosState.promisedBallot(), new MonotonicId(2, 0)); //prepare from second attempt
+        assertEquals(athens.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 0)));
         SetValueCommand setValueCommand = (SetValueCommand) Command.deserialize(athens.paxosState.acceptedValue().get());
         assertEquals(setValueCommand.getValue(), "Microservices");
 
@@ -74,8 +74,8 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         response = setValue(new SetValueRequest("title", "Distributed Systems"), byzantium.getClientConnectionAddress());
 
         Assert.assertEquals("Error", response.result);
-        assertEquals(byzantium.paxosState.promisedGeneration(), new MonotonicId(2, 1)); //prepare from second attempt
-        assertEquals(byzantium.paxosState.acceptedGeneration(), Optional.of(new MonotonicId(1, 1)));
+        assertEquals(byzantium.paxosState.promisedBallot(), new MonotonicId(2, 1)); //prepare from second attempt
+        assertEquals(byzantium.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 1)));
 
         setValueCommand = (SetValueCommand) Command.deserialize(byzantium.paxosState.acceptedValue().get());
 
@@ -90,8 +90,8 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         response = setValue(new SetValueRequest("title", "Event Driven Microservices"), cyrene.getClientConnectionAddress());
 
         Assert.assertEquals("Distributed Systems", response.result);
-        assertEquals(cyrene.paxosState.promisedGeneration(), new MonotonicId(2, 2)); //prepare from second attempt
-        assertEquals(cyrene.paxosState.acceptedGeneration(), Optional.of(new MonotonicId(2, 2)));
+        assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(2, 2)); //prepare from second attempt
+        assertEquals(cyrene.paxosState.acceptedBallot(), Optional.of(new MonotonicId(2, 2)));
 
         setValueCommand = (SetValueCommand) Command.deserialize(cyrene.paxosState.acceptedValue().get());
 

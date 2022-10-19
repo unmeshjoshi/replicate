@@ -4,8 +4,8 @@ import replicate.common.MonotonicId;
 
 import java.util.Optional;
 
-public record PaxosState(MonotonicId promisedGeneration,
-                         Optional<MonotonicId> acceptedGeneration,
+public record PaxosState(MonotonicId promisedBallot,
+                         Optional<MonotonicId> acceptedBallot,
                          Optional<byte[]> acceptedValue,
                          Optional<byte[]> committedValue,
                          Optional<MonotonicId> committedGeneration){
@@ -19,7 +19,7 @@ public record PaxosState(MonotonicId promisedGeneration,
     }
 
     public boolean canAccept(MonotonicId generation) {
-        return generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration);
+        return generation.equals(promisedBallot) || generation.isAfter(promisedBallot);
     }
 
     public PaxosState accept(MonotonicId generation, Optional<byte[]> value) {
@@ -27,7 +27,7 @@ public record PaxosState(MonotonicId promisedGeneration,
     }
 
     public PaxosState promise(MonotonicId generation) {
-        return new PaxosState(generation, acceptedGeneration, acceptedValue, committedValue, committedGeneration);
+        return new PaxosState(generation, acceptedBallot, acceptedValue, committedValue, committedGeneration);
     }
 
     public PaxosState commit(MonotonicId generation, Optional<byte[]> value) {
@@ -35,6 +35,6 @@ public record PaxosState(MonotonicId promisedGeneration,
     }
 
     public boolean canPromise(MonotonicId generation) {
-        return generation.isAfter(this.promisedGeneration);
+        return generation.isAfter(this.promisedBallot);
     }
 }

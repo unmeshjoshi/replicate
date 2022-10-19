@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.RequestWaitingList;
+import replicate.paxos.PaxosState;
 import replicate.paxos.messages.CommitResponse;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.paxos.messages.ProposalResponse;
@@ -20,7 +21,6 @@ import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -158,9 +158,9 @@ public class PaxosLog extends Replica {
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
         //Because commit is invoked only after successful prepare and propose. accept a commit message
+        var committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
+        paxosLog.put(request.index, committedPaxosState);
 
-        paxosState.committedGeneration = Optional.of(request.generation);
-        paxosState.committedValue = Optional.of(request.committedValue);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
         return new CommitResponse(true);
     }
@@ -170,7 +170,7 @@ public class PaxosLog extends Replica {
         var previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
         var allPreviousCommitted = true;
         for (Integer previousIndex : previousIndexes) {
-            if (paxosLog.get(previousIndex).committedValue.isEmpty()) {
+            if (paxosLog.get(previousIndex).committedValue().isEmpty()) {
                 allPreviousCommitted = false;
                 break;
             }
@@ -185,7 +185,7 @@ public class PaxosLog extends Replica {
             if (paxosState == null) {
                 break;
             }
-            var committed = paxosState.committedValue.get();
+            var committed = paxosState.committedValue().get();
             addAndApply(startIndex, committed);
         }
     }
@@ -211,24 +211,25 @@ public class PaxosLog extends Replica {
     private ProposalResponse handlePaxosProposal(ProposalRequest request) {
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
-        if (generation.equals(paxosState.promisedGeneration) || generation.isAfter(paxosState.promisedGeneration)) {
-            paxosState.promisedGeneration = generation;
-            paxosState.acceptedGeneration = Optional.of(generation);
-            paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
+        if (paxosState.canAccept(generation)) {
+            var acceptedPaxosState = paxosState.accept(generation, Optional.ofNullable(request.proposedValue));
+            paxosLog.put(request.index, acceptedPaxosState);
             return new ProposalResponse(true);
         }
-        logger.info(getName() + " rejecting proposal " + request.generation + " as paxosState.promisedGeneration=" + paxosState.promisedGeneration);
+        logger.info(getName() + " rejecting proposal " + request.generation + " as paxosState.promisedBallot=" + paxosState.promisedBallot());
         return new ProposalResponse(false);
     }
 
 
     public PrepareResponse prepare(PrepareRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
-        if (paxosState.promisedGeneration.isAfter(request.monotonicId)) {
-            return new PrepareResponse(false, paxosState.acceptedValue, paxosState.acceptedGeneration);
+        if (paxosState.canPromise(request.monotonicId)) {
+            PaxosState promisedPaxosState = paxosState.promise(request.monotonicId);
+            paxosLog.put(request.index, promisedPaxosState);
+            return new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedBallot());
         }
-        paxosState.promisedGeneration = request.monotonicId;
-        return new PrepareResponse(true, paxosState.acceptedValue, paxosState.acceptedGeneration);
+        return new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedBallot());
+
     }
 
     private PaxosState getOrCreatePaxosState(int index) {

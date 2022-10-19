@@ -157,9 +157,9 @@ public class PaxosKVStore extends Replica {
         if (paxosState.canPromise(request.generation)) {
             paxosState = paxosState.promise(request.generation);
             kv.put(request.key, paxosState);
-            return new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedGeneration());
+            return new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedBallot());
         }
-        return new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedGeneration());
+        return new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedBallot());
 
     }
 

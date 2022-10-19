@@ -105,7 +105,7 @@ public class SingleValuePaxos extends Replica {
 
     private CommitResponse handleCommit(CommitRequest req) {
         if (paxosState.canAccept(req.getGeneration())) {
-            logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + paxosState.promisedGeneration() + " req generation=" + req.getGeneration());
+            logger.info("Accepting commit for " + req.getValue() + "promisedBallot=" + paxosState.promisedBallot() + " req generation=" + req.getGeneration());
             this.paxosState = paxosState.commit(req.getGeneration(), Optional.ofNullable(req.getValue()));
             return new CommitResponse(true);
         }
@@ -210,11 +210,11 @@ public class SingleValuePaxos extends Replica {
     public void handlePrepare(Message<PrepareRequest> message) {
         var prepareRequest = message.getRequest();
         MonotonicId generation = prepareRequest.monotonicId;
-        if (paxosState.promisedGeneration().isAfter(generation)) {
-            sendOneway(message.getFromAddress(), new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
+        if (paxosState.promisedBallot().isAfter(generation)) {
+            sendOneway(message.getFromAddress(), new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
         } else {
             paxosState = paxosState.promise(generation);
-            sendOneway(message.getFromAddress(), new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
+            sendOneway(message.getFromAddress(), new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
         }
     }
 }

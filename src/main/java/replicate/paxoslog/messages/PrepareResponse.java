@@ -22,7 +22,7 @@ public class PrepareResponse extends Request {
         return "PrepareResponse{" +
                 "promised=" + promised +
                 ", acceptedValue=" + acceptedValue +
-                ", acceptedGeneration=" + acceptedGeneration +
+                ", acceptedBallot=" + acceptedGeneration +
                 '}';
     }
 }
