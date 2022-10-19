@@ -102,10 +102,10 @@ public class BallotVoting extends Replica {
     private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
         if (nextNumberRequest.getNumber() > generation) { //accept only if 'strictly greater'
             generation = nextNumberRequest.getNumber();
-            logger.info("accepting " + generation + " in " + getName());
+            logger.info(getName() + " accepting " + generation + " in " + getName());
             return new PrepareResponse(true);
         }
-        logger.info("rejecting " + generation + " in " + getName());
+        logger.info(getName() + " rejecting " + generation + " in " + getName());
         return new PrepareResponse(false);
     }
 }

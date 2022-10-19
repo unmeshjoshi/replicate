@@ -144,11 +144,11 @@ public class Config {
 
     }
 
-    public void useAsyncReadRepair() {
+    public void setAsyncReadRepair() {
         this.doAsyncRepair = true;
     }
 
-    public boolean doAsyncReadRepair() {
+    public boolean isAsyncReadRepair() {
         return doAsyncRepair;
     }
 

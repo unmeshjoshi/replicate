@@ -1,29 +1,35 @@
 package replicate.quorum;
 
 import org.junit.Test;
+import replicate.common.ClusterTest;
 import replicate.common.TestUtils;
 import replicate.net.InetAddressAndPort;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-public class QuorumKVStoreTest {
+public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
+    QuorumKVStore athens;
+    QuorumKVStore byzantium;
+    QuorumKVStore cyrene;
+
+    @Override
+    public void setUp() throws IOException {
+        this.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
+
+        athens = nodes.get("athens");
+        byzantium = nodes.get("byzantium");
+        cyrene = nodes.get("cyrene");
+    }
      //Read Your Own Writes should give the same value written by me or a later value.
     //Try changing this test to have 5 replicas instead of three.
     //It returns error because Quorum condition will not be met.
      @Test
     public void quorumReadWriteTest() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
 
         athens.dropMessagesTo(byzantium);
 
@@ -44,14 +50,7 @@ public class QuorumKVStoreTest {
 
 
     @Test
-    public void quorumSynchronousReadRepair() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
+    public void quorumReadFailsWhenSynchronousReadRepairFails() throws IOException {
 
         athens.dropMessagesTo(byzantium);
 
@@ -75,71 +74,29 @@ public class QuorumKVStoreTest {
 
     @Test
     public void quorumReadRepairUpdatesStaleValues() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
+        //setup initial value.
         KVClient kvClient = new KVClient();
-        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
+        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Initial title");
         assertEquals("Success", response);
 
         athens.dropMessagesTo(byzantium);
 
-        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Distributed Systems");
+        response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Updated title");
         assertEquals("Success", response);
 
-        assertEquals("Distributed Systems", athens.get("title").getValue());
-        assertEquals("Distributed Systems", cyrene.get("title").getValue());
-        assertEquals("Microservices", byzantium.get("title").getValue());
+        assertEquals("Updated title", athens.get("title").getValue());
+        assertEquals("Updated title", cyrene.get("title").getValue());
+        assertEquals("Initial title", byzantium.get("title").getValue());
 
 
         String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
-        assertEquals("Distributed Systems", value);
+        assertEquals("Updated title", value);
 
-        assertEquals("Distributed Systems", byzantium.get("title").getValue());
+        assertEquals("Updated title", byzantium.get("title").getValue());
     }
 
     @Test
-    public void quorumReadFailsIfReadRepairFails() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
-
-
-        athens.dropMessagesTo(byzantium);
-
-        KVClient kvClient = new KVClient();
-        String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
-        assertEquals("Success", response);
-
-        assertEquals("Microservices", athens.get("title").getValue());
-        assertEquals("Microservices", cyrene.get("title").getValue());
-        assertEquals("", byzantium.get("title").getValue());
-
-        cyrene.dropMessagesTo(athens);
-        cyrene.dropAfterNMessagesTo(byzantium, 1);
-        //cyrene will read from itself and byzantium. byzantium has stale value, so it will try read-repair.
-        String value = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
-        assertEquals("Error", value);
-        assertEquals("", byzantium.get("title").getValue());
-    }
-
-    @Test
-    public void quorumsHaveIncompletelyWrittenValues() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
+    public void quorumReadCanGetIncompletelyWrittenValues() throws IOException {
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
 
@@ -159,16 +116,7 @@ public class QuorumKVStoreTest {
     //With async read-repair, a client reading after another client can see older values.
     @Test
     public void laterReadsGetOlderValue() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> {
-                    config.useAsyncReadRepair();
-                    return new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses);
-                });
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
+        athens.doAsyncReadRepair();
 
         KVClient kvClient = new KVClient();
         //Nathan
@@ -222,13 +170,6 @@ public class QuorumKVStoreTest {
     //depending on which nodes they connect to.
     @Test
     public void compareAndSwapIsSuccessfulForTwoConcurrentClients() throws IOException {
-        Map<String, QuorumKVStore> kvStores = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress,peerAddresses));
-
-        QuorumKVStore athens = kvStores.get("athens");
-        QuorumKVStore byzantium = kvStores.get("byzantium");
-        QuorumKVStore cyrene = kvStores.get("cyrene");
-
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);

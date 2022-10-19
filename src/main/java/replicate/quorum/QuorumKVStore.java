@@ -113,7 +113,7 @@ public class QuorumKVStore extends Replica {
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
         sendMessageToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, requestToReplicas);
         return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
-            return new ReadRepairer(this, responses, config.doAsyncReadRepair()).readRepair();
+            return new ReadRepairer(this, responses, config.isAsyncReadRepair()).readRepair();
         });
     }
 
@@ -176,5 +176,9 @@ public class QuorumKVStore extends Replica {
 
         }
         sendOneway(message.getFromAddress(), new SetValueResponse("Success"), message.getCorrelationId());
+    }
+
+    public void doAsyncReadRepair() {
+        config.setAsyncReadRepair();
     }
 }

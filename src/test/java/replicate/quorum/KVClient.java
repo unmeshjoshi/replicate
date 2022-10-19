@@ -14,9 +14,9 @@ import java.util.Random;
 
 public class KVClient {
     int correlationId;
-    public String getValue(InetAddressAndPort cyreneAddress, String key) throws IOException {
+    public String getValue(InetAddressAndPort address, String key) throws IOException {
         RequestOrResponse requestOrResponse1 = createGetValueRequest(key);
-        SocketClient<Object> client = new SocketClient<>(cyreneAddress);
+        SocketClient<Object> client = new SocketClient<>(address);
         RequestOrResponse getResponse = client.blockingSend(requestOrResponse1);
         client.close();
         if (getResponse.isError()) {
@@ -26,9 +26,9 @@ public class KVClient {
         return response.getValue();
     }
 
-    public String setValue(InetAddressAndPort primaryNodeAddress, String title, String microservices) throws IOException {
+    public String setValue(InetAddressAndPort primaryNodeAddress, String key, String value) throws IOException {
         SocketClient client = new SocketClient(primaryNodeAddress);
-        RequestOrResponse requestOrResponse = createSetValueRequest(title, microservices);
+        RequestOrResponse requestOrResponse = createSetValueRequest(key, value);
         RequestOrResponse setResponse = client.blockingSend(requestOrResponse);
         client.close();
 

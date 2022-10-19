@@ -44,24 +44,42 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
 
     @Test
     public void getsMonotonicNumbersWithFailures() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "lamia", "marathon"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "delphi", "ephesus"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
         BallotVoting athens = nodes.get("athens");
         BallotVoting byzantium = nodes.get( "byzantium");
         BallotVoting cyrene = nodes.get("cyrene");
-        BallotVoting lamia = nodes.get("lamia");
-        BallotVoting marathon = nodes.get("marathon");
+        BallotVoting delphi = nodes.get("delphi");
+        BallotVoting ephesus = nodes.get("ephesus");
 
         athens.dropMessagesTo(byzantium);
+        athens.dropMessagesTo(ephesus);
 
         NetworkClient client = new NetworkClient();
-        Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
+        Integer firstNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
-        assertEquals(1, nextNumber.intValue());
+        assertEquals(1, firstNumber.intValue());
         assertEquals(1, athens.generation);
         assertEquals(0, byzantium.generation);
         assertEquals(1, cyrene.generation);
-        assertEquals(1, lamia.generation);
-        assertEquals(1, marathon.generation);
+        assertEquals(1, delphi.generation);
+        assertEquals(0, ephesus.generation);
+
+
+        ephesus.dropMessagesTo(athens);
+        ephesus.dropMessagesTo(cyrene);
+
+        Integer secondNumber = client.sendAndReceive(new NextNumberRequest(), ephesus.getClientConnectionAddress(), Integer.class);
+
+
+        assertEquals(2, secondNumber.intValue());
+        assertEquals(1, athens.generation);
+        assertEquals(2, byzantium.generation);
+        assertEquals(1, cyrene.generation);
+        assertEquals(2, delphi.generation);
+        assertEquals(2, ephesus.generation);
+
+        //try generating more numbers connecting to different nodes.
+
     }
 
 }
