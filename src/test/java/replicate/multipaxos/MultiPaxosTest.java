@@ -102,11 +102,11 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         assertEquals(1, byzantium.paxosLog.size()); //only first entry.
         assertEquals(1, cyrene.paxosLog.size()); //only first entry.
 
-        assertTrue(athens.paxosLog.get(0).committedValue.isPresent());
-        assertTrue(byzantium.paxosLog.get(0).committedValue.isPresent());
-        assertTrue(cyrene.paxosLog.get(0).committedValue.isPresent());
+        assertTrue(athens.paxosLog.get(0).committedValue().isPresent());
+        assertTrue(byzantium.paxosLog.get(0).committedValue().isPresent());
+        assertTrue(cyrene.paxosLog.get(0).committedValue().isPresent());
 
-        assertFalse(athens.paxosLog.get(1).committedValue.isPresent());
+        assertFalse(athens.paxosLog.get(1).committedValue().isPresent());
 
         athens.reconnectTo(byzantium);
         athens.reconnectTo(cyrene);

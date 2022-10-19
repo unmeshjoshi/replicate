@@ -191,7 +191,7 @@ public class MultiPaxos extends Replica {
         Map<Integer, PaxosState> uncommitedValues = getUncommitedValues();
         for (Integer index : uncommitedValues.keySet()) {
             PaxosState logEntry = uncommitedValues.get(index);
-            byte[] proposedValue = logEntry.acceptedValue.get();
+            byte[] proposedValue = logEntry.acceptedValue().get();
             var completeFuture = sendProposeRequest(index, proposedValue, fullLogBallot)
                     .thenCompose(value -> {
                         return sendCommitRequest(index, proposedValue, fullLogBallot);
@@ -206,7 +206,7 @@ public class MultiPaxos extends Replica {
         for (Integer index : indexes) {
             PaxosState peerEntry = promise.uncommittedValues.get(index);
             PaxosState selfEntry = paxosLog.get(index);
-            if (selfEntry == null || isAfter(peerEntry.acceptedBallot, selfEntry.acceptedBallot)) {
+            if (selfEntry == null || isAfter(peerEntry.acceptedBallot(), selfEntry.acceptedBallot())) {
                 paxosLog.put(index, peerEntry);
             }
         }
@@ -237,8 +237,8 @@ public class MultiPaxos extends Replica {
     private CommitResponse handlePaxosCommit(CommitRequest request) {
         var paxosState = getOrCreatePaxosState(request.index);
         //Accept commit, because commit is invoked only after successful prepare and propose.
-        paxosState.committedGeneration = Optional.of(request.generation);
-        paxosState.committedValue = Optional.of(request.committedValue);
+        PaxosState committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
+        paxosLog.put(request.index, committedPaxosState);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
         return new CommitResponse(true);
     }
@@ -248,7 +248,7 @@ public class MultiPaxos extends Replica {
         List<Integer> previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
         boolean allPreviousCommitted = true;
         for (Integer previousIndex : previousIndexes) {
-            if (paxosLog.get(previousIndex).committedValue.isEmpty()) {
+            if (paxosLog.get(previousIndex).committedValue().isEmpty()) {
                 allPreviousCommitted = false;
                 break;
             }
@@ -260,10 +260,10 @@ public class MultiPaxos extends Replica {
         //see if there are entries above this logIndex which are committed, apply those entries.
         for(int startIndex = commitRequest.index + 1; ;startIndex++) {
             PaxosState paxosState = paxosLog.get(startIndex);
-            if (paxosState == null || paxosState.committedValue.isEmpty()) {
+            if (paxosState == null || paxosState.committedValue().isEmpty()) {
                 break;
             }
-            byte[] committed = paxosState.committedValue.get();
+            byte[] committed = paxosState.committedValue().get();
             addAndApply(startIndex, committed);
         } //convert to streaming..
     }
@@ -283,8 +283,8 @@ public class MultiPaxos extends Replica {
         var paxosState = getOrCreatePaxosState(request.index);
         if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
             fullLogBallot = generation; //if its after the promisedBallot, update promisedBallot
-            paxosState.acceptedBallot = Optional.of(generation);
-            paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
+            PaxosState acceptedPaxosState = paxosState.accept(request.generation, Optional.ofNullable(request.proposedValue));
+            paxosLog.put(request.index, acceptedPaxosState);
             return new ProposalResponse(true);
         }
         return new ProposalResponse(false);
@@ -311,7 +311,7 @@ public class MultiPaxos extends Replica {
         Set<Integer> indexes = paxosLog.keySet();
         for (Integer index : indexes) {
             PaxosState paxosState = paxosLog.get(index);
-            if (paxosState.committedValue.isEmpty()) {
+            if (paxosState.committedValue().isEmpty()) {
                 uncommittedEntries.put(index, paxosState);
             }
         }
