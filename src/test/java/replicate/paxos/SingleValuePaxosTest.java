@@ -12,7 +12,6 @@ import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
-import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
 
 import java.io.IOException;
@@ -58,13 +57,13 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         athens.dropAfterNMessagesTo(byzantium, 1);
         athens.dropAfterNMessagesTo(cyrene, 1);
         //prepare succeeds on athens, byzantium and cyrene.
-        //propose succeeds only on athens
+        //propose succeeds only on athens, as messages will be dropped to byzantium and cyrene
         var response = setValue(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
         Assert.assertEquals("Error", response.result);
 
         assertEquals(athens.paxosState.promisedBallot(), new MonotonicId(2, 0)); //prepare from second attempt
         assertEquals(athens.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 0)));
-        SetValueCommand setValueCommand = (SetValueCommand) Command.deserialize(athens.paxosState.acceptedValue().get());
+        SetValueCommand setValueCommand = athens.getAcceptedCommand();
         assertEquals(setValueCommand.getValue(), "Microservices");
 
         //only byzantium will have value Distributed Systems
@@ -77,7 +76,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(byzantium.paxosState.promisedBallot(), new MonotonicId(2, 1)); //prepare from second attempt
         assertEquals(byzantium.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 1)));
 
-        setValueCommand = (SetValueCommand) Command.deserialize(byzantium.paxosState.acceptedValue().get());
+        setValueCommand = byzantium.getAcceptedCommand();
 
         assertEquals(setValueCommand.getValue(), "Distributed Systems");
 
@@ -93,11 +92,9 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(2, 2)); //prepare from second attempt
         assertEquals(cyrene.paxosState.acceptedBallot(), Optional.of(new MonotonicId(2, 2)));
 
-        setValueCommand = (SetValueCommand) Command.deserialize(cyrene.paxosState.acceptedValue().get());
-
-        assertEquals(setValueCommand.getValue(), "Distributed Systems");
-
-
+        assertEquals(cyrene.getAcceptedCommand().getValue(), "Distributed Systems");
+        assertEquals(athens.getAcceptedCommand().getValue(), "Distributed Systems");
+        assertEquals(byzantium.getAcceptedCommand().getValue(), "Distributed Systems");
 
         var getValueResponse = new NetworkClient().sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
         assertEquals(Optional.of("Distributed Systems"), getValueResponse.value);

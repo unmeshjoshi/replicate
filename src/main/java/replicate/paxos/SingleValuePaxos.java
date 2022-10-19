@@ -125,6 +125,10 @@ public class SingleValuePaxos extends Replica {
 
     }
 
+    SetValueCommand getAcceptedCommand() {
+        return (SetValueCommand) Command.deserialize(paxosState.acceptedValue().get());
+    }
+
     public static class PaxosResult {
         public final Optional<String> value;
         public final boolean success;
