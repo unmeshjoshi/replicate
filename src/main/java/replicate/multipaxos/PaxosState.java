@@ -4,9 +4,9 @@ import replicate.common.MonotonicId;
 
 import java.util.Optional;
 
+//no promised ballot for every entry.
 public class PaxosState {
-    MonotonicId promisedGeneration = MonotonicId.empty();
-    Optional<MonotonicId> acceptedGeneration = Optional.empty();
+    Optional<MonotonicId> acceptedBallot = Optional.empty();
     Optional<byte[]> acceptedValue = Optional.empty();
 
     Optional<byte[]> committedValue = Optional.empty();

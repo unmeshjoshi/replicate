@@ -20,14 +20,9 @@ import replicate.vsr.CompletionCallback;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -211,7 +206,7 @@ public class MultiPaxos extends Replica {
         for (Integer index : indexes) {
             PaxosState peerEntry = promise.uncommittedValues.get(index);
             PaxosState selfEntry = paxosLog.get(index);
-            if (selfEntry == null || isAfter(peerEntry.acceptedGeneration, selfEntry.acceptedGeneration)) {
+            if (selfEntry == null || isAfter(peerEntry.acceptedBallot, selfEntry.acceptedBallot)) {
                 paxosLog.put(index, peerEntry);
             }
         }
@@ -286,9 +281,9 @@ public class MultiPaxos extends Replica {
     private ProposalResponse handlePaxosProposal(ProposalRequest request) {
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
-        if (generation.equals(paxosState.promisedGeneration) || generation.isAfter(paxosState.promisedGeneration)) {
-            paxosState.promisedGeneration = generation;
-            paxosState.acceptedGeneration = Optional.of(generation);
+        if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
+            fullLogBallot = generation; //if its after the promisedBallot, update promisedBallot
+            paxosState.acceptedBallot = Optional.of(generation);
             paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
             return new ProposalResponse(true);
         }
