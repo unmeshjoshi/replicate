@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import replicate.common.*;
 import replicate.net.InetAddressAndPort;
+import replicate.paxos.PaxosState;
 import replicate.paxos.SingleValuePaxos;
 import replicate.paxos.messages.CommitResponse;
 import replicate.paxos.messages.GetValueResponse;
@@ -24,17 +25,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-//TODO: Use PaxosState record
-class PaxosState {
-    MonotonicId promisedGeneration = MonotonicId.empty();
-    Optional<MonotonicId> acceptedGeneration = Optional.empty();
-    Optional<byte[]> acceptedValue = Optional.empty();
-
-    Optional<byte[]> committedValue = Optional.empty();
-    Optional<MonotonicId> committedGeneration = Optional.empty();
-
-}
 
 public class PaxosKVStore extends Replica {
     private static Logger logger = LogManager.getLogger(PaxosKVStore.class);
@@ -146,19 +136,17 @@ public class PaxosKVStore extends Replica {
         PaxosState paxosState = getOrCreatePaxosState(request.key);
 
         //Because commit is invoked only after successful prepare and propose.
-        assert paxosState.promisedGeneration.equals(request.generation) || request.generation.isAfter(paxosState.promisedGeneration);
+        paxosState.commit(request.generation, Optional.ofNullable(request.value));
+        kv.put(request.key, paxosState);
 
-        paxosState.committedGeneration = Optional.of(request.generation);
-        paxosState.committedValue = Optional.ofNullable(request.value);
         return new CommitResponse(true);
     }
 
     private ProposalResponse handlePaxosProposal(ProposalRequest request) {
         PaxosState paxosState = getOrCreatePaxosState(request.key);
-        if (request.generation.equals(paxosState.promisedGeneration) || request.generation.isAfter(paxosState.promisedGeneration)) {
-            paxosState.promisedGeneration = request.generation;
-            paxosState.acceptedGeneration = Optional.of(request.generation);
-            paxosState.acceptedValue = Optional.ofNullable(request.proposedValue);
+        if (paxosState.canAccept(request.generation)) {
+            paxosState = paxosState.accept(request.generation, Optional.ofNullable(request.proposedValue));
+            kv.put(request.key, paxosState);
             return new ProposalResponse(true);
         }
         return new ProposalResponse(false);
@@ -166,11 +154,13 @@ public class PaxosKVStore extends Replica {
 
     public PrepareResponse prepare(PrepareRequest request) {
         PaxosState paxosState = getOrCreatePaxosState(request.key);
-        if (paxosState.promisedGeneration.isAfter(request.generation)) {
-            return new PrepareResponse(false, paxosState.acceptedValue, paxosState.acceptedGeneration);
+        if (paxosState.canPromise(request.generation)) {
+            paxosState = paxosState.promise(request.generation);
+            kv.put(request.key, paxosState);
+            return new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedGeneration());
         }
-        paxosState.promisedGeneration = request.generation;
-        return new PrepareResponse(true, paxosState.acceptedValue, paxosState.acceptedGeneration);
+        return new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedGeneration());
+
     }
 
     private PaxosState getOrCreatePaxosState(String key) {

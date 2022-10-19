@@ -33,4 +33,8 @@ public record PaxosState(MonotonicId promisedGeneration,
     public PaxosState commit(MonotonicId generation, Optional<byte[]> value) {
         return new PaxosState(generation, Optional.of(generation), value, value, Optional.of(generation));
     }
+
+    public boolean canPromise(MonotonicId generation) {
+        return generation.isAfter(this.promisedGeneration);
+    }
 }
