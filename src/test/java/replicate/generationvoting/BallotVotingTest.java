@@ -23,23 +23,23 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         NetworkClient client = new NetworkClient();
         Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
         assertEquals(1, nextNumber.intValue());
-        assertEquals(1, athens.generation);
-        assertEquals(1, byzantium.generation);
-        assertEquals(1, cyrene.generation);
+        assertEquals(1, athens.ballot);
+        assertEquals(1, byzantium.ballot);
+        assertEquals(1, cyrene.ballot);
 
         nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
         assertEquals(2, nextNumber.intValue());
-        assertEquals(2, athens.generation);
-        assertEquals(2, byzantium.generation);
-        assertEquals(2, cyrene.generation);
+        assertEquals(2, athens.ballot);
+        assertEquals(2, byzantium.ballot);
+        assertEquals(2, cyrene.ballot);
 
         nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
         assertEquals(3, nextNumber.intValue());
-        assertEquals(3, athens.generation);
-        assertEquals(3, byzantium.generation);
-        assertEquals(3, cyrene.generation);
+        assertEquals(3, athens.ballot);
+        assertEquals(3, byzantium.ballot);
+        assertEquals(3, cyrene.ballot);
     }
 
     @Test
@@ -58,11 +58,11 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         Integer firstNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
 
         assertEquals(1, firstNumber.intValue());
-        assertEquals(1, athens.generation);
-        assertEquals(0, byzantium.generation);
-        assertEquals(1, cyrene.generation);
-        assertEquals(1, delphi.generation);
-        assertEquals(0, ephesus.generation);
+        assertEquals(1, athens.ballot);
+        assertEquals(0, byzantium.ballot);
+        assertEquals(1, cyrene.ballot);
+        assertEquals(1, delphi.ballot);
+        assertEquals(0, ephesus.ballot);
 
 
         ephesus.dropMessagesTo(athens);
@@ -72,11 +72,11 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
 
 
         assertEquals(2, secondNumber.intValue());
-        assertEquals(1, athens.generation);
-        assertEquals(2, byzantium.generation);
-        assertEquals(1, cyrene.generation);
-        assertEquals(2, delphi.generation);
-        assertEquals(2, ephesus.generation);
+        assertEquals(1, athens.ballot);
+        assertEquals(2, byzantium.ballot);
+        assertEquals(1, cyrene.ballot);
+        assertEquals(2, delphi.ballot);
+        assertEquals(2, ephesus.ballot);
 
         //try generating more numbers connecting to different nodes.
 
