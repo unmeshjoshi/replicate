@@ -4,18 +4,14 @@ import replicate.common.Request;
 import replicate.common.RequestId;
 
 public class PrepareRequest extends Request {
-    int number;
+    public final int proposedBallot;
 
-    public PrepareRequest(int number) {
-        this();
-        this.number = number;
-    }
-
-    public int getNumber() {
-        return number;
-    }
-    //for jackson
-    private PrepareRequest() {
+    public PrepareRequest(int proposedBallot) {
         super(RequestId.Prepare);
+        this.proposedBallot = proposedBallot;
+    }
+
+    public int getProposedBallot() {
+        return proposedBallot;
     }
 }

@@ -67,9 +67,9 @@ public class BallotVoting extends Replica {
 
     }
 
-    private PrepareResponse handlePrepareRequest(PrepareRequest nextNumberRequest) {
-        if (nextNumberRequest.getNumber() > ballot) { //accept only if 'strictly greater'
-            ballot = nextNumberRequest.getNumber();
+    private PrepareResponse handlePrepareRequest(PrepareRequest prepareRequest) {
+        if (prepareRequest.getProposedBallot() > ballot) { //accept only if 'strictly greater'
+            ballot = prepareRequest.getProposedBallot();
             logger.info(getName() + " accepting " + ballot + " in " + getName());
             return new PrepareResponse(true);
         }
