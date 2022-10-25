@@ -15,6 +15,7 @@ import replicate.generationvoting.messages.NextNumberRequest;
 import replicate.generationvoting.messages.PrepareRequest;
 import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.PrepareResponse;
+import replicate.wal.DurableKVStore;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+//the ballot/number needs to be persisted on each replica
+//the execution needs to be thread safe.. done using SingularUpdateQueue
 public class BallotVoting extends Replica {
     //epoch/term/generation
     int ballot = 0;
@@ -36,12 +39,12 @@ public class BallotVoting extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesRequestAsync(RequestId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
+        handlesRequestAsync(RequestId.NextNumberRequest, this::handlePrepare, NextNumberRequest.class);
         handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class)
                 .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
     }
 
-    CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
+    CompletableFuture<Integer> handlePrepare(NextNumberRequest request) {
         int proposedNumber = 0;
         return proposeNumber(proposedNumber);
     }
@@ -68,6 +71,8 @@ public class BallotVoting extends Replica {
     }
 
     private PrepareResponse handlePrepareRequest(PrepareRequest prepareRequest) {
+        //no synchronized in here..
+
         if (prepareRequest.getProposedBallot() > ballot) { //accept only if 'strictly greater'
             ballot = prepareRequest.getProposedBallot();
             logger.info(getName() + " accepting " + ballot + " in " + getName());

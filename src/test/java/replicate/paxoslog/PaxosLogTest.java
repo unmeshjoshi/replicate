@@ -62,7 +62,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         PaxosLog byzantium = nodes.get("byzantium");
 
-        
+
         command = new SetValueCommand("title2", "Distributed Systems");
         setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
         assertEquals(Optional.of("Distributed Systems"), setValueResponse.getResponse());
@@ -185,7 +185,6 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         ExecuteCommandRequest request = new ExecuteCommandRequest(command.serialize());
         var setValueResponse = networkClient.sendAndReceive(request, cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
         assertEquals(Optional.of("Event Driven Microservices"), setValueResponse.getResponse());
-
 
         assertEquals(2, byzantium.paxosLog.size());
         assertEquals(2, cyrene.paxosLog.size());

@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -87,15 +88,23 @@ public abstract class Replica {
     }
 
 
-    public void start() {
+    public final void start() {
         peerListener.start();
         clientListener.start();
         singularUpdateQueue.start();
+        onStart();
+    }
+
+    //subclasses can execute logic
+    //at startup.
+    // e.g. starting HeartBeat mechanism
+    protected void onStart() {
+
     }
 
     //Send message without expecting any messages as a response from the peer
     //@see sendRequestToReplicas which expects a message from the peer.
-    public <T extends Request> void sendOneway(InetAddressAndPort address, T request, int correlationId) {
+    protected <T extends Request> void sendOneway(InetAddressAndPort address, T request, int correlationId) {
         try {
             network.sendOneWay(address, new RequestOrResponse(request.getRequestId().getId(), serialize(request), correlationId, getPeerConnectionAddress()));
         } catch (IOException e) {
@@ -103,7 +112,7 @@ public abstract class Replica {
         }
     }
 
-    public <T extends Request> void sendOneway(InetAddressAndPort address, T request) {
+    private <T extends Request> void sendOneway(InetAddressAndPort address, T request) {
         sendOneway(address, request, newCorrelationId());
     }
 
@@ -360,7 +369,7 @@ public abstract class Replica {
             } else {
                 clientConnection.write(new RequestOrResponse(request.getRequestId(), serialize(res), correlationId));
             }
-        });
+        }).orTimeout(5000, TimeUnit.MILLISECONDS);
         return null;
     };
 

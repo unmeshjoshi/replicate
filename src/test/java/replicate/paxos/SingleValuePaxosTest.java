@@ -51,7 +51,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
     }
 
     @Test
-    public void AllNodesChooseOneValueEvenWithIncompleteWrites() throws IOException {
+    public void allNodesChooseOneValueEvenWithIncompleteWrites() throws IOException {
         //only athens has value Microservices
         //byzantium is empty, cyrene is empty
         athens.dropAfterNMessagesTo(byzantium, 1);
@@ -63,8 +63,11 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
         assertEquals(athens.paxosState.promisedBallot(), new MonotonicId(2, 0)); //prepare from second attempt
         assertEquals(athens.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 0)));
-        SetValueCommand setValueCommand = athens.getAcceptedCommand();
-        assertEquals(setValueCommand.getValue(), "Microservices");
+        assertEquals(byzantium.paxosState.promisedBallot(), new MonotonicId(1, 0));
+        assertEquals(byzantium.paxosState.acceptedBallot(), Optional.empty());
+        assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(1, 0));
+        assertEquals(cyrene.paxosState.acceptedBallot(), Optional.empty());
+        assertEquals(athens.getAcceptedCommand().getValue(), "Microservices");
 
         //only byzantium will have value Distributed Systems
         //athens has Microservices
@@ -73,28 +76,35 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
         response = setValue(new SetValueRequest("title", "Distributed Systems"), byzantium.getClientConnectionAddress());
 
         Assert.assertEquals("Error", response.result);
-        assertEquals(byzantium.paxosState.promisedBallot(), new MonotonicId(2, 1)); //prepare from second attempt
+        assertEquals(byzantium.paxosState.promisedBallot(), new MonotonicId(1, 1)); //prepare from second attempt
         assertEquals(byzantium.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 1)));
+        assertEquals(byzantium.getAcceptedCommand().getValue(), "Distributed Systems");
 
-        setValueCommand = byzantium.getAcceptedCommand();
+        assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(1, 1));
+        assertEquals(cyrene.paxosState.acceptedBallot(), Optional.empty());
 
-        assertEquals(setValueCommand.getValue(), "Distributed Systems");
+        assertEquals(athens.paxosState.promisedBallot(), new MonotonicId(2, 0));
+        assertEquals(athens.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 0)));
+        assertEquals(athens.getAcceptedCommand().getValue(), "Microservices");
+        assertEquals(byzantium.getAcceptedCommand().getValue(), "Distributed Systems");
 
-        //only cyrene will have value "Event Driven Microservices" 1
-        //athens has Microservices 2
-        //byzantium has Distributed Systems. 3
-        athens.reconnectTo(cyrene);
         byzantium.reconnectTo(cyrene);
+        byzantium.dropAfterNMessagesTo(cyrene, 1);
 
+        //Cyrene will try distributed systems, but will propose Distributed Systems returned from byzantium
+        //athens has Microservices at (1,0)
+        //byzantium has Distributed Systems. (1,1)
         response = setValue(new SetValueRequest("title", "Event Driven Microservices"), cyrene.getClientConnectionAddress());
 
-        Assert.assertEquals("Distributed Systems", response.result);
-        assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(2, 2)); //prepare from second attempt
-        assertEquals(cyrene.paxosState.acceptedBallot(), Optional.of(new MonotonicId(2, 2)));
-
+        Assert.assertEquals("Error", response.result);
+        assertEquals(cyrene.paxosState.promisedBallot(), new MonotonicId(1, 2)); //prepare from second attempt
+        assertEquals(cyrene.paxosState.acceptedBallot(), Optional.of(new MonotonicId(1, 2)));
         assertEquals(cyrene.getAcceptedCommand().getValue(), "Distributed Systems");
-        assertEquals(athens.getAcceptedCommand().getValue(), "Distributed Systems");
+        assertEquals(athens.getAcceptedCommand().getValue(), "Microservices");
         assertEquals(byzantium.getAcceptedCommand().getValue(), "Distributed Systems");
+
+        athens.reconnectTo(byzantium);
+        athens.reconnectTo(cyrene);
 
         var getValueResponse = new NetworkClient().sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
         assertEquals(Optional.of("Distributed Systems"), getValueResponse.value);

@@ -10,6 +10,7 @@ plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java'
     id 'idea'
+    id "com.google.protobuf" version "0.9.1"
 }
 
 repositories {
@@ -32,6 +33,9 @@ dependencies {
     implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.8.2'
     implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.8.2'
     implementation group: 'com.google.guava', name: 'guava', version: '31.0.1-jre'
+    implementation 'io.grpc:grpc-netty:1.50.2'
+    implementation 'io.grpc:grpc-protobuf:1.50.2'
+    implementation 'io.grpc:grpc-stub:1.50.2'
 
 }
 

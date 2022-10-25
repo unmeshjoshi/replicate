@@ -8,6 +8,7 @@ import replicate.paxos.messages.*;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.quorum.messages.SetValueRequest;
 import replicate.quorum.messages.SetValueResponse;
+import replicate.twophaseexecution.CompareAndSwap;
 import replicate.wal.Command;
 import replicate.wal.SetValueCommand;
 
@@ -168,6 +169,8 @@ public class SingleValuePaxos extends Replica {
         if (command instanceof SetValueCommand setValueCommand) {
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
             return setValueCommand.getValue();
+        } else if (command instanceof CompareAndSwap compareAndSwap) {
+            //execute cas.
         }
         throw new IllegalArgumentException("Unknown command to execute");
     }
@@ -203,9 +206,9 @@ public class SingleValuePaxos extends Replica {
     }
 
     private ProposalResponse handleProposal(ProposalRequest request) {
-        MonotonicId generation = request.getMonotonicId();
-        if (paxosState.canAccept(generation)) {
-            this.paxosState = paxosState.accept(generation, Optional.ofNullable(request.getProposedValue()));
+        MonotonicId ballot = request.getMonotonicId();
+        if (paxosState.canAccept(ballot)) {
+            this.paxosState = paxosState.accept(ballot, Optional.ofNullable(request.getProposedValue()));
             return new ProposalResponse(true);
         }
         return new ProposalResponse(false);

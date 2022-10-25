@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "replicate.ballot.pb";
+option java_outer_classname = "BallotRemote";
+import "google/protobuf/empty.proto";
+
+service BallotVotingService {
+  rpc prepare(Prepare) returns (Promise) {}
+}
+
+service BallotClientService {
+  rpc nextBallot(google.protobuf.Empty) returns (Ballot) {}
+}
+
+message Ballot {
+  int32 ballot = 1;
+}
+
+message Prepare
+{
+  Ballot id = 1;
+}
+
+message Promise {
+  bool promised = 1;
+}

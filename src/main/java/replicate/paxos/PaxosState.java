@@ -18,8 +18,8 @@ public record PaxosState(MonotonicId promisedBallot,
                 Optional.empty());
     }
 
-    public boolean canAccept(MonotonicId generation) {
-        return generation.equals(promisedBallot) || generation.isAfter(promisedBallot);
+    public boolean canAccept(MonotonicId ballot) {
+        return ballot.equals(promisedBallot) || ballot.isAfter(promisedBallot);
     }
 
     public PaxosState accept(MonotonicId generation, Optional<byte[]> value) {

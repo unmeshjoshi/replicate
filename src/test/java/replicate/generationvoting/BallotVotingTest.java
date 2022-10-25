@@ -78,6 +78,9 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         assertEquals(2, delphi.ballot);
         assertEquals(2, ephesus.ballot);
 
+
+        Integer thirdNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class);
+        assertEquals(3, thirdNumber.intValue());
         //try generating more numbers connecting to different nodes.
 
     }

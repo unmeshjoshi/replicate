@@ -162,7 +162,7 @@ public class ViewStampedReplication extends Replica {
         if (startViewChangeCounter == quorum()) {
             InetAddressAndPort primaryForView = configuration.getPrimaryForView(viewNumber);
             logger.info(getName() + " StartViewChange quorum reached." + primaryForView + " is the new primary." + " Sending DoViewChange");
-            sendOneway(primaryForView, new DoViewChange(viewNumber, log, normalStatusViewNumber, opNumber, commitNumber));
+            sendOneway(primaryForView, new DoViewChange(viewNumber, log, normalStatusViewNumber, opNumber, commitNumber), message.getCorrelationId());
         }
     }
 
@@ -258,7 +258,7 @@ public class ViewStampedReplication extends Replica {
         if (this.viewNumber == prepare.viewNumber) {
             this.opNumber = this.opNumber + 1;
             this.log.put(opNumber, new LogEntry(prepare.request));
-            sendOneway(message.getFromAddress(), new PrepareOK(this.viewNumber, this.opNumber, getReplicaIndex(), true));
+            sendOneway(message.getFromAddress(), new PrepareOK(this.viewNumber, this.opNumber, getReplicaIndex(), true), message.getCorrelationId());
         }
     }
 

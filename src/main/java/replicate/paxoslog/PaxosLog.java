@@ -32,6 +32,7 @@ public class PaxosLog extends Replica {
     private static Logger logger = LogManager.getLogger(PaxosLog.class);
 
     //Paxos State
+    //THIS HAS TO BE DURABLE.. Homework. Make paxosLog durable.
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
 
     Map<String, String> kv = new HashMap<>();
