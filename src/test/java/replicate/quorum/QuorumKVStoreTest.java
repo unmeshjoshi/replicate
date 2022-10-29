@@ -72,7 +72,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
     }
 
 
-    @Test
+    @Test //FIXME:Flaky test
     public void quorumReadRepairUpdatesStaleValues() throws IOException {
         //setup initial value.
         KVClient kvClient = new KVClient();

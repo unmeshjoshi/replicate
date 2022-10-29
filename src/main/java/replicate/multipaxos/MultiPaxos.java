@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 enum ServerRole {
-    Leader,Follower,LookingForLeader
+    Leader, Follower, LookingForLeader
 }
 
 public class MultiPaxos extends Replica {
@@ -43,7 +43,6 @@ public class MultiPaxos extends Replica {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
-//        this.role = ServerRole.Follower;
     }
 
     @Override
@@ -53,14 +52,27 @@ public class MultiPaxos extends Replica {
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::handleFullLogPrepare, PrepareRequest.class)
-                .respondsWithMessage(RequestId.Promise, FullLogPrepareResponse.class);
+        handlesMessage(RequestId.Prepare, this::handleFullLogPrepare, PrepareRequest.class);
+        handlesMessage(RequestId.Promise, this::handleFullLogPrepareResponse, FullLogPrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
-                .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
+        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
+        handlesMessage(RequestId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
-                .respondsWithMessage(RequestId.CommitResponse,  CommitResponse.class);
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class);
+        handlesMessage(RequestId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
+    }
+
+    private void handleCommitResponse(Message<CommitResponse> commitResponseMessage) {
+        handleResponse(commitResponseMessage);
+    }
+
+    private void handleProposalResponse(Message<ProposalResponse> proposalResponseMessage) {
+        handleResponse(proposalResponseMessage);
+    }
+
+    private void handleFullLogPrepareResponse(Message<FullLogPrepareResponse> fullLogPrepareResponseMessage) {
+        handleResponse(fullLogPrepareResponseMessage);
+
     }
 
 //Following heartbeat implementation can be used for two purposes
@@ -111,7 +123,7 @@ public class MultiPaxos extends Replica {
 
     public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
-        return appendFuture.thenCompose((result)->{
+        return appendFuture.thenCompose((result) -> {
             if (result.value.stream().allMatch(v -> v != initialValue)) {
                 logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
                 return append(initialValue, callback);
@@ -156,7 +168,7 @@ public class MultiPaxos extends Replica {
         logger.info(getName() + " triggering election");
         heartbeatChecker.stop();
         //if future completes successfully, phase1 is complete and this node can be the leader.
-        runElection().whenComplete((result, throwable)-> {
+        runElection().whenComplete((result, throwable) -> {
             if (throwable == null) {
                 logger.info(getName() + " is leader for " + fullLogBallot);
                 this.isLeader = true;
@@ -180,6 +192,7 @@ public class MultiPaxos extends Replica {
     }
 
     boolean isLeader = false;
+
     private CompletableFuture<Void> sendProposalRequestsForUnCommittedEntries() {
         List<CompletableFuture> commitFutures = new ArrayList<>();
         Map<Integer, PaxosState> uncommitedValues = getUncommitedValues();
@@ -222,19 +235,20 @@ public class MultiPaxos extends Replica {
     }
 
     private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
-        var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r->r.promised);
+        var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r -> r.promised);
         logger.info(getName() + " sending prepare request for " + fullLogPromisedGeneration);
         sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
         return prepareCallback.getQuorumFuture();
     }
 
-    private CommitResponse handlePaxosCommit(CommitRequest request) {
+    private void handlePaxosCommit(Message<CommitRequest> message) {
+        var request = message.getRequest();
         var paxosState = getOrCreatePaxosState(request.index);
         //Accept commit, because commit is invoked only after successful prepare and propose.
         PaxosState committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
         paxosLog.put(request.index, committedPaxosState);
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
-        return new CommitResponse(true);
+        sendOneway(message.getFromAddress(), new CommitResponse(true), message.getCorrelationId());
     }
 
     private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
@@ -252,7 +266,7 @@ public class MultiPaxos extends Replica {
         }
 
         //see if there are entries above this logIndex which are committed, apply those entries.
-        for(int startIndex = commitRequest.index + 1; ;startIndex++) {
+        for (int startIndex = commitRequest.index + 1; ; startIndex++) {
             PaxosState paxosState = paxosLog.get(startIndex);
             if (paxosState == null || paxosState.committedValue().isEmpty()) {
                 break;
@@ -265,38 +279,42 @@ public class MultiPaxos extends Replica {
     private void addAndApply(int index, byte[] walEnty) {
         Command command = Command.deserialize(walEnty);
         if (command instanceof SetValueCommand) {
-            SetValueCommand setValueCommand = (SetValueCommand)command;
+            SetValueCommand setValueCommand = (SetValueCommand) command;
             kv.put(setValueCommand.getKey(), setValueCommand.getValue());
             requestWaitingList.handleResponse(index, new ExecuteCommandResponse(Optional.of(setValueCommand.getValue()), true));
 
         }
     }
 
-    private ProposalResponse handlePaxosProposal(ProposalRequest request) {
+    private void handlePaxosProposal(Message<ProposalRequest> message) {
+        var request = message.getRequest();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
+        boolean accepted = false;
         if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
             fullLogBallot = generation; //if its after the promisedBallot, update promisedBallot
             PaxosState acceptedPaxosState = paxosState.accept(request.generation, Optional.ofNullable(request.proposedValue));
             paxosLog.put(request.index, acceptedPaxosState);
-            return new ProposalResponse(true);
+            accepted = true;
         }
-        return new ProposalResponse(false);
+        sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
     }
 
     MonotonicId fullLogBallot = MonotonicId.empty();
 
-    private FullLogPrepareResponse handleFullLogPrepare(PrepareRequest request) {
+    private void handleFullLogPrepare(Message<PrepareRequest> message) {
+        var request = message.getRequest();
         MonotonicId ballot = request.monotonicId;
         if (fullLogBallot.isAfter(ballot)) {
-            return new FullLogPrepareResponse(false, Collections.EMPTY_MAP);
+            sendOneway(message.getFromAddress(), new FullLogPrepareResponse(false, Collections.EMPTY_MAP), message.getCorrelationId());
+            return;
         }
         logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
         fullLogBallot = ballot;
         this.role = ServerRole.Follower;
         heartBeatScheduler.stop();
         heartbeatChecker.start();
-        return new FullLogPrepareResponse(true, getUncommitedValues());
+        sendOneway(message.getFromAddress(), new FullLogPrepareResponse(true, getUncommitedValues()), message.getCorrelationId());
     }
 
 

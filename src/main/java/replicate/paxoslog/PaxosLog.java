@@ -53,14 +53,26 @@ public class PaxosLog extends Replica {
         handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::prepare, PrepareRequest.class)
-                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
+        handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class)
-                .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
+        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
+        handlesMessage(RequestId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class)
-                .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
+        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class);
+        handlesMessage(RequestId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
+    }
+
+    private void handleCommitResponse(Message<CommitResponse> commitResponseMessage) {
+        handleResponse(commitResponseMessage);
+    }
+
+    private void handleProposalResponse(Message<ProposalResponse> proposalResponseMessage) {
+        handleResponse(proposalResponseMessage);
+    }
+
+    private void handlePromise(Message<PrepareResponse> prepareResponseMessage) {
+        handleResponse(prepareResponseMessage);
     }
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
@@ -156,14 +168,15 @@ public class PaxosLog extends Replica {
         return callback.getQuorumFuture();
     }
 
-    private CommitResponse handlePaxosCommit(CommitRequest request) {
+    private void handlePaxosCommit(Message<CommitRequest> message) {
+        var request = message.getRequest();
         var paxosState = getOrCreatePaxosState(request.index);
         //Because commit is invoked only after successful prepare and propose. accept a commit message
         var committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
         paxosLog.put(request.index, committedPaxosState);
 
         addAndApplyIfAllThePreviousEntriesAreCommitted(request);
-        return new CommitResponse(true);
+        sendOneway(message.getFromAddress(), new CommitResponse(true), message.getCorrelationId());
     }
 
     private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
@@ -209,28 +222,32 @@ public class PaxosLog extends Replica {
         }
     }
 
-    private ProposalResponse handlePaxosProposal(ProposalRequest request) {
+    private void handlePaxosProposal(Message<ProposalRequest> message) {
+        var request = message.getRequest();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
+        var accepted = false;
         if (paxosState.canAccept(generation)) {
             var acceptedPaxosState = paxosState.accept(generation, Optional.ofNullable(request.proposedValue));
             paxosLog.put(request.index, acceptedPaxosState);
-            return new ProposalResponse(true);
+            accepted = true;
         }
-        logger.info(getName() + " rejecting proposal " + request.generation + " as paxosState.promisedBallot=" + paxosState.promisedBallot());
-        return new ProposalResponse(false);
+
+        logger.info(getName() + (accepted?" accepting ":"rejecting ") + "proposal "  + request.generation + " as paxosState.promisedBallot=" + paxosState.promisedBallot());
+        sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
     }
 
 
-    public PrepareResponse prepare(PrepareRequest request) {
+    public void handlePrepare(Message<PrepareRequest> message) {
+        var request = message.getRequest();
         var paxosState = getOrCreatePaxosState(request.index);
+        boolean promised = false;
         if (paxosState.canPromise(request.monotonicId)) {
             PaxosState promisedPaxosState = paxosState.promise(request.monotonicId);
             paxosLog.put(request.index, promisedPaxosState);
-            return new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedBallot());
+            promised = true;
         }
-        return new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedBallot());
-
+        sendOneway(message.getFromAddress(), new PrepareResponse(promised, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
     }
 
     private PaxosState getOrCreatePaxosState(int index) {
