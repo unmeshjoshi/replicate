@@ -34,7 +34,7 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         var client = new NetworkClient();
         var casCommand = new SetValueCommand("title", "Microservices");
         var response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), primaryAddress, ExecuteCommandResponse.class).getResult();
 
         assertEquals(Optional.of("Microservices"), response.getResponse());
     }
@@ -52,7 +52,7 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         var client = new NetworkClient();
         var setValueCommand = new SetValueCommand("title", "Microservices");
         var response
-                = client.sendAndReceive(new ExecuteCommandRequest(setValueCommand.serialize()), primaryAddress, ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(setValueCommand.serialize()), primaryAddress, ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), response.getResponse());
 
         List<ViewStampedReplication> backUpNodes = getBackUpNodes(primaryAddress);

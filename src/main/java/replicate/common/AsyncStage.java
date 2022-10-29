@@ -2,17 +2,17 @@ package replicate.common;
 
 import java.util.concurrent.CompletableFuture;
 
-class AsyncStage<Req> {
+class AsyncStage<T> {
     private Message<RequestOrResponse> message;
-    private CompletableFuture<Req> request;
+    private CompletableFuture<T> response;
 
-    public AsyncStage(Message<RequestOrResponse> message, CompletableFuture<Req> request) {
+    public AsyncStage(Message<RequestOrResponse> message, CompletableFuture<T> response) {
         this.message = message;
-        this.request = request;
+        this.response = response;
     }
 
-    public CompletableFuture<Req> getRequest() {
-        return request;
+    public CompletableFuture<T> getResponse() {
+        return response;
     }
 
     public Message<RequestOrResponse> getMessage() {

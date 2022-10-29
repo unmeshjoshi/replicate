@@ -1,13 +1,16 @@
 package replicate.twophaseexecution;
 
-import replicate.common.Config;
-import replicate.common.RequestId;
-import replicate.common.SystemClock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.twophaseexecution.messages.*;
+import replicate.vsr.CompletionCallback;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +50,8 @@ import java.util.stream.Collectors;
  *    ^---------------------+
  */
 public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
+    private static Logger logger = LogManager.getLogger(NonBlockingTwoPhaseExecution.class);
+
     public NonBlockingTwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
     }
@@ -54,26 +59,42 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
     @Override
     protected void registerHandlers() {
         super.registerHandlers();
-        handlesRequestBlocking(RequestId.Prepare, this::handlePrepare, PrepareRequest.class)
-                .respondsWith(RequestId.Promise, PrepareResponse.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
+        handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
     }
 
-    private PrepareResponse handlePrepare(PrepareRequest t) {
+    private void handlePromise(Message<PrepareResponse> prepareResponseMessage) {
+        handleResponse(prepareResponseMessage);
+    }
+
+    private void handlePrepare(Message<PrepareRequest> message) {
+        var t = message.getRequest();
         byte[] b = acceptedCommand == null? null:acceptedCommand.serialize(); //TODO: Use Optional
-        return new PrepareResponse(b);
+        sendOneway(message.getFromAddress(), new PrepareResponse(b), message.getCorrelationId());
     }
 
-    ExecuteCommandResponse handleExecute(ExecuteCommandRequest t) {
+    @Override
+    CompletableFuture<ExecuteCommandResponse> handleExecute(ExecuteCommandRequest t) {
+        CompletionCallback<ExecuteCommandResponse> callback = new CompletionCallback();
+        requestWaitingList.add(requestIdentifier(t.command), callback);
+
+        AsyncQuorumCallback<PrepareResponse> prepareCallback = new AsyncQuorumCallback<>(getNoOfReplicas());
         PrepareRequest prepare = new PrepareRequest();
-        List<PrepareResponse> prepareResponses = blockingSendToReplicas(prepare.getRequestId(), prepare);
-        byte[] command = pickCommandToExecute(prepareResponses, t.command);
-        ProposeRequest proposal = new ProposeRequest(command);
-        List<ProposeResponse> proposalResponses = blockingSendToReplicas(proposal.getRequestId(), proposal);
-        if (proposalResponses.stream().filter(r -> r.isAccepted()).count() >= quorum()) {
-            CommitCommandResponse c = sendCommitRequest(new CommitCommandRequest(command));
-            return new ExecuteCommandResponse(c.getResponse(), c.isCommitted());
-        };
-        return ExecuteCommandResponse.notCommitted();
+        sendMessageToReplicas(prepareCallback, prepare.getRequestId(), prepare);
+        CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> quorumFuture = prepareCallback.getQuorumFuture();
+        quorumFuture.thenCompose(r -> {
+            byte[] command = pickCommandToExecute(r.values().stream().toList(), t.command);
+            ProposeRequest proposal = new ProposeRequest(command);
+            AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
+            sendMessageToReplicas(proposeQuorumCallback, proposal.getRequestId(), proposal);
+            return proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
+                AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
+                CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
+                sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getRequestId(), commitCommandRequest);
+                return commitQuorumCalback.getQuorumFuture();
+            });
+        });
+        return callback.getFuture();
     }
 
     private byte[] pickCommandToExecute(List<PrepareResponse> prepareResponses, byte[] command) {
@@ -81,6 +102,7 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
         //TODO: If there are multiple commands, which command to pick?
         //       We need a way to order the requests.
         //       Go to Paxos.
+        logger.info("Picking up previously accepted command " + previouslyAcceptedCommands);
         return previouslyAcceptedCommands.isEmpty() ? command:previouslyAcceptedCommands.get(0).command;
     }
 }

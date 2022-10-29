@@ -28,7 +28,7 @@ public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
     public void singleValuePaxosTest() throws IOException {
         var client = new NetworkClient();
         var address = nodes.get("athens").getClientConnectionAddress();
-        var response = client.sendAndReceive(new SetValueRequest("title", "Nicroservices"), address, SetValueResponse.class);
+        var response = client.sendAndReceive(new SetValueRequest("title", "Nicroservices"), address, SetValueResponse.class).getResult();
         assertEquals("Nicroservices", response.result);
     }
 
@@ -36,7 +36,7 @@ public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
     public void singleValueNullPaxosGetTest() throws IOException {
         var client = new NetworkClient();
         var address = nodes.get("athens").getClientConnectionAddress();
-        var response = client.sendAndReceive(new GetValueRequest("title"), address, GetValueResponse.class);
+        var response = client.sendAndReceive(new GetValueRequest("title"), address, GetValueResponse.class).getResult();
         assertEquals(Optional.of(""), response.value);
     }
 
@@ -44,11 +44,11 @@ public class PaxosKVStoreTest extends ClusterTest<PaxosKVStore> {
     public void singleValuePaxosGetTest() throws IOException {
         var client = new NetworkClient();
         var address = nodes.get("athens").getClientConnectionAddress();
-        var response = client.sendAndReceive(new SetValueRequest("title", "Nicroservices"), address, SetValueResponse.class);
+        var response = client.sendAndReceive(new SetValueRequest("title", "Nicroservices"), address, SetValueResponse.class).getResult();
 
         assertEquals("Nicroservices", response.result);
 
-        var getResponse = client.sendAndReceive(new GetValueRequest("title"), address, GetValueResponse.class);
+        var getResponse = client.sendAndReceive(new GetValueRequest("title"), address, GetValueResponse.class).getResult();
         assertEquals(Optional.of("Nicroservices"), getResponse.value);
     }
 }

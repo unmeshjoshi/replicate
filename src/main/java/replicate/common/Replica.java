@@ -161,27 +161,12 @@ public abstract class Replica {
         return peerAddresses.stream().filter(r -> !r.equals(peerConnectionAddress)).collect(Collectors.toList());
     }
 
-    public <Req, Res> List<Res> blockingSendToReplicas(RequestId requestId, Req requestToReplicas) {
-        List<Res> responses = new ArrayList<>();
-        for (InetAddressAndPort replica : peerAddresses) {
-            int correlationId = newCorrelationId();
-            RequestOrResponse request = new RequestOrResponse(requestId.getId(), serialize(requestToReplicas), correlationId, getPeerConnectionAddress());
-            try {
-                RequestOrResponse response = network.sendRequestResponse(replica, request);
-                Class<Res> responseClass = responseClasses.get(RequestId.valueOf(response.getRequestId()));
-                Res res = JsonSerDes.deserialize(response.getMessageBodyJson(), responseClass);
-                responses.add(res);
-            } catch (IOException e) {
-                logger.error(e);
-            }
-        }
-        return responses;
-    }
 
     SingularUpdateQueue<Message<RequestOrResponse>, Void> singularUpdateQueue = new SingularUpdateQueue<Message<RequestOrResponse>, Void>((message) -> {
         markHeartbeatReceived(); //TODO: Mark heartbeats in message handlings explcitily. As this can be user request as well.
         RequestOrResponse request = message.getRequest();
-        Consumer consumer = requestMap.get(RequestId.valueOf(request.getRequestId()));
+        RequestId key = RequestId.valueOf(request.getRequestId());
+        Consumer consumer = requestMap.get(key);
         consumer.accept(message);
         return null;
     });
@@ -272,6 +257,10 @@ public abstract class Replica {
         requestWaitingList.handleResponse(message.getCorrelationId(), message.getRequest(), message.getFromAddress());
     }
 
+    public int getServerId() {
+        return config.getServerId();
+    }
+
     public class SyncBuilder<T extends Request> {
         public Replica respondsWith(RequestId requestId, Class<T> responseClass) {
             Replica.this.respondsWith(requestId, responseClass);
@@ -302,28 +291,7 @@ public abstract class Replica {
         return this;
     }
 
-
-    private Executor blockingExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-
     private Map<RequestId, Class> responseClasses = new HashMap();
-    public <T  extends Request, Res extends Request> SyncBuilder<Res> handlesRequestBlocking(RequestId requestId, Function<T, Res> handler, Class<T> requestClass) {
-        Function<Message<RequestOrResponse>, Stage<T>> deserialize = createDeserializer(requestClass);
-        var handleSync = wrapHandler(handler);
-        requestMap.put(requestId, (message)-> {
-            blockingExecutor.execute(() -> {
-            try {
-                deserialize
-                        .andThen(handleSync)
-                        .andThen(syncRespondToSender)
-                        .apply(message);
-            } catch(Exception e) {
-                RequestOrResponse request = message.getRequest();
-                message.getClientConnection().write(new RequestOrResponse(request.getRequestId(), serialize(e.getMessage()), request.getCorrelationId()).setError());
-            }
-            });
-        });
-        return new SyncBuilder<Res>();
-    }
 
     public void respondsWith(RequestId id, Class clazz) {
         responseClasses.put(id, clazz);
@@ -358,7 +326,7 @@ public abstract class Replica {
     };
 
     Function<AsyncStage, Void> asyncRespondToSender = (stage) -> {
-        CompletableFuture<?> responseFuture = stage.getRequest();
+        CompletableFuture<?> responseFuture = stage.getResponse();
         Message<RequestOrResponse> message = stage.getMessage();
         RequestOrResponse request = (RequestOrResponse) stage.getMessage().getRequest();
         var correlationId = request.getCorrelationId();
@@ -369,7 +337,7 @@ public abstract class Replica {
             } else {
                 clientConnection.write(new RequestOrResponse(request.getRequestId(), serialize(res), correlationId));
             }
-        }).orTimeout(5000, TimeUnit.MILLISECONDS);
+        });
         return null;
     };
 

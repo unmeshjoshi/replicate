@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
 public class PaxosLogTest extends ClusterTest<PaxosLog> {
     @Before
     public void setUp() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new PaxosLog(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
 
     }
@@ -30,14 +30,14 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
     public void singleValuePaxosTest() throws IOException {
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
-        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
     }
 
     @Test
     public void singleValueNullPaxosGetTest() throws IOException {
         var networkClient = new NetworkClient();
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.empty(), getValueResponse.value);
     }
 
@@ -45,9 +45,9 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
     public void singleValuePaxosGetTest() throws IOException {
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
-        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), getValueResponse.value);
     }
 
@@ -56,7 +56,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         var networkClient = new NetworkClient();
         PaxosLog athens = nodes.get("athens");
         var command = new SetValueCommand("title", "Microservices");
-        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
 
 
@@ -64,7 +64,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
 
         command = new SetValueCommand("title2", "Distributed Systems");
-        setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Distributed Systems"), setValueResponse.getResponse());
 
         assertEquals(2, nodes.get("athens").paxosLog.size());
@@ -73,7 +73,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         var casResponse
-                = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+                = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(false, casResponse.isCommitted());
         assertEquals(Optional.of("Microservices"), casResponse.getResponse());
 
@@ -84,7 +84,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         casCommand = new CompareAndSwap("title", Optional.of("Microservices"), "Event Driven Microservices");
         casResponse
-                = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+                = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(true, casResponse.isCommitted());
         assertEquals(Optional.of("Microservices"), casResponse.getResponse());
 
@@ -92,7 +92,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertEquals(4, nodes.get("byzantium").paxosLog.size());
         assertEquals(4, nodes.get("cyrene").paxosLog.size());
 
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.of("Event Driven Microservices"), getValueResponse.value);
     }
 
@@ -107,46 +107,33 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
         var command = new SetValueCommand("title", "Microservices");
-        try {
-            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Expect an exception, as quorum communication fails after multiple attempts");
-        } catch (Exception e) {
 
-        }
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertTrue("Expect an exception, as quorum communication fails after multiple attempts", setValueResponse.isError());
 
         byzantium.dropAfterNMessagesTo(cyrene, 2);
 
-        try {
-            command = new SetValueCommand("title", "Distributed Systems");
-            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Expect an exception, as quorum communication fails after multiple attempts");
-        } catch (Exception e) {
-
-        }
+        command = new SetValueCommand("title", "Distributed Systems");
+        var response1 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertTrue("Expect an exception, as quorum communication fails after multiple attempts", response1.isError());
         assertEquals(1, athens.paxosLog.size());
         assertEquals(1, byzantium.paxosLog.size());
         assertEquals(1, cyrene.paxosLog.size());
 
 
-        try {
-            command = new SetValueCommand("title", "Event Driven Microservices");
-            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Expect an exception, as quorum communication fails after multiple attempts");
-        } catch (Exception e) {
-        }
+        command = new SetValueCommand("title", "Event Driven Microservices");
+        var response2 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertTrue("Expect an exception, as quorum communication fails after multiple attempts", response2.isError());
+
         assertEquals(1, athens.paxosLog.size());
         assertEquals(1, byzantium.paxosLog.size());
         assertEquals(1, cyrene.paxosLog.size());
 
 
         byzantium.reconnectTo(cyrene);
-        try {
-            command = new SetValueCommand("title", "Event Driven Microservices");
-            var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            assertEquals(setValueResponse.getResponse(), Optional.of("Event Driven Microservices"));
-        } catch (Exception e) {
-            fail("Should be able to commit");
-        }
+        command = new SetValueCommand("title", "Event Driven Microservices");
+        var setValueResponse2 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
+        assertEquals(setValueResponse2.getResponse(), Optional.of("Event Driven Microservices"));
 
         assertEquals(2, athens.paxosLog.size());
         assertEquals(2, byzantium.paxosLog.size());
@@ -168,12 +155,10 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         athens.dropAfterNMessagesTo(byzantium, 1); //prepare succeeds, propose fails. So propose succeeds only on athens.
         athens.dropMessagesTo(cyrene);
-        try {
+        {
             var command = new SetValueCommand("title", "Microservices");
             var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Except an exception, as quorum communication fails after multiple attempts");
-        } catch (Exception e) {
-
+            assertTrue("Except an exception, as quorum communication fails after multiple attempts", setValueResponse.isError());
         }
         assertEquals(1, athens.paxosLog.size());
         assertEquals(1, byzantium.paxosLog.size());
@@ -183,7 +168,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         var command = new SetValueCommand("newTitle", "Event Driven Microservices");
         ExecuteCommandRequest request = new ExecuteCommandRequest(command.serialize());
-        var setValueResponse = networkClient.sendAndReceive(request, cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(request, cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Event Driven Microservices"), setValueResponse.getResponse());
 
         assertEquals(2, byzantium.paxosLog.size());

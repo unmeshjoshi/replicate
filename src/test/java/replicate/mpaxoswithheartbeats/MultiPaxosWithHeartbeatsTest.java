@@ -13,9 +13,7 @@ import replicate.wal.SetValueCommand;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
@@ -26,14 +24,14 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
 
     @Before
     public void setUp() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new MultiPaxosWithHeartbeats(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
 
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return nodes.entrySet().stream().anyMatch(e -> e.getValue().role == ServerRole.Leader);
         }, "Waiting for leader election", Duration.ofSeconds(10));
 
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return nodes.entrySet().stream().filter(e -> e.getValue().role == ServerRole.Follower).count() == (nodes.size() - 1);
         }, "Waiting for all other nodes to become follower", Duration.ofSeconds(10));
 
@@ -46,21 +44,25 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
     }
 
     private MultiPaxosWithHeartbeats getLeader() {
-        return nodes.entrySet().stream().filter(e -> e.getValue().isLeader()).findFirst().get().getValue();
+        return getLeaderFrom(nodes.values());
+    }
+
+    private MultiPaxosWithHeartbeats getLeaderFrom(Collection<MultiPaxosWithHeartbeats> nodes) {
+        return nodes.stream().filter(e -> e.isLeader()).findFirst().get();
     }
 
     @Test
     public void setsSingleValue() throws Exception {
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
-        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
     }
 
     @Test
     public void singleValueNullPaxosGetTest() throws Exception {
         var networkClient = new NetworkClient();
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), leader.getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), leader.getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.empty(), getValueResponse.value);
     }
 
@@ -69,13 +71,13 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), leader.getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), leader.getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), getValueResponse.value);
     }
 
 
     @Test
-    public void leaderElectionCompletesIncompletePaxosRuns() throws Exception {
+    public void oldLeaderStepsDownWhenHeartbeatForLowerBallotIsRejected() throws Exception {
         MultiPaxosWithHeartbeats follower1 = followers.get(0);
         MultiPaxosWithHeartbeats follower2 = followers.get(1);
 
@@ -83,16 +85,14 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
-        leader.dropMessagesTo(follower1); //propose messages fail
-        leader.dropMessagesTo(follower2); //propose messages fail
+        leader.dropMessagesTo(follower1); //both way failure.
+        follower1.dropMessagesTo(leader);
+        leader.dropMessagesTo(follower2);
+        follower2.dropMessagesTo(leader);
 
-        try {
-            command = new SetValueCommand("author", "Martin").serialize();
-            setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Expected to fail because athens will be unable to reach quorum");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        command = new SetValueCommand("author", "Martin").serialize();
+        var response = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertTrue("Expected to fail because athens will be unable to reach quorum", response.isError());
 
         assertEquals(2, leader.paxosLog.size()); //uncommitted second entry
         assertEquals(1, follower1.paxosLog.size()); //only first entry.
@@ -108,18 +108,24 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
 
         //election which is equivalent to prepare phase of basic paxos, checks
         //and completes pending log entries from majority quorum of the servers.
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return follower1.isLeader() || follower2.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(5));
 
 
         var oldLeader = leader;
-        var newLeader = getLeader();
-        assertEquals(2, oldLeader.paxosLog.size());
-        assertEquals(1, newLeader.paxosLog.size());
-//
-//        assertEquals("Martin", leader.getValue("author"));
-//        assertEquals("Martin", follower1.getValue("author"));
-//        assertEquals("Martin", follower2.getValue("author"));
+        var newLeader = getLeaderFrom(Arrays.asList(follower1, follower2));
+
+        assertTrue("Old leader should still thinks that its the leader", oldLeader.isLeader());
+        assertTrue("New leader should have higher ballot than old leader", newLeader.fullLogBallot.isAfter(oldLeader.fullLogBallot));
+
+        oldLeader.reconnectTo(follower1);
+        follower1.reconnectTo(oldLeader);
+
+        TestUtils.waitUntilTrue(() -> {
+            return oldLeader.isFollower();
+        }, "Old leader should step down", Duration.ofSeconds(2));
+
+        assertEquals(newLeader.fullLogBallot, oldLeader.fullLogBallot);
     }
 }

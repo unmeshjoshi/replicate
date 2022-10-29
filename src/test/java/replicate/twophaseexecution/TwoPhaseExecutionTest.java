@@ -29,13 +29,12 @@ public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
 
-
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
-        ExecuteCommandResponse response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        NetworkClient.Response<ExecuteCommandResponse> response = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
-        assertFalse(response.isCommitted());
+        assertTrue(response.isError());
+        assertEquals(response.getErrorMessage(), Optional.of("Request expired"));
 
         assertNull(athens.getValue("title"));
         assertNull(byzantium.getValue("title"));
@@ -55,7 +54,7 @@ public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());
@@ -80,7 +79,7 @@ public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
 
         assertEquals(Optional.empty(), response.getResponse());
         assertTrue(response.isCommitted());

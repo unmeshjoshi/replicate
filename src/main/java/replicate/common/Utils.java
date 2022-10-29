@@ -8,9 +8,9 @@ import java.util.stream.Collectors;
 
 public class Utils {
 
-    public static BigInteger hash(String data)
+    public static BigInteger hash(byte[] bytes)
     {
-        byte[] result = hash("MD5", data.getBytes());
+        byte[] result = hash("MD5", bytes);
         BigInteger hash = new BigInteger(result);
         return hash.abs();
     }

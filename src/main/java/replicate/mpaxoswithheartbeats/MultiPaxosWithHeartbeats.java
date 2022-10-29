@@ -123,11 +123,16 @@ public class MultiPaxosWithHeartbeats extends Replica {
         Duration timeSinceLastHeartbeat = elapsedTimeSinceLastHeartbeat();
         if (timeSinceLastHeartbeat.compareTo(randomElectionTimeout) > 0) {
             logger.info(getName() + " heartbeat timedOut after " + timeSinceLastHeartbeat.toMillis() + "ms");
-            this.role = ServerRole.LookingForLeader;
-            heartbeatChecker.stop();
-            heartBeatScheduler.stop();
-            leaderElection();
+            logger.info(getName() + " role is " + role);
+            becomeCandidate();
         }
+    }
+
+    private void becomeCandidate() {
+        this.role = ServerRole.LookingForLeader;
+        heartbeatChecker.stop();
+        heartBeatScheduler.stop();
+        leaderElection();
     }
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
@@ -143,9 +148,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
         CompletableFuture<PaxosResult> appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture())
-                .thenApply(r -> {
-                    return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
-                });
+                .thenApply(r -> new GetValueResponse(Optional.ofNullable(kv.get(request.getKey()))));
     }
 
     RequestWaitingList requestWaitingList;
@@ -195,25 +198,29 @@ public class MultiPaxosWithHeartbeats extends Replica {
         sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
-
+    //convert to message.All state changes should happen via message to SingularUpdateQueue.
     public void leaderElection() {
         logger.info(getName() + " triggering election");
         heartbeatChecker.stop();
         //if future completes successfully, phase1 is complete and this node can be the leader.
-        runElection().whenComplete((result, throwable) -> {
+        runElection().whenCompleteAsync((result, throwable) -> {
             if (throwable != null) {
-                logger.error(getName() + " could not complete election for " + fullLogBallot);
+                logger.error(getName() + " could not complete election");
                 logger.error(throwable);
                 return;
 
             }
-            this.isLeader = true;
-            this.fullLogBallot = result;
-            this.role = ServerRole.Leader;
-            heartbeatChecker.stop();
-            heartBeatScheduler.start();
-            logger.info(getName() + " is leader for " + result);
+            becomeLeader(result);
         });
+    }
+
+    private void becomeLeader(MonotonicId result) {
+        this.isLeader = true;
+        this.fullLogBallot = result;
+        this.role = ServerRole.Leader;
+        heartbeatChecker.stop();
+        heartBeatScheduler.start();
+        logger.info(getName() + " is leader for " + result);
     }
 
     public CompletableFuture<MonotonicId> runElection() {
@@ -288,6 +295,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
         sendOneway(message.getFromAddress(), new CommitResponse(true), message.getCorrelationId());
     }
 
+    //TODO: Implement high-watermark
     private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
         //if all entries upto logIndex - 1 are committed, apply this entry.
         List<Integer> previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
@@ -392,5 +400,9 @@ public class MultiPaxosWithHeartbeats extends Replica {
     @Override
     public void onStart() {
         heartbeatChecker.start();
+    }
+
+    public boolean isFollower() {
+        return role == ServerRole.Follower;
     }
 }

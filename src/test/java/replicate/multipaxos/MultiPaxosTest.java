@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
 public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     @Before
     public void setUp() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
+        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new MultiPaxos(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
 
     }
@@ -30,13 +30,13 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     public void setsSingleValue() throws Exception {
         var athens = nodes.get("athens");
         athens.leaderElection();
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return athens.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
-        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
+        var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
     }
 
@@ -45,12 +45,12 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         var athens = nodes.get("athens");
 
         athens.leaderElection();
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return athens.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(2));
 
         var networkClient = new NetworkClient();
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.empty(), getValueResponse.value);
     }
 
@@ -59,7 +59,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         var athens = nodes.get("athens");
 
         athens.leaderElection();
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return athens.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(2));
 
@@ -67,7 +67,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), nodes.get("athens").getClientConnectionAddress(), ExecuteCommandResponse.class);
 
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class);
+        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), nodes.get("athens").getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), getValueResponse.value);
     }
 
@@ -80,7 +80,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
 
         athens.leaderElection();
 
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return athens.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(2));
 
@@ -91,12 +91,10 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         athens.dropMessagesTo(byzantium); //propose messages fail
         athens.dropMessagesTo(cyrene); //propose messages fail
 
-        try {
-            command = new SetValueCommand("author", "Martin").serialize();
-            setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
-            fail("Expected to fail because athens will be unable to reach quorum");
-        } catch (Exception e) {
-        }
+
+        command = new SetValueCommand("author", "Martin").serialize();
+        var response1 = networkClient.sendAndReceive(new ExecuteCommandRequest(command), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+        assertTrue("Expected to fail because athens will be unable to reach quorum", response1.isError());
 
         assertEquals(2, athens.paxosLog.size()); //uncommitted second entry
         assertEquals(1, byzantium.paxosLog.size()); //only first entry.
@@ -116,7 +114,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
         //election which is equivalent to prepare phase of basic paxos, checks
         //and completes pending log entries from majority quorum of the servers.
         byzantium.leaderElection();
-        TestUtils.waitUntilTrue(()->{
+        TestUtils.waitUntilTrue(() -> {
             return byzantium.isLeader();
         }, "Waiting for leader election", Duration.ofSeconds(2));
 

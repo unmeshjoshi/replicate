@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwoPhaseExecution> {
 
@@ -39,17 +39,20 @@ public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwo
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
 
+//        assertEquals(athens.acceptedCommand, casCommand);
 
         athens.reconnectTo(byzantium);
         athens.reconnectTo(cyrene);
 
         casCommand = new CompareAndSwap("title", Optional.of("Microservices"), "Distributed Systems");
-        response
+        var response2
                 = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
+        assertFalse(response2.isSuccess());
         //the request executed only the incomplete command from the previous runs.
+
 
         assertEquals("Microservices", athens.getValue("title"));
         assertEquals("Microservices", byzantium.getValue("title"));
