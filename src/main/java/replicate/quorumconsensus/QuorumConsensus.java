@@ -30,14 +30,22 @@ public class QuorumConsensus extends Replica {
         handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
         handlesMessage(RequestId.GetVersionResponse, this::handleGetVersionResponse, GetVersionResponse.class);
 
-        handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class)
-                .respondsWithMessage(RequestId.SetValueResponse, SetValueResponse.class);
+        handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
+        handlesMessage(RequestId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
 
-        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class)
-                .respondsWithMessage(RequestId.GetValueResponse, GetValueResponse.class);
+        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        handlesMessage(RequestId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
 
         handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+    }
+
+    private void handleGetValueResponse(Message<GetValueResponse> getValueResponseMessage) {
+        handleResponse(getValueResponseMessage);
+    }
+
+    private void handleSetValueResponse(Message<SetValueResponse> setValueResponseMessage) {
+        handleResponse(setValueResponseMessage);
     }
 
     private void handleGetVersionResponse(Message<GetVersionResponse> message) {
@@ -102,17 +110,19 @@ public class QuorumConsensus extends Replica {
         sendOneway(message.getFromAddress(), new GetVersionResponse(version), message.getCorrelationId());
     }
 
-    private GetValueResponse handleGetValueRequest(GetValueRequest getValueRequest) {
+    private void handleGetValueRequest(Message<GetValueRequest> message) {
+        var getValueRequest = message.getRequest();
         StoredValue storedValue = get(getValueRequest.getKey());
-        return new GetValueResponse(storedValue);
+        sendOneway(message.getFromAddress(), new GetValueResponse(storedValue), message.getCorrelationId());
     }
 
-    private SetValueResponse handlePeerSetValueRequest(VersionedSetValueRequest setValueRequest) {
+    private void handlePeerSetValueRequest(Message<VersionedSetValueRequest> message) {
+        var setValueRequest = message.getRequest();
         StoredValue storedValue = get(setValueRequest.key);
         if (setValueRequest.version.isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
             put(setValueRequest.key, new StoredValue(setValueRequest.key, setValueRequest.value, setValueRequest.version));
         }
-        return new SetValueResponse("Success");
+        sendOneway(message.getFromAddress(), new SetValueResponse("Success"), message.getCorrelationId());
     }
 
 
