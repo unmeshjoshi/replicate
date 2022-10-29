@@ -76,7 +76,7 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
     }
 
 
-    @Test
+    @Test //FIXME:Flacky test
     public void oldLeaderStepsDownWhenHeartbeatForLowerBallotIsRejected() throws Exception {
         MultiPaxosWithHeartbeats follower1 = followers.get(0);
         MultiPaxosWithHeartbeats follower2 = followers.get(1);
