@@ -85,11 +85,19 @@ public class SingleValuePaxos extends Replica {
         handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
         handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handleProposal, ProposalRequest.class)
-                .respondsWithMessage(RequestId.ProposeResponse, ProposalResponse.class);
+        handlesMessage(RequestId.ProposeRequest, this::handleProposal, ProposalRequest.class);
+        handlesMessage(RequestId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handleCommit, CommitRequest.class)
-                .respondsWithMessage(RequestId.CommitResponse, CommitResponse.class);
+        handlesMessage(RequestId.Commit, this::handleCommit, CommitRequest.class);
+        handlesMessage(RequestId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
+    }
+
+    private void handleCommitResponse(Message<CommitResponse> commitResponseMessage) {
+        handleResponse(commitResponseMessage);
+    }
+
+    private void handleProposalResponse(Message<ProposalResponse> proposalResponseMessage) {
+        handleResponse(proposalResponseMessage);
     }
 
     private void handlePromise(Message<PrepareResponse> promise) {
@@ -104,13 +112,15 @@ public class SingleValuePaxos extends Replica {
         return doPaxos(null).thenApply(value -> new GetValueResponse(value));
     }
 
-    private CommitResponse handleCommit(CommitRequest req) {
+    private void handleCommit(Message<CommitRequest> message) {
+        var req = message.getRequest();
+        boolean committed = false;
         if (paxosState.canAccept(req.getGeneration())) {
             logger.info("Accepting commit for " + req.getValue() + "promisedBallot=" + paxosState.promisedBallot() + " req generation=" + req.getGeneration());
             this.paxosState = paxosState.commit(req.getGeneration(), Optional.ofNullable(req.getValue()));
-            return new CommitResponse(true);
+            committed = true;
         }
-        return new CommitResponse(false);
+        sendOneway(message.getFromAddress(), new CommitResponse(committed), message.getCorrelationId());
     }
 
     ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -205,13 +215,15 @@ public class SingleValuePaxos extends Replica {
         return callback.getQuorumFuture();
     }
 
-    private ProposalResponse handleProposal(ProposalRequest request) {
+    private void handleProposal(Message<ProposalRequest> message) {
+        var request = message.getRequest();
         MonotonicId ballot = request.getMonotonicId();
+        boolean accepted =  false;
         if (paxosState.canAccept(ballot)) {
             this.paxosState = paxosState.accept(ballot, Optional.ofNullable(request.getProposedValue()));
-            return new ProposalResponse(true);
+            accepted = true;
         }
-        return new ProposalResponse(false);
+        sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
     }
 
     public void handlePrepare(Message<PrepareRequest> message) {

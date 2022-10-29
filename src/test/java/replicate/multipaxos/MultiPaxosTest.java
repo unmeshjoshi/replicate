@@ -72,7 +72,7 @@ public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     }
 
 
-    @Test
+    @Test //FIXME: flacky test
     public void leaderElectionCompletesIncompletePaxosRuns() throws Exception {
         MultiPaxos athens = nodes.get("athens");
         MultiPaxos byzantium = nodes.get("byzantium");
