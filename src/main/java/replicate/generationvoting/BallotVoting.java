@@ -40,8 +40,12 @@ public class BallotVoting extends Replica {
     @Override
     protected void registerHandlers() {
         handlesRequestAsync(RequestId.NextNumberRequest, this::handlePrepare, NextNumberRequest.class);
-        handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class)
-                .respondsWithMessage(RequestId.Promise, PrepareResponse.class);
+        handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class);
+        handlesMessage(RequestId.Promise, this::handlePrepareResponse, PrepareResponse.class);
+    }
+
+    private void handlePrepareResponse(Message<PrepareResponse> prepareResponseMessage) {
+        handleResponse(prepareResponseMessage);
     }
 
     CompletableFuture<Integer> handlePrepare(NextNumberRequest request) {
@@ -70,15 +74,16 @@ public class BallotVoting extends Replica {
 
     }
 
-    private PrepareResponse handlePrepareRequest(PrepareRequest prepareRequest) {
+    private void handlePrepareRequest(Message<PrepareRequest> message) {
         //no synchronized in here..
-
+        var  prepareRequest = message.getRequest();
+        boolean promised = false;
         if (prepareRequest.getProposedBallot() > ballot) { //accept only if 'strictly greater'
             ballot = prepareRequest.getProposedBallot();
             logger.info(getName() + " accepting " + ballot + " in " + getName());
-            return new PrepareResponse(true);
+            promised = true;
         }
         logger.info(getName() + " rejecting " + ballot + " in " + getName());
-        return new PrepareResponse(false);
+        sendOneway(message.getFromAddress(), new PrepareResponse(promised), message.getCorrelationId());
     }
 }

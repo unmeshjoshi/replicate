@@ -14,7 +14,7 @@ import static org.junit.Assert.assertEquals;
 
 public class QuorumConsensusTest extends ClusterTest<QuorumConsensus> {
 
-    @Test
+    @Test //FIXME: flacky test
     public void readRepair() throws IOException {
         this.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumConsensus(name, config, clock, clientConnectionAddress, peerConnectionAddress,true, peerAddresses));
