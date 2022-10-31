@@ -48,18 +48,18 @@ public class MultiPaxos extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
-        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(MessageId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
+        handlesRequestAsync(MessageId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::handleFullLogPrepare, PrepareRequest.class);
-        handlesMessage(RequestId.Promise, this::handleFullLogPrepareResponse, FullLogPrepareResponse.class);
+        handlesMessage(MessageId.Prepare, this::handleFullLogPrepare, PrepareRequest.class);
+        handlesMessage(MessageId.Promise, this::handleFullLogPrepareResponse, FullLogPrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
-        handlesMessage(RequestId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
+        handlesMessage(MessageId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
+        handlesMessage(MessageId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class);
-        handlesMessage(RequestId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
+        handlesMessage(MessageId.Commit, this::handlePaxosCommit, CommitRequest.class);
+        handlesMessage(MessageId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
     }
 
     private void handleCommitResponse(Message<CommitResponse> commitResponseMessage) {
@@ -111,9 +111,9 @@ public class MultiPaxos extends Replica {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
         CompletableFuture<PaxosResult> appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture())
-                .thenApply(r -> {
+                .thenApplyAsync(r -> {
                     return new GetValueResponse(Optional.ofNullable(kv.get(request.getKey())));
-                });
+                }, singularUpdateQueueExecutor);
     }
 
     RequestWaitingList requestWaitingList;
@@ -152,7 +152,7 @@ public class MultiPaxos extends Replica {
 
     private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
-        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, MessageId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
@@ -160,7 +160,7 @@ public class MultiPaxos extends Replica {
     private CompletableFuture<byte[]> sendProposeRequest(int index, byte[] proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         logger.debug(getName() + " proposing " + proposedValue + " for index " + index);
-        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
+        sendMessageToReplicas(proposalCallback, MessageId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
@@ -168,7 +168,7 @@ public class MultiPaxos extends Replica {
         logger.info(getName() + " triggering election");
         heartbeatChecker.stop();
         //if future completes successfully, phase1 is complete and this node can be the leader.
-        runElection().whenComplete((result, throwable) -> {
+        runElection().whenCompleteAsync((result, throwable) -> {
             if (throwable == null) {
                 logger.info(getName() + " is leader for " + fullLogBallot);
                 this.isLeader = true;
@@ -176,7 +176,7 @@ public class MultiPaxos extends Replica {
                 heartbeatChecker.stop();
                 heartBeatScheduler.start();
             }
-        });
+        }, singularUpdateQueueExecutor);
     }
 
     public CompletableFuture<Void> runElection() {
@@ -237,12 +237,12 @@ public class MultiPaxos extends Replica {
     private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
         var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r -> r.promised);
         logger.info(getName() + " sending prepare request for " + fullLogPromisedGeneration);
-        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
+        sendMessageToReplicas(prepareCallback, MessageId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
         return prepareCallback.getQuorumFuture();
     }
 
     private void handlePaxosCommit(Message<CommitRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         var paxosState = getOrCreatePaxosState(request.index);
         //Accept commit, because commit is invoked only after successful prepare and propose.
         PaxosState committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
@@ -287,7 +287,7 @@ public class MultiPaxos extends Replica {
     }
 
     private void handlePaxosProposal(Message<ProposalRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
         boolean accepted = false;
@@ -303,7 +303,7 @@ public class MultiPaxos extends Replica {
     MonotonicId fullLogBallot = MonotonicId.empty();
 
     private void handleFullLogPrepare(Message<PrepareRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         MonotonicId ballot = request.monotonicId;
         if (fullLogBallot.isAfter(ballot)) {
             sendOneway(message.getFromAddress(), new FullLogPrepareResponse(false, Collections.EMPTY_MAP), message.getCorrelationId());

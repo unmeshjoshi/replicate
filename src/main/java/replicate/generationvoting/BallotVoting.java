@@ -15,13 +15,10 @@ import replicate.generationvoting.messages.NextNumberRequest;
 import replicate.generationvoting.messages.PrepareRequest;
 import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.PrepareResponse;
-import replicate.wal.DurableKVStore;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 //the ballot/number needs to be persisted on each replica
@@ -39,9 +36,9 @@ public class BallotVoting extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesRequestAsync(RequestId.NextNumberRequest, this::handlePrepare, NextNumberRequest.class);
-        handlesMessage(RequestId.Prepare, this::handlePrepareRequest, PrepareRequest.class);
-        handlesMessage(RequestId.Promise, this::handlePrepareResponse, PrepareResponse.class);
+        handlesRequestAsync(MessageId.NextNumberRequest, this::handlePrepare, NextNumberRequest.class);
+        handlesMessage(MessageId.Prepare, this::handlePrepareRequest, PrepareRequest.class);
+        handlesMessage(MessageId.Promise, this::handlePrepareResponse, PrepareResponse.class);
     }
 
     private void handlePrepareResponse(Message<PrepareResponse> prepareResponseMessage) {
@@ -53,7 +50,6 @@ public class BallotVoting extends Replica {
         return proposeNumber(proposedNumber);
     }
 
-    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     private CompletableFuture<Integer> proposeNumber(int proposedNumber) {
         int maxAttempts = 5;
         AtomicInteger proposal = new AtomicInteger(proposedNumber);
@@ -61,7 +57,7 @@ public class BallotVoting extends Replica {
             var resultFuture = new CompletableFuture<Integer>();
             PrepareRequest nr = new PrepareRequest(proposal.incrementAndGet());
             var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
-            sendMessageToReplicas(callback, RequestId.Prepare, nr);
+            sendMessageToReplicas(callback, MessageId.Prepare, nr);
             callback.getQuorumFuture().whenComplete((result, exception) -> {
                 if (exception != null) {
                     resultFuture.completeExceptionally(exception);
@@ -70,13 +66,13 @@ public class BallotVoting extends Replica {
                 }
             });
             return resultFuture;
-        }, maxAttempts, retryExecutor);
+        }, maxAttempts, singularUpdateQueueExecutor);
 
     }
 
     private void handlePrepareRequest(Message<PrepareRequest> message) {
         //no synchronized in here..
-        var  prepareRequest = message.getRequest();
+        var  prepareRequest = message.messagePayload();
         boolean promised = false;
         if (prepareRequest.getProposedBallot() > ballot) { //accept only if 'strictly greater'
             ballot = prepareRequest.getProposedBallot();

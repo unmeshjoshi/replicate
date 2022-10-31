@@ -1,13 +1,13 @@
 package replicate.generationvoting.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class PrepareRequest extends Request {
+public class PrepareRequest extends MessagePayload {
     public final int proposedBallot;
 
     public PrepareRequest(int proposedBallot) {
-        super(RequestId.Prepare);
+        super(MessageId.Prepare);
         this.proposedBallot = proposedBallot;
     }
 

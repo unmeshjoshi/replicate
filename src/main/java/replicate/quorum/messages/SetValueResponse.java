@@ -1,13 +1,13 @@
 package replicate.quorum.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class SetValueResponse extends Request {
+public class SetValueResponse extends MessagePayload {
     public final String result;
 
     public SetValueResponse(String result) {
-        super(RequestId.SetValueResponse);
+        super(MessageId.SetValueResponse);
         this.result = result;
     }
 }

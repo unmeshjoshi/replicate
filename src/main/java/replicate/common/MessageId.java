@@ -3,7 +3,7 @@ package replicate.common;
 import java.util.HashMap;
 import java.util.Map;
 
-public enum RequestId {
+public enum MessageId {
     VoteRequest(0),
     VoteResponse(1),
     HeartBeatRequest(2),
@@ -56,12 +56,12 @@ public enum RequestId {
     PrepareOK(51),
     PrepareNAK(52), StartViewChange(53), DoViewChange(54), StartView(55);
 
-    public static RequestId valueOf(Integer id) {
+    public static MessageId valueOf(Integer id) {
         return map.get(id);
     }
 
     int id;
-    RequestId(int id) {
+    MessageId(int id) {
         this.id = id;
     }
 
@@ -69,9 +69,9 @@ public enum RequestId {
         return id;
     }
 
-    private static final Map<Integer, RequestId> map = new HashMap<>();
+    private static final Map<Integer, MessageId> map = new HashMap<>();
     static {
-        for (RequestId pageType : RequestId.values()) {
+        for (MessageId pageType : MessageId.values()) {
             map.put(pageType.id, pageType);
         }
     }

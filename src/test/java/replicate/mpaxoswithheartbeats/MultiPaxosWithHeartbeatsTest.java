@@ -40,7 +40,7 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
     }
 
     private List<MultiPaxosWithHeartbeats> getFollowers() {
-        return nodes.entrySet().stream().filter(e -> !e.getValue().isLeader()).map(e -> e.getValue()).collect(Collectors.toList());
+        return nodes.entrySet().stream().filter(e -> e.getValue().isFollower()).map(e -> e.getValue()).collect(Collectors.toList());
     }
 
     private MultiPaxosWithHeartbeats getLeader() {
@@ -85,6 +85,9 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
         byte[] command = new SetValueCommand("title", "Microservices").serialize();
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command), leader.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
+        System.out.println("leader = " + leader.getName());
+        System.out.println("followers = " + followers.stream().map(f -> f.getName()).collect(Collectors.toList()));
+
         leader.dropMessagesTo(follower1); //both way failure.
         follower1.dropMessagesTo(leader);
         leader.dropMessagesTo(follower2);
@@ -116,6 +119,8 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
         var oldLeader = leader;
         var newLeader = getLeaderFrom(Arrays.asList(follower1, follower2));
 
+        System.out.println("oldLeader = " + oldLeader.getName());
+        assertEquals("Old leader should still thinks that its the leader", oldLeader.role, ServerRole.Leader);
         assertTrue("Old leader should still thinks that its the leader", oldLeader.isLeader());
         assertTrue("New leader should have higher ballot than old leader", newLeader.fullLogBallot.isAfter(oldLeader.fullLogBallot));
 

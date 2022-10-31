@@ -1,9 +1,9 @@
 package replicate.quorumconsensus.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class SetValueResponse extends Request {
+public class SetValueResponse extends MessagePayload {
     String result;
 
     public SetValueResponse(String result) {
@@ -12,7 +12,7 @@ public class SetValueResponse extends Request {
     }
 
     private SetValueResponse() {
-        super(RequestId.SetValueResponse);
+        super(MessageId.SetValueResponse);
     }
 
     public String getResult() {

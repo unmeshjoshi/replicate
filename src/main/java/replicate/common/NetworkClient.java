@@ -43,9 +43,9 @@ public class NetworkClient {
             this.result = result;
         }
     }
-    public <Req extends Request, Res> Response<Res> sendAndReceive(Req request, InetAddressAndPort address, Class<Res> responseClass) throws IOException {
+    public <Req extends MessagePayload, Res> Response<Res> sendAndReceive(Req request, InetAddressAndPort address, Class<Res> responseClass) throws IOException {
         try(SocketClient<Object> client = new SocketClient<>(address)){
-            RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getRequestId().getId(),
+            RequestOrResponse getResponse = client.blockingSend(new RequestOrResponse(request.getMessageId().getId(),
                     JsonSerDes.serialize(request)));
             if (getResponse.isError()) {
                 return Response.error(JsonSerDes.deserialize(getResponse.getMessageBodyJson(), String.class));

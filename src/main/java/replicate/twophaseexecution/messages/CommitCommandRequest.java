@@ -1,9 +1,9 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class CommitCommandRequest extends Request {
+public class CommitCommandRequest extends MessagePayload {
     byte[] command;
     public CommitCommandRequest(byte[] serialize) {
         this();
@@ -15,6 +15,6 @@ public class CommitCommandRequest extends Request {
     }
 
     private CommitCommandRequest() {
-        super(RequestId.Commit);
+        super(MessageId.Commit);
     }
 }

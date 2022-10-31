@@ -120,8 +120,8 @@ public class SocketListener extends Thread implements Logging {
 
         private void handleRequest() {
             RequestOrResponse request = clientConnection.readRequest();
-            RequestId requestId = RequestId.valueOf(request.getRequestId());
-            server.accept(new Message<>(request, new Message.Header(request.getFromAddress(), request.getCorrelationId(), requestId), clientConnection));
+            MessageId messageId = MessageId.valueOf(request.getRequestId());
+            server.accept(new Message<>(request, new Message.Header(request.getFromAddress(), request.getCorrelationId(), messageId), clientConnection));
         }
 
         public void closeConnection() {

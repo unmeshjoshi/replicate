@@ -1,13 +1,13 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class ExecuteCommandRequest extends Request {
+public class ExecuteCommandRequest extends MessagePayload {
     public final byte[] command;
 
     public ExecuteCommandRequest(byte[] command) {
-        super(RequestId.ExcuteCommandRequest);
+        super(MessageId.ExcuteCommandRequest);
         this.command = command;
     }
 }

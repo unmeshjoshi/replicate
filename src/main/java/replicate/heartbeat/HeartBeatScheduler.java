@@ -22,7 +22,15 @@ public class HeartBeatScheduler {
 
     private ScheduledFuture<?> scheduledTask;
 
+    public void restart() {
+        stop();
+        start();
+    }
+
     public void start() {
+        if (scheduledTask != null && !scheduledTask.isCancelled()) {
+            throw new IllegalStateException("ScheduledTask should be cancelled before starting the task again");
+        }
         scheduledTask = executor.scheduleWithFixedDelay(new HeartBeatTask(action), heartBeatInterval, heartBeatInterval, TimeUnit.MILLISECONDS);
     }
     //</codeFragment>
@@ -30,23 +38,13 @@ public class HeartBeatScheduler {
     public void stop() {
         if (scheduledTask != null) {
             try {
-                scheduledTask.cancel(true);
-                logger.info("Stopped scheduler ");
+                boolean cancelled = scheduledTask.cancel(true);
+                logger.info("Stopped scheduled task " + cancelled);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
-
-    public void startWithRandomInterval() {
-        var randomInterval = randomBetween(1000, 2000);
-        scheduledTask = executor.scheduleWithFixedDelay(new HeartBeatTask(action), randomInterval, randomInterval, TimeUnit.MILLISECONDS);
-    }
-
-    private int randomBetween(int lowerBound, int upperBound) {
-        return new Random().nextInt(upperBound - lowerBound) + lowerBound;
-    }
-
 
     private static class HeartBeatTask implements Runnable {
         private Runnable action;

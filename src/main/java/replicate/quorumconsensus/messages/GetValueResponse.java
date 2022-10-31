@@ -1,10 +1,10 @@
 package replicate.quorumconsensus.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 import replicate.quorumconsensus.StoredValue;
 
-public class GetValueResponse extends Request {
+public class GetValueResponse extends MessagePayload {
     StoredValue value;
 
     public GetValueResponse(StoredValue value) {
@@ -13,7 +13,7 @@ public class GetValueResponse extends Request {
     }
 
     private GetValueResponse() {
-        super(RequestId.GetValueResponse);
+        super(MessageId.GetValueResponse);
     }
 
     public StoredValue getValue() {

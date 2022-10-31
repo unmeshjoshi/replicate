@@ -1,14 +1,14 @@
 package replicate.mpaxoswithheartbeats;
 
 import replicate.common.MonotonicId;
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class HeartbeatRequest extends Request {
+public class HeartbeatRequest extends MessagePayload {
     public final MonotonicId ballot;
 
     public HeartbeatRequest(MonotonicId ballot) {
-        super(RequestId.HeartBeatRequest);
+        super(MessageId.HeartBeatRequest);
         this.ballot = ballot;
     }
 }

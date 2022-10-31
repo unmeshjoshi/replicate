@@ -1,9 +1,9 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class ProposeResponse extends Request {
+public class ProposeResponse extends MessagePayload {
     private boolean isAccepted;
 
     public ProposeResponse(boolean isAccepted) {
@@ -16,6 +16,6 @@ public class ProposeResponse extends Request {
     }
 
     public ProposeResponse() {
-        super(RequestId.ProposeResponse);
+        super(MessageId.ProposeResponse);
     }
 }

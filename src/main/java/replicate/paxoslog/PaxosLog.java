@@ -24,8 +24,6 @@ import replicate.wal.SetValueCommand;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 public class PaxosLog extends Replica {
@@ -49,18 +47,18 @@ public class PaxosLog extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
-        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
+        handlesRequestAsync(MessageId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(MessageId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
-        handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
+        handlesMessage(MessageId.Prepare, this::handlePrepare, PrepareRequest.class);
+        handlesMessage(MessageId.Promise, this::handlePromise, PrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
-        handlesMessage(RequestId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
+        handlesMessage(MessageId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
+        handlesMessage(MessageId.ProposeResponse, this::handleProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class);
-        handlesMessage(RequestId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
+        handlesMessage(MessageId.Commit, this::handlePaxosCommit, CommitRequest.class);
+        handlesMessage(MessageId.CommitResponse, this::handleCommitResponse, CommitResponse.class);
     }
 
     private void handleCommitResponse(Message<CommitResponse> commitResponseMessage) {
@@ -110,7 +108,6 @@ public class PaxosLog extends Replica {
         });
     }
 
-    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor();
     private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
@@ -118,7 +115,7 @@ public class PaxosLog extends Replica {
             MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
             CompletableFuture<PaxosResult> result = doPaxos(monotonicId, logIndex, value, callback);
             return result;
-        }, maxAttempts, retryExecutor);
+        }, maxAttempts, singularUpdateQueueExecutor);
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
@@ -151,25 +148,25 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
-        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, MessageId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
 
     private CompletableFuture<byte[]> sendProposeRequest(int index, byte[] proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
-        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
+        sendMessageToReplicas(proposalCallback, MessageId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
 
     private CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> sendPrepareRequest(int index, MonotonicId monotonicId) {
         var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
-        sendMessageToReplicas(callback, RequestId.Prepare, new PrepareRequest(index, monotonicId));
+        sendMessageToReplicas(callback, MessageId.Prepare, new PrepareRequest(index, monotonicId));
         return callback.getQuorumFuture();
     }
 
     private void handlePaxosCommit(Message<CommitRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         var paxosState = getOrCreatePaxosState(request.index);
         //Because commit is invoked only after successful prepare and propose. accept a commit message
         var committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
@@ -223,7 +220,7 @@ public class PaxosLog extends Replica {
     }
 
     private void handlePaxosProposal(Message<ProposalRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
         var accepted = false;
@@ -239,7 +236,7 @@ public class PaxosLog extends Replica {
 
 
     public void handlePrepare(Message<PrepareRequest> message) {
-        var request = message.getRequest();
+        var request = message.messagePayload();
         var paxosState = getOrCreatePaxosState(request.index);
         boolean promised = false;
         if (paxosState.canPromise(request.monotonicId)) {

@@ -1,6 +1,6 @@
 package replicate.common;
 
-class Stage<Req extends Request> {
+class Stage<Req extends MessagePayload> {
     Message<RequestOrResponse> message;
     Req request;
 

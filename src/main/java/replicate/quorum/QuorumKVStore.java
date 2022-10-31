@@ -70,16 +70,16 @@ public class QuorumKVStore extends Replica {
     @Override
     protected void registerHandlers() {
         //messages handled by replicas.
-        handlesMessage(RequestId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
-        handlesMessage(RequestId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
-        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        handlesMessage(RequestId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
+        handlesMessage(MessageId.VersionedSetValueRequest, this::handleSetValueRequest, VersionedSetValueRequest.class);
+        handlesMessage(MessageId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
+        handlesMessage(MessageId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        handlesMessage(MessageId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
 
         //client requests
         //These handles send messages to replicas using Replica::sendMessageToReplicas
         //It uses RequestWaitingList to wait for the corresponding response messages.
-        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(MessageId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(MessageId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     private void handleGetValueResponse(Message<GetValueResponse> message) {
@@ -102,7 +102,7 @@ public class QuorumKVStore extends Replica {
                 clientSetValueRequest.getRequestNumber(),
                 clientState.getTimestamp()); //assign timestamp to request.
         AsyncQuorumCallback<String> quorumCallback = new AsyncQuorumCallback<String>(getNoOfReplicas());
-        sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        sendMessageToReplicas(quorumCallback, MessageId.VersionedSetValueRequest, requestToReplicas);
         return quorumCallback.getQuorumFuture().thenApply(r -> new SetValueResponse("Success"));
     }
 
@@ -111,7 +111,7 @@ public class QuorumKVStore extends Replica {
         logger.info("Handling get request for " + clientRequest.getKey() + " in " + getName());
         GetValueRequest requestToReplicas = new GetValueRequest(clientRequest.getKey());
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
-        sendMessageToReplicas(quorumCallback, RequestId.VersionedGetValueRequest, requestToReplicas);
+        sendMessageToReplicas(quorumCallback, MessageId.VersionedGetValueRequest, requestToReplicas);
         return quorumCallback.getQuorumFuture().thenComposeAsync((responses) -> {
             return new ReadRepairer(this, responses, config.isAsyncReadRepair()).readRepair();
         });
@@ -158,14 +158,14 @@ public class QuorumKVStore extends Replica {
 
 
     private void handleGetValueRequest(Message<GetValueRequest> message) {
-        GetValueRequest getValueRequest = message.getRequest();
+        GetValueRequest getValueRequest = message.messagePayload();
         StoredValue storedValue = get(getValueRequest.getKey());
         logger.info("Getting value for " + getValueRequest.getKey() + " :" + storedValue + " from " + getName());
         sendOneway(message.getFromAddress(), new GetValueResponse(storedValue), message.getCorrelationId());
     }
 
     private void handleSetValueRequest(Message<VersionedSetValueRequest> message) {
-        var setValueRequest = message.getRequest();
+        var setValueRequest = message.messagePayload();
         StoredValue storedValue = get(setValueRequest.getKey());
 
         if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.

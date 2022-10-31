@@ -1,10 +1,10 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class PrepareRequest extends Request {
+public class PrepareRequest extends MessagePayload {
     public PrepareRequest() {
-        super(RequestId.Prepare);
+        super(MessageId.Prepare);
     }
 }

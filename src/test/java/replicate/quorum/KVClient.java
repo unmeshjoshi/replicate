@@ -1,7 +1,7 @@
 package replicate.quorum;
 
 import replicate.common.JsonSerDes;
-import replicate.common.RequestId;
+import replicate.common.MessageId;
 import replicate.common.RequestOrResponse;
 import replicate.net.InetAddressAndPort;
 import replicate.net.SocketClient;
@@ -41,13 +41,13 @@ public class KVClient {
 
     private RequestOrResponse createGetValueRequest(String key) {
         GetValueRequest getValueRequest = new GetValueRequest(key);
-        RequestOrResponse requestOrResponse1 = new RequestOrResponse(RequestId.GetValueRequest.getId(), JsonSerDes.serialize(getValueRequest), new Random().nextInt());
+        RequestOrResponse requestOrResponse1 = new RequestOrResponse(MessageId.GetValueRequest.getId(), JsonSerDes.serialize(getValueRequest), new Random().nextInt());
         return requestOrResponse1;
     }
 
     private RequestOrResponse createSetValueRequest(String key, String value) {
         SetValueRequest setValueRequest = new SetValueRequest(key, value);
-        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.SetValueRequest.getId(),
+        RequestOrResponse requestOrResponse = new RequestOrResponse(MessageId.SetValueRequest.getId(),
                 JsonSerDes.serialize(setValueRequest), new Random().nextInt());
         return requestOrResponse;
     }

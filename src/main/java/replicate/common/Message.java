@@ -6,30 +6,30 @@ import replicate.net.InetAddressAndPort;
 
 
 public class Message<T> {
-    private final T clientRequest;
+    private final T payload;
     private final ClientConnection clientSocket;
     final Header header;
 
-    public Message(T t, Header header) {
-        this(t, header, null);
+    public Message(T payload, Header header) {
+        this(payload, header, null);
     }
 
-    public Message(T t,  Header header, ClientConnection clientSocket) {
+    public Message(T payload,  Header header, ClientConnection clientSocket) {
         this.header = header;
-        this.clientRequest = t;
+        this.payload = payload;
         this.clientSocket = clientSocket;
     }
 
-    public T getRequest() {
-        return clientRequest;
+    public T messagePayload() {
+        return payload;
     }
 
     public ClientConnection getClientConnection() {
         return clientSocket;
     }
 
-    public RequestId getRequestId() {
-        return header.requestId;
+    public MessageId getMessageId() {
+        return header.messageId;
     }
 
     public int getCorrelationId() {
@@ -40,6 +40,6 @@ public class Message<T> {
         return header.fromAddress;
     }
 
-    public record Header(InetAddressAndPort fromAddress, int correlationId, RequestId requestId){};
+    public record Header(InetAddressAndPort fromAddress, int correlationId, MessageId messageId){};
 
 }

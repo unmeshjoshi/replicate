@@ -1,10 +1,10 @@
 package replicate.quorum.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
 //TODO: remove getters
-public class SetValueRequest extends Request {
+public class SetValueRequest extends MessagePayload {
     private long clientId;
     private int requestNumber;
     private String key;
@@ -13,11 +13,11 @@ public class SetValueRequest extends Request {
 
     //for jaxon
     private SetValueRequest() {
-        super(RequestId.SetValueRequest);
+        super(MessageId.SetValueRequest);
     }
 
     public SetValueRequest(String key, String value, long clientId, int requestNumber, long timestamp) {
-        super(RequestId.SetValueRequest);
+        super(MessageId.SetValueRequest);
         this.key = key;
         this.value = value;
         this.clientId = clientId;

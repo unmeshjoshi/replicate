@@ -27,17 +27,17 @@ public class QuorumConsensus extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesMessage(RequestId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
-        handlesMessage(RequestId.GetVersionResponse, this::handleGetVersionResponse, GetVersionResponse.class);
+        handlesMessage(MessageId.GetVersion, this::handleGetVersionRequest, GetVersionRequest.class);
+        handlesMessage(MessageId.GetVersionResponse, this::handleGetVersionResponse, GetVersionResponse.class);
 
-        handlesMessage(RequestId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
-        handlesMessage(RequestId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
+        handlesMessage(MessageId.VersionedSetValueRequest, this::handlePeerSetValueRequest, VersionedSetValueRequest.class);
+        handlesMessage(MessageId.SetValueResponse, this::handleSetValueResponse, SetValueResponse.class);
 
-        handlesMessage(RequestId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
-        handlesMessage(RequestId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
+        handlesMessage(MessageId.VersionedGetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
+        handlesMessage(MessageId.GetValueResponse, this::handleGetValueResponse, GetValueResponse.class);
 
-        handlesRequestAsync(RequestId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
-        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(MessageId.SetValueRequest, this::handleClientSetValueRequest, SetValueRequest.class);
+        handlesRequestAsync(MessageId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
     }
 
     private void handleGetValueResponse(Message<GetValueResponse> getValueResponseMessage) {
@@ -55,7 +55,7 @@ public class QuorumConsensus extends Replica {
     private CompletableFuture<SetValueResponse> handleClientSetValueRequest(SetValueRequest clientSetValueRequest) {
         var getVersion = new GetVersionRequest(clientSetValueRequest.key);
         var versionCallback = new AsyncQuorumCallback<GetVersionResponse>(getNoOfReplicas());
-        sendMessageToReplicas(versionCallback, RequestId.GetVersion, getVersion);
+        sendMessageToReplicas(versionCallback, MessageId.GetVersion, getVersion);
         var quorumFuture = versionCallback.getQuorumFuture();
         return quorumFuture.thenCompose((r) ->
                 assignVersionAndSetValue(clientSetValueRequest, getExistingVersions(r)));
@@ -71,7 +71,7 @@ public class QuorumConsensus extends Replica {
                 getNextId(existingVersions)
         ); //assign timestamp to request.
         var quorumCallback = new AsyncQuorumCallback<SetValueResponse>(getNoOfReplicas());
-        sendMessageToReplicas(quorumCallback, RequestId.VersionedSetValueRequest, requestToReplicas);
+        sendMessageToReplicas(quorumCallback, MessageId.VersionedSetValueRequest, requestToReplicas);
         var quorumFuture = quorumCallback.getQuorumFuture();
         return quorumFuture.thenApply(r -> {
             //TODO:Find how to handle multiple values;
@@ -96,7 +96,7 @@ public class QuorumConsensus extends Replica {
 
     private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest request) {
         var asyncQuorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
-        sendMessageToReplicas(asyncQuorumCallback, RequestId.VersionedGetValueRequest, request);
+        sendMessageToReplicas(asyncQuorumCallback, MessageId.VersionedGetValueRequest, request);
         return asyncQuorumCallback.getQuorumFuture()
                 .thenCompose((nodesToValues)-> {
                     return new ReadRepairer(this, nodesToValues).readRepair();
@@ -104,20 +104,20 @@ public class QuorumConsensus extends Replica {
     }
 
     private void handleGetVersionRequest(Message<GetVersionRequest> message) {
-        var getVersionRequest = message.getRequest();
+        var getVersionRequest = message.messagePayload();
         StoredValue storedValue = get(getVersionRequest.getKey());
         MonotonicId version = (storedValue == null) ? MonotonicId.empty() : storedValue.getVersion();
         sendOneway(message.getFromAddress(), new GetVersionResponse(version), message.getCorrelationId());
     }
 
     private void handleGetValueRequest(Message<GetValueRequest> message) {
-        var getValueRequest = message.getRequest();
+        var getValueRequest = message.messagePayload();
         StoredValue storedValue = get(getValueRequest.getKey());
         sendOneway(message.getFromAddress(), new GetValueResponse(storedValue), message.getCorrelationId());
     }
 
     private void handlePeerSetValueRequest(Message<VersionedSetValueRequest> message) {
-        var setValueRequest = message.getRequest();
+        var setValueRequest = message.messagePayload();
         StoredValue storedValue = get(setValueRequest.key);
         if (setValueRequest.version.isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
             put(setValueRequest.key, new StoredValue(setValueRequest.key, setValueRequest.value, setValueRequest.version));

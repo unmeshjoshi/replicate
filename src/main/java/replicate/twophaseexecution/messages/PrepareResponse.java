@@ -1,12 +1,12 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class PrepareResponse extends Request {
+public class PrepareResponse extends MessagePayload {
     public final byte[] command;
     public PrepareResponse(byte[] command) {
-        super(RequestId.Promise);
+        super(MessageId.Promise);
         this.command = command;
     }
 }

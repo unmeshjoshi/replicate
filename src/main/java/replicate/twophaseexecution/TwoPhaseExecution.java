@@ -72,12 +72,12 @@ public class TwoPhaseExecution extends Replica {
 
     @Override
     protected void registerHandlers() {
-        handlesMessage(RequestId.ProposeRequest, this::handlePropose, ProposeRequest.class);
-        handlesMessage(RequestId.ProposeResponse, this::handleProposeResponse, ProposeResponse.class);
-        handlesMessage(RequestId.Commit, this::handleCommit, CommitCommandRequest.class);
-        handlesMessage(RequestId.CommitResponse, this::handleCommitReponse, CommitCommandResponse.class);
+        handlesMessage(MessageId.ProposeRequest, this::handlePropose, ProposeRequest.class);
+        handlesMessage(MessageId.ProposeResponse, this::handleProposeResponse, ProposeResponse.class);
+        handlesMessage(MessageId.Commit, this::handleCommit, CommitCommandRequest.class);
+        handlesMessage(MessageId.CommitResponse, this::handleCommitReponse, CommitCommandResponse.class);
 
-        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class);
+        handlesRequestAsync(MessageId.ExcuteCommandRequest, this::handleExecute, ExecuteCommandRequest.class);
     }
 
     private void handleCommitReponse(Message<CommitCommandResponse> commitCommandResponseMessage) {
@@ -89,7 +89,7 @@ public class TwoPhaseExecution extends Replica {
     }
 
     private void handleCommit(Message<CommitCommandRequest> message) {
-        CommitCommandRequest t = message.getRequest();
+        CommitCommandRequest t = message.messagePayload();
         Command command = getCommand(t.getCommand());
         acceptedCommand = command;
         if (command instanceof CompareAndSwap) {
@@ -124,11 +124,11 @@ public class TwoPhaseExecution extends Replica {
     private void executeTwoPhases(byte[] command) {
         ProposeRequest proposal = new ProposeRequest(command);
         AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
-        sendMessageToReplicas(proposeQuorumCallback, proposal.getRequestId(), proposal);
+        sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
         proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
             AsyncQuorumCallback<CommitCommandResponse> commitQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
             CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
-            sendMessageToReplicas(commitQuorumCallback, commitCommandRequest.getRequestId(), commitCommandRequest);
+            sendMessageToReplicas(commitQuorumCallback, commitCommandRequest.getMessageId(), commitCommandRequest);
             return commitQuorumCallback.getQuorumFuture();
         });
     }
@@ -138,7 +138,7 @@ public class TwoPhaseExecution extends Replica {
     }
 
     private void handlePropose(Message<ProposeRequest> message) {
-        var proposeRequest = message.getRequest();
+        var proposeRequest = message.messagePayload();
         //dont accept lower numbered commands.
         acceptedCommand = getCommand(proposeRequest.getCommand());
         sendOneway(message.getFromAddress(), new ProposeResponse(true), message.getCorrelationId());

@@ -33,6 +33,7 @@ enum ServerRole {
 }
 
 public class MultiPaxosWithHeartbeats extends Replica {
+    Random random = new Random();
     private static Logger logger = LogManager.getLogger(MultiPaxosWithHeartbeats.class);
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     Duration randomElectionTimeout;
@@ -46,34 +47,34 @@ public class MultiPaxosWithHeartbeats extends Replica {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
-        this.role = ServerRole.Follower;
+        becomeFollower(fullLogBallot);
         super.markHeartbeatReceived(); //
         setRandomElectionTimeout();
     }
 
     private void setRandomElectionTimeout() {
-        this.randomElectionTimeout = heartbeatTimeout.plus(Duration.ofMillis(new Random().nextInt(1, 1000)));
+        this.randomElectionTimeout = heartbeatTimeout.plus(Duration.ofMillis(random.nextLong(heartbeatTimeout.toMillis())));
         logger.info(getName() + " set randomElectionTimeout=" + randomElectionTimeout);
     }
 
     @Override
     protected void registerHandlers() {
         //client rpc
-        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
-        handlesRequestAsync(RequestId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
+        handlesRequestAsync(MessageId.ExcuteCommandRequest, this::handleClientExecuteCommand, ExecuteCommandRequest.class);
+        handlesRequestAsync(MessageId.GetValueRequest, this::handleClientGetValueRequest, GetValueRequest.class);
 
         //peer to peer message passing
-        handlesMessage(RequestId.Prepare, this::handleFullLogPrepare, PrepareRequest.class);
-        handlesMessage(RequestId.Promise, this::handleFullLogPromise, FullLogPrepareResponse.class);
+        handlesMessage(MessageId.Prepare, this::handleFullLogPrepare, PrepareRequest.class);
+        handlesMessage(MessageId.Promise, this::handleFullLogPromise, FullLogPrepareResponse.class);
 
-        handlesMessage(RequestId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
-        handlesMessage(RequestId.ProposeResponse, this::handlePaxosProposalResponse, ProposalResponse.class);
+        handlesMessage(MessageId.ProposeRequest, this::handlePaxosProposal, ProposalRequest.class);
+        handlesMessage(MessageId.ProposeResponse, this::handlePaxosProposalResponse, ProposalResponse.class);
 
-        handlesMessage(RequestId.Commit, this::handlePaxosCommit, CommitRequest.class);
-        handlesMessage(RequestId.CommitResponse, this::handlePaxosCommitResponse, CommitResponse.class);
+        handlesMessage(MessageId.Commit, this::handlePaxosCommit, CommitRequest.class);
+        handlesMessage(MessageId.CommitResponse, this::handlePaxosCommitResponse, CommitResponse.class);
 
-        handlesMessage(RequestId.HeartBeatRequest, this::handleHeartbeatRequest, HeartbeatRequest.class);
-        handlesMessage(RequestId.HeartBeatResponse, this::handleHeartbeatResponse, HeartbeatResponse.class);
+        handlesMessage(MessageId.HeartBeatRequest, this::handleHeartbeatRequest, HeartbeatRequest.class);
+        handlesMessage(MessageId.HeartBeatResponse, this::handleHeartbeatResponse, HeartbeatResponse.class);
     }
 
     private void handlePaxosCommitResponse(Message<CommitResponse> commitResponseMessage) {
@@ -89,21 +90,21 @@ public class MultiPaxosWithHeartbeats extends Replica {
     }
 
     private void handleHeartbeatResponse(Message<HeartbeatResponse> heartbeatResponseMessage) {
-        if (!heartbeatResponseMessage.getRequest().success) {
-            becomeFollower(heartbeatResponseMessage.getRequest().fullLogBallot);
+        if (!heartbeatResponseMessage.messagePayload().success) {
+            becomeFollower(heartbeatResponseMessage.messagePayload().fullLogBallot);
         }
     }
 
     private void handleHeartbeatRequest(Message<HeartbeatRequest> message) {
         markHeartbeatReceived();
-        if (message.getRequest().ballot.isAfter(this.fullLogBallot)) {
-            becomeFollower(message.getRequest().ballot);
+        if (message.messagePayload().ballot.isAfter(this.fullLogBallot)) {
+            becomeFollower(message.messagePayload().ballot);
             HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (message.getRequest().ballot.equals(this.fullLogBallot)) {
+        } else if (message.messagePayload().ballot.equals(this.fullLogBallot)) {
             HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (this.fullLogBallot.isAfter(message.getRequest().ballot)) {
+        } else if (this.fullLogBallot.isAfter(message.messagePayload().ballot)) {
             HeartbeatResponse request = new HeartbeatResponse(false, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
         }
@@ -124,15 +125,13 @@ public class MultiPaxosWithHeartbeats extends Replica {
         if (timeSinceLastHeartbeat.compareTo(randomElectionTimeout) > 0) {
             logger.info(getName() + " heartbeat timedOut after " + timeSinceLastHeartbeat.toMillis() + "ms");
             logger.info(getName() + " role is " + role);
-            becomeCandidate();
+            if (role == ServerRole.Leader) {
+                System.out.println("Should not be triggering election in leader role");
+            }
+            singularUpdateQueueExecutor.submit(()-> {
+                leaderElection();
+            });
         }
-    }
-
-    private void becomeCandidate() {
-        this.role = ServerRole.LookingForLeader;
-        heartbeatChecker.stop();
-        heartBeatScheduler.stop();
-        leaderElection();
     }
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
@@ -148,7 +147,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
         CompletableFuture<PaxosResult> appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
         return appendFuture.thenCompose(r -> commitCallback.getFuture())
-                .thenApply(r -> new GetValueResponse(Optional.ofNullable(kv.get(request.getKey()))));
+                .thenApplyAsync(r -> new GetValueResponse(Optional.ofNullable(kv.get(request.getKey()))), singularUpdateQueueExecutor);
     }
 
     RequestWaitingList requestWaitingList;
@@ -187,7 +186,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
-        sendMessageToReplicas(commitCallback, RequestId.Commit, new CommitRequest(index, value, monotonicId));
+        sendMessageToReplicas(commitCallback, MessageId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
 
@@ -195,23 +194,33 @@ public class MultiPaxosWithHeartbeats extends Replica {
     private CompletableFuture<byte[]> sendProposeRequest(int index, byte[] proposedValue, MonotonicId monotonicId) {
         var proposalCallback = new AsyncQuorumCallback<ProposalResponse>(getNoOfReplicas(), p -> p.success);
         logger.debug(getName() + " proposing " + proposedValue + " for index " + index);
-        sendMessageToReplicas(proposalCallback, RequestId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
+        sendMessageToReplicas(proposalCallback, MessageId.ProposeRequest, new ProposalRequest(monotonicId, index, proposedValue));
         return proposalCallback.getQuorumFuture().thenApply(r -> proposedValue);
     }
     //convert to message.All state changes should happen via message to SingularUpdateQueue.
+
+    private void becomeCandidate() {
+        this.role = ServerRole.LookingForLeader;
+        heartbeatChecker.stop();
+        heartBeatScheduler.stop();
+    }
+
     public void leaderElection() {
         logger.info(getName() + " triggering election");
-        heartbeatChecker.stop();
+        becomeCandidate();
         //if future completes successfully, phase1 is complete and this node can be the leader.
-        runElection().whenCompleteAsync((result, throwable) -> {
+        runElection().whenCompleteAsync((winningBallot, throwable) -> {
             if (throwable != null) {
                 logger.error(getName() + " could not complete election");
                 logger.error(throwable);
+                becomeFollower(this.fullLogBallot); //become follower and expect leader to send heartbeats.
                 return;
 
             }
-            becomeLeader(result);
-        });
+            if (role.equals(ServerRole.LookingForLeader) && this.fullLogBallot.equals(winningBallot)) {
+                becomeLeader(winningBallot);
+            }
+        }, singularUpdateQueueExecutor);
     }
 
     private void becomeLeader(MonotonicId result) {
@@ -219,7 +228,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
         this.fullLogBallot = result;
         this.role = ServerRole.Leader;
         heartbeatChecker.stop();
-        heartBeatScheduler.start();
+        heartBeatScheduler.restart();
         logger.info(getName() + " is leader for " + result);
     }
 
@@ -281,12 +290,12 @@ public class MultiPaxosWithHeartbeats extends Replica {
     private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
         var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r -> r.promised);
         logger.info(getName() + " sending prepare request for " + fullLogPromisedGeneration);
-        sendMessageToReplicas(prepareCallback, RequestId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
+        sendMessageToReplicas(prepareCallback, MessageId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
         return prepareCallback.getQuorumFuture();
     }
 
     private void handlePaxosCommit(Message<CommitRequest> message) {
-        CommitRequest request = message.getRequest();
+        CommitRequest request = message.messagePayload();
         var paxosState = getOrCreatePaxosState(request.index);
         //Accept commit, because commit is invoked only after successful prepare and propose.
         PaxosState committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
@@ -331,7 +340,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
     }
 
     private void handlePaxosProposal(Message<ProposalRequest> message) {
-        ProposalRequest request = message.getRequest();
+        ProposalRequest request = message.messagePayload();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
         if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
@@ -347,22 +356,26 @@ public class MultiPaxosWithHeartbeats extends Replica {
     MonotonicId fullLogBallot = MonotonicId.empty();
 
     private void handleFullLogPrepare(Message<PrepareRequest> message) {
-        MonotonicId ballot = message.getRequest().monotonicId;
+        MonotonicId ballot = message.messagePayload().monotonicId;
         if (fullLogBallot.isAfter(ballot)) {
             logger.info(getName() + " rejecting ballot " + ballot + " promisedBallot=" + fullLogBallot);
             sendOneway(message.getFromAddress(), new FullLogPrepareResponse(false, Collections.EMPTY_MAP), message.getCorrelationId());
             return;
         }
-        becomeFollower(ballot);
+        logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
+        fullLogBallot = ballot;
+        if (!message.getFromAddress().equals(getPeerConnectionAddress())) {
+            becomeFollower(ballot);
+        }
         sendOneway(message.getFromAddress(), new FullLogPrepareResponse(true, getUncommitedValues()), message.getCorrelationId());
     }
 
     private void becomeFollower(MonotonicId ballot) {
-        logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
+        logger.info(getName() + " becoming follower for " + ballot);
         fullLogBallot = ballot;
         this.role = ServerRole.Follower;
         heartBeatScheduler.stop();
-        heartbeatChecker.start();
+        heartbeatChecker.restart();
         markHeartbeatReceived();
         setRandomElectionTimeout();
     }
@@ -399,7 +412,6 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     @Override
     public void onStart() {
-        heartbeatChecker.start();
     }
 
     public boolean isFollower() {

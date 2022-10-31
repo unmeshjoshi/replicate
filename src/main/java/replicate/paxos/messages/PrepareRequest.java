@@ -1,14 +1,14 @@
 package replicate.paxos.messages;
 
 import replicate.common.MonotonicId;
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class PrepareRequest extends Request {
+public class PrepareRequest extends MessagePayload {
     public final MonotonicId monotonicId;
 
     public PrepareRequest(MonotonicId monotonicId) {
-        super(RequestId.Prepare);
+        super(MessageId.Prepare);
         this.monotonicId = monotonicId;
     }
 }

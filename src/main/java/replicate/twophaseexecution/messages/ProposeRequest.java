@@ -1,9 +1,9 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class ProposeRequest extends Request {
+public class ProposeRequest extends MessagePayload {
     byte[] command;
     public ProposeRequest(byte[] serialize) {
         this();
@@ -15,6 +15,6 @@ public class ProposeRequest extends Request {
     }
 
     private ProposeRequest() {
-        super(RequestId.ProposeRequest);
+        super(MessageId.ProposeRequest);
     }
 }

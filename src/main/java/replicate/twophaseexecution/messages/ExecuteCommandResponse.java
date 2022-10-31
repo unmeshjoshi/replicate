@@ -1,11 +1,11 @@
 package replicate.twophaseexecution.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
 import java.util.Optional;
 
-public class ExecuteCommandResponse extends Request {
+public class ExecuteCommandResponse extends MessagePayload {
     Optional<String> response;
     boolean isCommitted;
     public ExecuteCommandResponse(Optional<String> response, boolean isCommitted) {
@@ -31,6 +31,6 @@ public class ExecuteCommandResponse extends Request {
     }
 
     private ExecuteCommandResponse() {
-        super(RequestId.ExcuteCommandResponse);
+        super(MessageId.ExcuteCommandResponse);
     }
 }

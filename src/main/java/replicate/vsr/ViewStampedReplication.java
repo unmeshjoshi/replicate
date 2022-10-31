@@ -36,9 +36,11 @@ public class ViewStampedReplication extends Replica {
         logger.info(getName() + " checking heartbeat status at " + clock.nanoTime());
         Duration timeSinceLastHeartbeat = elapsedTimeSinceLastHeartbeat();
         if (timeSinceLastHeartbeat.compareTo(heartbeatTimeout) > 0) {
-            logger.info(getName() + " heartbeat timedOut after " + timeSinceLastHeartbeat.toMillis() + "ms");
-            resetMessageCounters();
-            transitionToViewChange();
+            singularUpdateQueueExecutor.submit(()-> {
+                logger.info(getName() + " heartbeat timedOut after " + timeSinceLastHeartbeat.toMillis() + "ms");
+                resetMessageCounters();
+                transitionToViewChange();
+            });
         }
     }
 
@@ -52,7 +54,7 @@ public class ViewStampedReplication extends Replica {
         heartBeatScheduler.stop();
         this.status = Status.ViewChange;
         viewNumber = viewNumber + 1;
-        sendOnewayMessageToReplicas(new StartViewChange(RequestId.StartViewChange, viewNumber, getReplicaIndex()));
+        sendOnewayMessageToReplicas(new StartViewChange(MessageId.StartViewChange, viewNumber, getReplicaIndex()));
     }
 
     public InetAddressAndPort getPrimaryAddress() {
@@ -84,6 +86,10 @@ public class ViewStampedReplication extends Replica {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         this.configuration = new Configuration(peerAddresses);
         pendingRquests = new RequestWaitingList(clock, Duration.ofMillis(1000));
+    }
+
+    @Override
+    public void onStart() {
         if (isPrimary()) {
             heartBeatScheduler.start(); //start sending heartbeats
         } else {
@@ -94,19 +100,19 @@ public class ViewStampedReplication extends Replica {
     @Override
     protected void registerHandlers() {
         //client interface rpc
-        handlesRequestAsync(RequestId.ExcuteCommandRequest, this::handleClientRequest, ExecuteCommandRequest.class);
+        handlesRequestAsync(MessageId.ExcuteCommandRequest, this::handleClientRequest, ExecuteCommandRequest.class);
 
         //peers communicate by message passing.
-        handlesMessage(RequestId.Prepare, this::handlePrepare, Prepare.class);
-        handlesMessage(RequestId.PrepareOK, this::handlePrepareOk, PrepareOK.class);
-        handlesMessage(RequestId.Commit, this::handleCommit, Commit.class);
-        handlesMessage(RequestId.StartViewChange, this::handleStartViewChange, StartViewChange.class);
-        handlesMessage(RequestId.DoViewChange, this::handleDoViewChange, DoViewChange.class);
-        handlesMessage(RequestId.StartView, this::handleStartView, StartView.class);
+        handlesMessage(MessageId.Prepare, this::handlePrepare, Prepare.class);
+        handlesMessage(MessageId.PrepareOK, this::handlePrepareOk, PrepareOK.class);
+        handlesMessage(MessageId.Commit, this::handleCommit, Commit.class);
+        handlesMessage(MessageId.StartViewChange, this::handleStartViewChange, StartViewChange.class);
+        handlesMessage(MessageId.DoViewChange, this::handleDoViewChange, DoViewChange.class);
+        handlesMessage(MessageId.StartView, this::handleStartView, StartView.class);
     }
 
     private void handleStartView(Message<StartView> message) {
-        var startView = message.getRequest();
+        var startView = message.messagePayload();
         logger.info(getName()  + " starting view " + this.viewNumber);
         this.log = startView.log;
         this.opNumber = startView.opNumber;
@@ -120,7 +126,7 @@ public class ViewStampedReplication extends Replica {
     List<DoViewChange> doViewChangeMessages = new ArrayList<>();
 
     private void handleDoViewChange(Message<DoViewChange> message) {
-        var doViewChange = message.getRequest();
+        var doViewChange = message.messagePayload();
         if (viewNumber > doViewChange.viewNumber) { //ignore messages from smaller view numbers;
             return;
         }
@@ -154,7 +160,7 @@ public class ViewStampedReplication extends Replica {
     }
 
     private void handleStartViewChange(Message<StartViewChange> message) {
-        var startViewChange = message.getRequest();
+        var startViewChange = message.messagePayload();
         if (viewNumber < startViewChange.viewNumber) {
             transitionToViewChange();
         }
@@ -167,7 +173,7 @@ public class ViewStampedReplication extends Replica {
     }
 
     private void handleCommit(Message<Commit> message) {
-        var commit = message.getRequest();
+        var commit = message.messagePayload();
         logger.info(getName() + " Handling commit/heartbeat request from " + message.getFromAddress() + " at " + super.clock.now());
         markHeartbeatReceived();
         //TODO: if missing log entries upto commitNumber, initiate state change
@@ -178,7 +184,7 @@ public class ViewStampedReplication extends Replica {
     }
 
     private void handlePrepareOk(Message<PrepareOK> message) {
-        var prepareOK = message.getRequest();
+        var prepareOK = message.messagePayload();
         LogEntry logEntry = log.get(prepareOK.opNumber);
         logEntry.prepareOK();
         maybeIncrementCommitNumberAndApply();
@@ -254,7 +260,7 @@ public class ViewStampedReplication extends Replica {
     }
 
     public void handlePrepare(Message<Prepare> message) {
-        Prepare prepare = message.getRequest();
+        Prepare prepare = message.messagePayload();
         if (this.viewNumber == prepare.viewNumber) {
             this.opNumber = this.opNumber + 1;
             this.log.put(opNumber, new LogEntry(prepare.request));

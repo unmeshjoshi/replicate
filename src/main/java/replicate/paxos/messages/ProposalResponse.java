@@ -1,13 +1,13 @@
 package replicate.paxos.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class ProposalResponse extends Request {
+public class ProposalResponse extends MessagePayload {
     public final boolean success;
 
     public ProposalResponse(boolean success) {
-        super(RequestId.ProposeResponse);
+        super(MessageId.ProposeResponse);
         this.success = success;
     }
 }

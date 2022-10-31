@@ -1,13 +1,13 @@
 package replicate.paxos.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class CommitResponse extends Request {
+public class CommitResponse extends MessagePayload {
     public final boolean success;
 
     public CommitResponse(boolean success) {
-        super(RequestId.CommitResponse);
+        super(MessageId.CommitResponse);
         this.success = success;
     }
 }

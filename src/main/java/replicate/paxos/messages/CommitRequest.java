@@ -1,10 +1,10 @@
 package replicate.paxos.messages;
 
 import replicate.common.MonotonicId;
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class CommitRequest extends Request {
+public class CommitRequest extends MessagePayload {
     private MonotonicId generation;
     private byte[] value;
     public CommitRequest(MonotonicId generation, byte[] value) {
@@ -22,6 +22,6 @@ public class CommitRequest extends Request {
     }
 
     private CommitRequest() {
-        super(RequestId.Commit);
+        super(MessageId.Commit);
     }
 }

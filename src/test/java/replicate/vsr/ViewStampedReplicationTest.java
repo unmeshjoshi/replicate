@@ -29,7 +29,7 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
         var byzantium = nodes.get("byzantium");
         var cyrene = nodes.get("cyrene");
 
-        var primaryAddress = athens.getPrimaryAddress();
+        var primaryAddress = getPrimaryNode(athens.getPrimaryAddress()).getClientConnectionAddress();
 
         var client = new NetworkClient();
         var casCommand = new SetValueCommand("title", "Microservices");
@@ -46,24 +46,25 @@ public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplicati
 
         var athens = nodes.get("athens");
 
-        var primaryAddress = athens.getPrimaryAddress();
-        var primary = getPrimaryNode(primaryAddress);
+        var primary = getPrimaryNode(athens.getPrimaryAddress());
+        var primaryAddressClientConnectionAddress = primary.getClientConnectionAddress();
+        var primaryPeerAddress = primary.getPeerConnectionAddress();
 
         var client = new NetworkClient();
         var setValueCommand = new SetValueCommand("title", "Microservices");
         var response
-                = client.sendAndReceive(new ExecuteCommandRequest(setValueCommand.serialize()), primaryAddress, ExecuteCommandResponse.class).getResult();
+                = client.sendAndReceive(new ExecuteCommandRequest(setValueCommand.serialize()), primaryAddressClientConnectionAddress, ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), response.getResponse());
 
-        List<ViewStampedReplication> backUpNodes = getBackUpNodes(primaryAddress);
-        assertEquals(backUpNodes.get(0).getPrimaryAddress(), primaryAddress);
-        assertEquals(backUpNodes.get(1).getPrimaryAddress(), primaryAddress);
+        List<ViewStampedReplication> backUpNodes = getBackUpNodes(primaryPeerAddress);
+        assertEquals(backUpNodes.get(0).getPrimaryAddress(), primaryPeerAddress);
+        assertEquals(backUpNodes.get(1).getPrimaryAddress(), primaryPeerAddress);
 
         System.out.println("Shutting down " + primary.getName());
         primary.shutdown();
 
         TestUtils.waitUntilTrue(()->{
-            return !backUpNodes.get(0).getPrimaryAddress().equals(primaryAddress) && !backUpNodes.get(1).getPrimaryAddress().equals(primaryAddress)
+            return !backUpNodes.get(0).getPrimaryAddress().equals(primaryPeerAddress) && !backUpNodes.get(1).getPrimaryAddress().equals(primaryPeerAddress)
                     && backUpNodes.get(0).getViewNumber() == 1 && backUpNodes.get(1).getViewNumber() == 1;
         }, "Waiting for new primary to be elected", Duration.ofSeconds(5));
     }

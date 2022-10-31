@@ -59,8 +59,8 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
     @Override
     protected void registerHandlers() {
         super.registerHandlers();
-        handlesMessage(RequestId.Prepare, this::handlePrepare, PrepareRequest.class);
-        handlesMessage(RequestId.Promise, this::handlePromise, PrepareResponse.class);
+        handlesMessage(MessageId.Prepare, this::handlePrepare, PrepareRequest.class);
+        handlesMessage(MessageId.Promise, this::handlePromise, PrepareResponse.class);
     }
 
     private void handlePromise(Message<PrepareResponse> prepareResponseMessage) {
@@ -68,7 +68,7 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
     }
 
     private void handlePrepare(Message<PrepareRequest> message) {
-        var t = message.getRequest();
+        var t = message.messagePayload();
         byte[] b = acceptedCommand == null? null:acceptedCommand.serialize(); //TODO: Use Optional
         sendOneway(message.getFromAddress(), new PrepareResponse(b), message.getCorrelationId());
     }
@@ -80,17 +80,17 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
 
         AsyncQuorumCallback<PrepareResponse> prepareCallback = new AsyncQuorumCallback<>(getNoOfReplicas());
         PrepareRequest prepare = new PrepareRequest();
-        sendMessageToReplicas(prepareCallback, prepare.getRequestId(), prepare);
+        sendMessageToReplicas(prepareCallback, prepare.getMessageId(), prepare);
         CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> quorumFuture = prepareCallback.getQuorumFuture();
         quorumFuture.thenCompose(r -> {
             byte[] command = pickCommandToExecute(r.values().stream().toList(), t.command);
             ProposeRequest proposal = new ProposeRequest(command);
             AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
-            sendMessageToReplicas(proposeQuorumCallback, proposal.getRequestId(), proposal);
+            sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
             return proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
                 AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
                 CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
-                sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getRequestId(), commitCommandRequest);
+                sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getMessageId(), commitCommandRequest);
                 return commitQuorumCalback.getQuorumFuture();
             });
         });

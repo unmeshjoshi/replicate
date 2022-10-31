@@ -1,13 +1,13 @@
 package replicate.quorumconsensus.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class GetVersionRequest extends Request {
+public class GetVersionRequest extends MessagePayload {
     String key;
 
     public GetVersionRequest(String key) {
-        super(RequestId.GetVersion);
+        super(MessageId.GetVersion);
         this.key = key;
     }
 
@@ -17,6 +17,6 @@ public class GetVersionRequest extends Request {
 
     //
     private GetVersionRequest() {
-        super(RequestId.GetVersion);
+        super(MessageId.GetVersion);
     }
 }

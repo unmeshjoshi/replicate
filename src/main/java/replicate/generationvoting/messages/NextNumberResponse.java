@@ -1,13 +1,13 @@
 package replicate.generationvoting.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class NextNumberResponse extends Request {
+public class NextNumberResponse extends MessagePayload {
     int number;
 
     public NextNumberResponse(int number) {
-        super(RequestId.NextNumberResponse);
+        super(MessageId.NextNumberResponse);
         this.number = number;
 
     }
@@ -18,6 +18,6 @@ public class NextNumberResponse extends Request {
 
     //for jackson
     private NextNumberResponse() {
-        super(RequestId.NextNumberResponse);
+        super(MessageId.NextNumberResponse);
     }
 }

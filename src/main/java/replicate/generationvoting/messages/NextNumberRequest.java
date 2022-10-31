@@ -1,10 +1,10 @@
 package replicate.generationvoting.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class NextNumberRequest extends Request {
+public class NextNumberRequest extends MessagePayload {
     public NextNumberRequest() {
-        super(RequestId.NextNumberRequest);
+        super(MessageId.NextNumberRequest);
     }
 }

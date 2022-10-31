@@ -56,7 +56,7 @@ class ReadRepairer {
     int requestId = new Random().nextInt();
     private RequestOrResponse createSetValueRequest(String key, String value, long timestamp) {
         VersionedSetValueRequest setValueRequest = new VersionedSetValueRequest(key, value, -1, -1, timestamp);
-        RequestOrResponse requestOrResponse = new RequestOrResponse(RequestId.VersionedSetValueRequest.getId(),
+        RequestOrResponse requestOrResponse = new RequestOrResponse(MessageId.VersionedSetValueRequest.getId(),
                 JsonSerDes.serialize(setValueRequest), requestId++, replica.getPeerConnectionAddress());
         return requestOrResponse;
     }

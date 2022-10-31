@@ -1,9 +1,9 @@
 package replicate.quorum.messages;
 
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class VersionedSetValueRequest extends Request {
+public class VersionedSetValueRequest extends MessagePayload {
     private long clientId;
     private int requestNumber;
     private String key;
@@ -12,11 +12,11 @@ public class VersionedSetValueRequest extends Request {
 
     //for jaxon
     private VersionedSetValueRequest() {
-        super(RequestId.VersionedSetValueRequest);
+        super(MessageId.VersionedSetValueRequest);
     }
 
     public VersionedSetValueRequest(String key, String value, long clientId, int requestNumber, long version) {
-        super(RequestId.VersionedSetValueRequest);
+        super(MessageId.VersionedSetValueRequest);
         this.key = key;
         this.value = value;
         this.clientId = clientId;

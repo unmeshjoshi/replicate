@@ -1,6 +1,6 @@
 package replicate.quorum;
 
-import replicate.common.RequestId;
+import replicate.common.MessageId;
 import replicate.common.RequestOrResponse;
 import replicate.net.ClientConnection;
 import replicate.net.InetAddressAndPort;
@@ -62,7 +62,7 @@ abstract class QuorumCallback implements RequestCallback<RequestOrResponse> {
     }
 
     private void respondToClient(String response) {
-        clientConnection.write(new RequestOrResponse(RequestId.SetValueResponse.getId(), response.getBytes(), correlationId));
+        clientConnection.write(new RequestOrResponse(MessageId.SetValueResponse.getId(), response.getBytes(), correlationId));
     }
 
     abstract CompletableFuture<String> processQuorumResponses();

@@ -1,10 +1,10 @@
 package replicate.paxos.messages;
 
 import replicate.common.MonotonicId;
-import replicate.common.Request;
-import replicate.common.RequestId;
+import replicate.common.MessagePayload;
+import replicate.common.MessageId;
 
-public class ProposalRequest extends Request {
+public class ProposalRequest extends MessagePayload {
     private MonotonicId monotonicId;
     private byte[] proposedValue;
 
@@ -23,6 +23,6 @@ public class ProposalRequest extends Request {
     }
     //for jackson
     private ProposalRequest() {
-        super(RequestId.ProposeRequest);
+        super(MessageId.ProposeRequest);
     }
 }
