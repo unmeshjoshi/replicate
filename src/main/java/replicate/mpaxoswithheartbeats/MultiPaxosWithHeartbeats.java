@@ -53,7 +53,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
     }
 
     private void setRandomElectionTimeout() {
-        this.randomElectionTimeout = heartbeatTimeout.plus(Duration.ofMillis(random.nextLong(heartbeatTimeout.toMillis())));
+        this.randomElectionTimeout = heartbeatTimeout.plus(Duration.ofMillis(random.nextInt((int) heartbeatTimeout.toMillis())));
         logger.info(getName() + " set randomElectionTimeout=" + randomElectionTimeout);
     }
 

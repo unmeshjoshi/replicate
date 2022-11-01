@@ -186,17 +186,20 @@ public abstract class Replica {
             RequestOrResponse request = message.messagePayload();
             Function<Object, CompletableFuture<?>> handler = messageHandler.handler;
             handler.apply(deserializedRequest)
-                    .whenComplete((res , throwable)-> {
-                ClientConnection clientConnection = message.getClientConnection();
-                if (throwable != null) {
-                    clientConnection.write(new RequestOrResponse(request.getRequestId(), JsonSerDes.serialize(throwable.getMessage()), message.getCorrelationId()).setError());
-                } else {
-                    clientConnection.write(new RequestOrResponse(request.getRequestId(), serialize(res), message.getCorrelationId()));
-                }
-            });
+                    .whenComplete((response , throwable)-> {
+                        respondToClient(response, throwable, message.getCorrelationId(), message.getClientConnection(), request.getRequestId());
+                    });
         });
         ;
 
+    }
+
+    private static void respondToClient(Object response, Throwable throwable, int correlationId, ClientConnection clientConnection, Integer requestId) {
+        if (throwable != null) {
+            clientConnection.write(new RequestOrResponse(requestId, serialize(throwable.getMessage()), correlationId).setError());
+        } else {
+            clientConnection.write(new RequestOrResponse(requestId, serialize(response), correlationId));
+        }
     }
 
     //Configures a handler to process a message.
@@ -320,10 +323,6 @@ public abstract class Replica {
 
     private static byte[] serialize(Object e) {
         return JsonSerDes.serialize(e);
-    }
-
-    private <Req extends MessagePayload> Req deserialize(Class<Req> requestClass, RequestOrResponse request) {
-        return JsonSerDes.deserialize(request.getMessageBodyJson(), requestClass);
     }
 
     protected abstract void registerHandlers();
