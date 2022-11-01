@@ -13,12 +13,13 @@ import java.net.Socket;
 
 public class SocketClient<T> implements Closeable {
     private static Logger logger = LogManager.getLogger(SocketClient.class.getName());
+    private final int readTimeoutMs = 5000;
 
     Socket clientSocket;
 
     public SocketClient(InetAddressAndPort address) throws IOException {
         this.clientSocket = new Socket(address.getAddress(), address.getPort());
-//        clientSocket.setSoTimeout(5000);
+        clientSocket.setSoTimeout(readTimeoutMs);
     }
 
     public void sendOneway(T message) {
