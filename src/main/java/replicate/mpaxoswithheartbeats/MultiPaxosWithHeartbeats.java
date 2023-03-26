@@ -42,7 +42,12 @@ public class MultiPaxosWithHeartbeats extends Replica {
     Map<String, String> kv = new HashMap<>();
     final int serverId;
     ServerRole role;
+    Duration leaderLeaseDuration = Duration.ofMillis(500);
+    Duration oldLeaderLeaseDuration = Duration.ofMillis(0);
 
+    //prepare response will send a oldLeaderRemainingDuration
+    //New Leader waits for max Old leader remaining duration.
+    //Then new leader sets its own leader lease and sends
     public MultiPaxosWithHeartbeats(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
@@ -97,14 +102,15 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     private void handleHeartbeatRequest(Message<HeartbeatRequest> message) {
         markHeartbeatReceived();
-        if (message.messagePayload().ballot.isAfter(this.fullLogBallot)) {
-            becomeFollower(message.messagePayload().ballot);
+        MonotonicId requestBallot = message.messagePayload().ballot;
+        if (requestBallot.isAfter(this.fullLogBallot)) {
+            becomeFollower(requestBallot);
             HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (message.messagePayload().ballot.equals(this.fullLogBallot)) {
+        } else if (requestBallot.equals(this.fullLogBallot)) {
             HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (this.fullLogBallot.isAfter(message.messagePayload().ballot)) {
+        } else if (this.fullLogBallot.isAfter(requestBallot)) {
             HeartbeatResponse request = new HeartbeatResponse(false, this.fullLogBallot);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
         }

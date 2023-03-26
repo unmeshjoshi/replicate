@@ -10,7 +10,6 @@ plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java'
     id 'idea'
-    id "com.google.protobuf" version "0.9.1"
 }
 
 repositories {

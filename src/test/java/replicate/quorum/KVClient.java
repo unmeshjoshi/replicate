@@ -3,6 +3,7 @@ package replicate.quorum;
 import replicate.common.JsonSerDes;
 import replicate.common.MessageId;
 import replicate.common.RequestOrResponse;
+import replicate.common.Response;
 import replicate.net.InetAddressAndPort;
 import replicate.net.SocketClient;
 import replicate.quorum.messages.GetValueRequest;
@@ -13,7 +14,6 @@ import java.io.IOException;
 import java.util.Random;
 
 public class KVClient {
-    int correlationId;
     public String getValue(InetAddressAndPort address, String key) throws IOException {
         RequestOrResponse requestOrResponse1 = createGetValueRequest(key);
         SocketClient<Object> client = new SocketClient<>(address);
@@ -35,6 +35,7 @@ public class KVClient {
         if (setResponse.isError()) {
             return "Error";
         };
+
         SetValueResponse response = JsonSerDes.deserialize(setResponse.getMessageBodyJson(), SetValueResponse.class);
         return response.result;
     }

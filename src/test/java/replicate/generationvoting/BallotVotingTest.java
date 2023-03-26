@@ -83,6 +83,9 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         assertEquals(3, thirdNumber.intValue());
         //try generating more numbers connecting to different nodes.
 
+        Integer fourthNumber = client.sendAndReceive(new NextNumberRequest(), ephesus.getClientConnectionAddress(), Integer.class).getResult();
+        assertEquals(4, fourthNumber.intValue());
+
     }
 
 }

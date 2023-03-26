@@ -69,11 +69,12 @@ public class ViewStampedReplication extends Replica {
         Normal,ViewChange,Recovering
     }
 
+    private Map<Integer, LogEntry> log = new HashMap<>();
+
     private int viewNumber = 0;
     private Status status = Status.Normal; //Change based on the stored state on disk.
     private final Configuration configuration;
     private int opNumber = 0;
-    private Map<Integer, LogEntry> log = new HashMap<>();
     private int commitNumber = 0;
     private int startViewChangeCounter;
     private int doViewChangeCounter;
@@ -191,6 +192,7 @@ public class ViewStampedReplication extends Replica {
         sendOnewayMessageToOtherReplicas(new Commit(viewNumber, commitNumber));
     }
 
+    //0, 1, 2
     void maybeIncrementCommitNumberAndApply() {
         //from last commit number to the entry which is quorum accepted.
         for (int i = commitNumber + 1; i <= log.size(); i++) {

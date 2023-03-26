@@ -202,6 +202,10 @@ public abstract class Replica {
         }
     }
 
+    public void addClockSkew(Duration duration) {
+        clock.addClockSkew(duration);
+    }
+
     //Configures a handler to process a message.
     //Sends the response from the handler
     // as a separate message to the sender.

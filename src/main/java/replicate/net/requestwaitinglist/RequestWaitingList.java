@@ -113,7 +113,6 @@ public class RequestWaitingList<Key, Response> {
         }
         logger.debug("RequestWaitingList received response for " + key + " at " + clock.nanoTime());
         CallbackDetails callbackDetails = pendingRequests.remove(key);
-        NONE = null;
         callbackDetails.getRequestCallback().onResponse(response, NONE);//TODO:Possibly use Optional
 
     }

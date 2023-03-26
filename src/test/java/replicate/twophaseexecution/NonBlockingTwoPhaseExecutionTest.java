@@ -41,8 +41,6 @@ public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwo
         ExecuteCommandResponse response
                 = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
 
-//        assertEquals(athens.acceptedCommand, casCommand);
-
         athens.reconnectTo(byzantium);
         athens.reconnectTo(cyrene);
 

@@ -17,10 +17,18 @@ public class DurableKVStore {
 
     public void put(String key, String value) {
         //TODO: Assignment 1: appendLog before storing key and value.
+
         //Then applyLog at startup.
         //e.g. Cassandra's WAL for memtable.
-        appendLog(key, value);
+        //pipeline
+        //async
+        //queue of requests |put() | put| put | | |-->
+        // <--|resonse | put| put | | |
+        //async
+//        appendLog(key, value);
         kv.put(key, value);
+        //async
+        //respond to client
     }
 
     private Long appendLog(String key, String value) {
@@ -36,8 +44,8 @@ public class DurableKVStore {
     public DurableKVStore(Config config) {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
-        applyLog();
-       //Assignment 1: applyLog at startup.
+        //applyLog();
+        //Assignment 1: applyLog at startup.
     }
 
     public void applyLog() {

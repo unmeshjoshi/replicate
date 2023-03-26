@@ -34,6 +34,8 @@ public class PaxosLog extends Replica {
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
 
     Map<String, String> kv = new HashMap<>();
+
+
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     int serverId;
     RequestWaitingList requestWaitingList;

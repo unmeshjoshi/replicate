@@ -25,7 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 //the execution needs to be thread safe.. done using SingularUpdateQueue
 public class BallotVoting extends Replica {
     //epoch/term/generation
+    //this is durable.
     int ballot = 0;
+
     private Logger logger = LogManager.getLogger(BallotVoting.class);
     private int maxAttmpts = 4;
 

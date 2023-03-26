@@ -122,9 +122,12 @@ public class TwoPhaseExecution extends Replica {
     }
 
     private void executeTwoPhases(byte[] command) {
+        //phase 1 - propose
         ProposeRequest proposal = new ProposeRequest(command);
         AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
         sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+
+        //phase 2 - commit
         proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
             AsyncQuorumCallback<CommitCommandResponse> commitQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
             CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);

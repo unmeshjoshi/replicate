@@ -74,20 +74,22 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
     }
 
     @Override
-    CompletableFuture<ExecuteCommandResponse> handleExecute(ExecuteCommandRequest t) {
+    CompletableFuture<ExecuteCommandResponse> handleExecute(ExecuteCommandRequest newCommand) {
         CompletionCallback<ExecuteCommandResponse> callback = new CompletionCallback();
-        requestWaitingList.add(requestIdentifier(t.command), callback);
-
+        requestWaitingList.add(requestIdentifier(newCommand.command), callback);
+        //phase 1
         AsyncQuorumCallback<PrepareResponse> prepareCallback = new AsyncQuorumCallback<>(getNoOfReplicas());
         PrepareRequest prepare = new PrepareRequest();
         sendMessageToReplicas(prepareCallback, prepare.getMessageId(), prepare);
         CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> quorumFuture = prepareCallback.getQuorumFuture();
         quorumFuture.thenCompose(r -> {
-            byte[] command = pickCommandToExecute(r.values().stream().toList(), t.command);
+            //phase 2
+            byte[] command = pickCommandToExecute(r.values().stream().toList(), newCommand.command);
             ProposeRequest proposal = new ProposeRequest(command);
             AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
             sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
             return proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
+                //phase 3
                 AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
                 CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
                 sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getMessageId(), commitCommandRequest);
@@ -97,12 +99,12 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
         return callback.getFuture();
     }
 
-    private byte[] pickCommandToExecute(List<PrepareResponse> prepareResponses, byte[] command) {
+    private byte[] pickCommandToExecute(List<PrepareResponse> prepareResponses, byte[] newCommand) {
         List<PrepareResponse> previouslyAcceptedCommands = prepareResponses.stream().filter(p -> p.command != null).collect(Collectors.toList());
         //TODO: If there are multiple commands, which command to pick?
         //       We need a way to order the requests.
         //       Go to Paxos.
         logger.info("Picking up previously accepted command " + previouslyAcceptedCommands);
-        return previouslyAcceptedCommands.isEmpty() ? command:previouslyAcceptedCommands.get(0).command;
+        return previouslyAcceptedCommands.isEmpty() ? newCommand:previouslyAcceptedCommands.get(0).command;
     }
 }
