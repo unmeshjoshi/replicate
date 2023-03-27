@@ -128,7 +128,6 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         athens.dropMessagesTo(cyrene);
 
         //Philip
-
         response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Error", response);
 
@@ -179,15 +178,14 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertEquals("Success", response);
 
 
-
+        //Question::how to make sure there is no clock skew?
         cyrene.addClockSkew(Duration.of(-100, ChronoUnit.SECONDS)); //cyrenes clock is behind by 100 seconds // too much I know
-        cyrene.dropMessagesTo(byzantium);
         cyrene.dropMessagesTo(athens);
 
 
         //Philip
         response = kvClient.setValue(cyrene.getClientConnectionAddress(), "title", "Microservices");
-        assertEquals("Error", response);
+        assertEquals("Success", response);
         //cyrene now gets a value which is fixed, but at a lower timestamp.
 
         assertEquals("Microservices", cyrene.get("title").getValue());
@@ -210,6 +208,8 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         // return "Nitroservices"
         String value = kvClient.getValue(athens.getClientConnectionAddress(), "title");
         assertEquals("Nicroservices", value);
+        assertEquals("Nicroservices", cyrene.get("title").getValue());
+
     }
 
     //Incomplete write requests cause two different clients to see different values
