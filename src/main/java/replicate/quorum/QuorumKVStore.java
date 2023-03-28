@@ -181,4 +181,8 @@ public class QuorumKVStore extends Replica {
     public void doAsyncReadRepair() {
         config.setAsyncReadRepair();
     }
+
+    public void setClock(SystemClock clock) {
+        this.clientState.clock = clock;
+    }
 }

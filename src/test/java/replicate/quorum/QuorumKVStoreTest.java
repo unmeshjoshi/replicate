@@ -4,6 +4,7 @@ import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.TestUtils;
 import replicate.net.InetAddressAndPort;
+import replicate.net.requestwaitinglist.TestClock;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -173,16 +174,20 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
     public void laterReadsGetOlderValueBecauseOfClockSkew() throws IOException {
         KVClient kvClient = new KVClient();
         athens.dropMessagesTo(cyrene); //cyrene does not have this value, but quorum is reached.
+        athens.setClock(new TestClock(200));
         //Nathan
         String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nicroservices");
         assertEquals("Success", response);
 
 
+
+        cyrene.setClock(new TestClock(100));
+
         //Question::how to make sure there is no clock skew?
-        cyrene.addClockSkew(Duration.of(-500, ChronoUnit.SECONDS)); //cyrenes clock is behind by 100 seconds // too much I know
         cyrene.dropMessagesTo(athens);
 
-
+        //cyrene's clock is lagging at 100. So cyrene will set this value, but byzantium will silently drop it. athens is
+        //reached, so it will have old value, at timestamp 200.
         //Philip
         response = kvClient.setValue(cyrene.getClientConnectionAddress(), "title", "Microservices");
         assertEquals("Success", response);

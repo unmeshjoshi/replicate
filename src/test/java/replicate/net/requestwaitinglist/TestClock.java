@@ -3,14 +3,19 @@ package replicate.net.requestwaitinglist;
 import replicate.common.SystemClock;
 
 public class TestClock extends SystemClock {
-    long nanos;
+    long time;
 
-    public TestClock(long nanos) {
-        this.nanos = nanos;
+    public TestClock(long time) {
+        this.time = time;
     }
 
     @Override
     public long nanoTime() {
-        return nanos;
+        return time;
+    }
+
+    @Override
+    public long now() {
+        return time;
     }
 }
