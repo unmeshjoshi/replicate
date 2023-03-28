@@ -179,7 +179,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
 
 
         //Question::how to make sure there is no clock skew?
-        cyrene.addClockSkew(Duration.of(-100, ChronoUnit.SECONDS)); //cyrenes clock is behind by 100 seconds // too much I know
+        cyrene.addClockSkew(Duration.of(-500, ChronoUnit.SECONDS)); //cyrenes clock is behind by 100 seconds // too much I know
         cyrene.dropMessagesTo(athens);
 
 
@@ -199,8 +199,8 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         //all connections now restored.
         athens.reconnectTo(cyrene);
         cyrene.reconnectTo(athens);
-        cyrene.reconnectTo(byzantium);
 
+        athens.dropMessagesTo(byzantium);
 
         //Alice -   //Microservices:timestamp 1 athens
         //Nitroservices:timestamp 2 cyrene
@@ -220,7 +220,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
 
-        replicate.quorumconsensus.KVClient kvClient = new replicate.quorumconsensus.KVClient();
+        KVClient kvClient = new KVClient();
         String response = kvClient.setValue(athens.getClientConnectionAddress(), "title", "Nitroservices");
         assertEquals("Error", response);
         //quorum responses not received as messages to byzantium and cyrene fail.
@@ -229,7 +229,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertEquals(StoredValue.EMPTY, byzantium.get("title"));
         assertEquals(StoredValue.EMPTY, cyrene.get("title"));
 
-        replicate.quorumconsensus.KVClient alice = new replicate.quorumconsensus.KVClient();
+        KVClient alice = new KVClient();
 
         //cyrene should be able to connect with itself and byzantium.
         //both cyrene and byzantium have empty value.
@@ -239,7 +239,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         //get-compare-modify-write
         //meanwhile bob starts compareAndSwap as well
         //Bob connects to athens, which is now able to connect to cyrene and byzantium
-        replicate.quorumconsensus.KVClient bob = new replicate.quorumconsensus.KVClient();
+        KVClient bob = new KVClient();
         athens.reconnectTo(cyrene);
         athens.reconnectTo(byzantium);
         String bobValue = bob.getValue(athens.getClientConnectionAddress(), "title");

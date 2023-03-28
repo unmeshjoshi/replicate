@@ -25,7 +25,7 @@ public class DurableKVStore {
         //queue of requests |put() | put| put | | |-->
         // <--|resonse | put| put | | |
         //async
-//        appendLog(key, value);
+        appendLog(key, value);
         kv.put(key, value);
         //async
         //respond to client
@@ -44,7 +44,7 @@ public class DurableKVStore {
     public DurableKVStore(Config config) {
         this.config = config;
         this.wal = WriteAheadLog.openWAL(config);
-        //applyLog();
+        applyLog();
         //Assignment 1: applyLog at startup.
     }
 

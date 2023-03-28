@@ -6,11 +6,9 @@ import replicate.common.*;
 import replicate.net.InetAddressAndPort;
 import replicate.quorum.messages.GetValueResponse;
 import replicate.quorum.messages.VersionedSetValueRequest;
+import replicate.vsr.CompletionCallback;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -37,16 +35,18 @@ class ReadRepairer {
         if (nodesHavingStaleValues.isEmpty()) {
             return CompletableFuture.completedFuture(latestStoredValue);
         }
+        List<CompletableFuture<RequestOrResponse>> responseFutures = new ArrayList<>();
         var writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp());
-        var requestCallback = new AsyncQuorumCallback<String>(nodesHavingStaleValues.size());
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
+            var requestCallback = new CompletionCallback();
             logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
+            responseFutures.add(requestCallback.getFuture());
             replica.sendMessageToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
         if (isAsyncRepair) {
             return CompletableFuture.completedFuture(latestStoredValue); //complete immidiately.
         } else {
-            return requestCallback.getQuorumFuture()
+            return Utils.sequence(responseFutures)
                     .thenApply((result) -> {
                         return latestStoredValue;
                     });
