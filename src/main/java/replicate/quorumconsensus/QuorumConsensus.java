@@ -83,11 +83,11 @@ public class QuorumConsensus extends Replica {
     private MonotonicId getNextId(List<MonotonicId> ids) {
         MonotonicId max = getMax(ids);
         if (max.isEmpty()) {
-            return new MonotonicId(1, 1);
+            return new MonotonicId(1, getServerId());
         }
 
         int requestId = max.requestId + 1;
-        return new MonotonicId(requestId, 1);
+        return new MonotonicId(requestId, getServerId());
     }
 
     private MonotonicId getMax(List<MonotonicId> ids) {
