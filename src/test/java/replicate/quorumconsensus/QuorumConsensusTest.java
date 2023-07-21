@@ -40,6 +40,14 @@ public class QuorumConsensusTest extends ClusterTest<QuorumConsensus> {
         assertEquals(MonotonicId.empty(), id2);
         assertEquals(id3, new MonotonicId(1, 0));
 
+        //make sure we get response from
+        // byzantium and detect a missing value.
+        //If we do not drop messages to athens, in some cases
+        //we might get reply from athens before byzantium
+        //That will satisfy the quorum and will not trigger a read-repair
+        //failing the test.
+        cyrene.dropMessagesTo(athens);
+
         String title = kvClient.getValue(cyrene.getClientConnectionAddress(), "title");
         assertEquals("Microservices", title);
 

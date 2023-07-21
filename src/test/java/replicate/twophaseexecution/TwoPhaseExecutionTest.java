@@ -13,7 +13,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.*;
 
-public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
+public class    TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
 
     //Assignment: Write a test for incomleteWritesAreNotAvailableInReads.
     @Test
@@ -52,6 +52,7 @@ public class TwoPhaseExecutionTest extends ClusterTest<TwoPhaseExecution> {
         TwoPhaseExecution cyrene = nodes.get("cyrene");
 
         NetworkClient client = new NetworkClient();
+        //register a lease with ttl.
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         ExecuteCommandResponse response
                 = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();

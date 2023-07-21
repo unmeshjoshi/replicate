@@ -49,7 +49,6 @@ public class QuorumKVStore extends Replica {
     private final List<InetAddressAndPort> replicas;
     private final ClientState clientState;
 
-    //zookeeper/etcd
     private final DurableKVStore systemStorage;
 
 
@@ -148,6 +147,10 @@ public class QuorumKVStore extends Replica {
         return JsonSerDes.fromJson(storedValue.getBytes(), StoredValue.class);
     }
 
+    public String getValue(String key) {
+        return get(key).getValue();
+    }
+
     public Config getConfig() {
         return config;
     }
@@ -182,6 +185,7 @@ public class QuorumKVStore extends Replica {
         config.setAsyncReadRepair();
     }
 
+    @Override
     public void setClock(SystemClock clock) {
         this.clientState.clock = clock;
     }

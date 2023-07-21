@@ -15,6 +15,7 @@ import replicate.generationvoting.messages.NextNumberRequest;
 import replicate.generationvoting.messages.PrepareRequest;
 import replicate.net.InetAddressAndPort;
 import replicate.paxos.messages.PrepareResponse;
+import replicate.wal.DurableKVStore;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,17 +29,19 @@ public class BallotVoting extends Replica {
     //this is durable.
     int ballot = 0;
 
+    DurableKVStore ballotStore;
+
     private Logger logger = LogManager.getLogger(BallotVoting.class);
     private int maxAttmpts = 4;
 
     public BallotVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
-
+        ballotStore = new DurableKVStore(config);
     }
 
     @Override
     protected void registerHandlers() {
-        handlesRequestAsync(MessageId.NextNumberRequest, this::handlePrepare, NextNumberRequest.class);
+        handlesRequestAsync(MessageId.NextNumberRequest, this::handleNextNumberRequest, NextNumberRequest.class);
         handlesMessage(MessageId.Prepare, this::handlePrepareRequest, PrepareRequest.class);
         handlesMessage(MessageId.Promise, this::handlePrepareResponse, PrepareResponse.class);
     }
@@ -47,13 +50,12 @@ public class BallotVoting extends Replica {
         handleResponse(prepareResponseMessage);
     }
 
-    CompletableFuture<Integer> handlePrepare(NextNumberRequest request) {
-        int proposedNumber = 0;
-        return proposeNumber(proposedNumber);
+    CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
+       return proposeNumber(ballot);
     }
 
     private CompletableFuture<Integer> proposeNumber(int proposedNumber) {
-        int maxAttempts = 5;
+        int maxAttempts =   5;
         AtomicInteger proposal = new AtomicInteger(proposedNumber);
         return FutureUtils.retryWithRandomDelay(() -> {
             var resultFuture = new CompletableFuture<Integer>();
@@ -64,6 +66,7 @@ public class BallotVoting extends Replica {
                 if (exception != null) {
                     resultFuture.completeExceptionally(exception);
                 } else {
+
                     resultFuture.complete(proposal.intValue());
                 }
             });

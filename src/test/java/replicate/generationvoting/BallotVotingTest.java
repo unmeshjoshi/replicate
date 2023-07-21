@@ -15,7 +15,8 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
 
     @Test
     public void generateMonotonicNumbersWithQuorumVoting() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses)
+                -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
         BallotVoting athens = nodes.get("athens");
         BallotVoting byzantium = nodes.get( "byzantium");
         BallotVoting cyrene = nodes.get("cyrene");
@@ -42,7 +43,7 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         assertEquals(3, cyrene.ballot);
     }
 
-    @Test
+    @Test //FIXME. Fails for numbers 6 and above.
     public void getsMonotonicNumbersWithFailures() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "delphi", "ephesus"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
         BallotVoting athens = nodes.get("athens");
@@ -86,6 +87,19 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         Integer fourthNumber = client.sendAndReceive(new NextNumberRequest(), ephesus.getClientConnectionAddress(), Integer.class).getResult();
         assertEquals(4, fourthNumber.intValue());
 
+        Integer fifthNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
+        assertEquals(5, fifthNumber.intValue());
+
+
+        assertEquals(6, nextNumberConnectingTo(athens, client));
+        assertEquals(7, nextNumberConnectingTo(byzantium, client));
+        assertEquals(8, nextNumberConnectingTo(cyrene, client));
+        assertEquals(9, nextNumberConnectingTo(ephesus, client));
+        assertEquals(10, nextNumberConnectingTo(delphi, client));
+    }
+
+    private static int nextNumberConnectingTo(BallotVoting byzantium, NetworkClient client) throws IOException {
+        return client.sendAndReceive(new NextNumberRequest(), byzantium.getClientConnectionAddress(), Integer.class).getResult().intValue();
     }
 
 }

@@ -81,6 +81,7 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
         AsyncQuorumCallback<PrepareResponse> prepareCallback = new AsyncQuorumCallback<>(getNoOfReplicas());
         PrepareRequest prepare = new PrepareRequest();
         sendMessageToReplicas(prepareCallback, prepare.getMessageId(), prepare);
+
         CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> quorumFuture = prepareCallback.getQuorumFuture();
         quorumFuture.thenCompose(r -> {
             //phase 2
@@ -88,6 +89,7 @@ public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
             ProposeRequest proposal = new ProposeRequest(command);
             AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
             sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+
             return proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
                 //phase 3
                 AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());

@@ -51,7 +51,9 @@ public enum MessageId {
     NextNumberRequest(44),
     NextNumberResponse(45),
     VersionedSetValueRequest(46),
-    VersionedGetValueRequest(47), ExcuteCommandRequest(48), ExcuteCommandResponse(49),
+    VersionedGetValueRequest(47),
+    ExcuteCommandRequest(48),
+    ExcuteCommandResponse(49),
     SetValue(50),
     PrepareOK(51),
     PrepareNAK(52), StartViewChange(53), DoViewChange(54), StartView(55);

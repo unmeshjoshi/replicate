@@ -116,13 +116,17 @@ public class QuorumConsensus extends Replica {
         sendOneway(message.getFromAddress(), new GetValueResponse(storedValue), message.getCorrelationId());
     }
 
+    //this will be invoked sequentially one after the other
     private void handlePeerSetValueRequest(Message<VersionedSetValueRequest> message) {
+        //lock
         var setValueRequest = message.messagePayload();
         StoredValue storedValue = get(setValueRequest.key);
         if (setValueRequest.version.isAfter(storedValue.getVersion())) { //set only if setting with higher version timestamp.
             put(setValueRequest.key, new StoredValue(setValueRequest.key, setValueRequest.value, setValueRequest.version));
         }
+        //do following in a separate thread of control.
         sendOneway(message.getFromAddress(), new SetValueResponse("Success"), message.getCorrelationId());
+        //unlock
     }
 
 

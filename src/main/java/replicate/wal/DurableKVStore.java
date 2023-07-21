@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 public class DurableKVStore {
+    //persistent..
     private final Map<String, String> kv = new HashMap<>();
 
     public String get(String key) {
@@ -24,8 +25,9 @@ public class DurableKVStore {
         //async
         //queue of requests |put() | put| put | | |-->
         // <--|resonse | put| put | | |
-        //async
+        //async arrayblockqueue
         appendLog(key, value);
+        //async but preserver order
         kv.put(key, value);
         //async
         //respond to client

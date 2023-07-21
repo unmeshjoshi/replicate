@@ -35,6 +35,7 @@ public class MultiPaxos extends Replica {
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     //Paxos State
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
+
     Map<String, String> kv = new HashMap<>();
     final int serverId;
     ServerRole role;

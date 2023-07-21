@@ -26,15 +26,16 @@ import java.util.stream.Collectors;
     All the communication between Replicas is done by message passing.
 */
 
+
 public abstract class Replica {
     private static Logger logger = LogManager.getLogger(Replica.class);
     private final Config config;
     private final String name;
     private final NIOSocketListener peerListener;
     private final NIOSocketListener clientListener;
-    private InetAddressAndPort clientConnectionAddress;
-    private InetAddressAndPort peerConnectionAddress;
-    private final Network network = new Network();
+    private final InetAddressAndPort clientConnectionAddress;
+    private final InetAddressAndPort peerConnectionAddress;
+    private final Network network;
     protected final RequestWaitingList requestWaitingList;
     protected SystemClock clock;
     private List<InetAddressAndPort> peerAddresses;
@@ -50,7 +51,7 @@ public abstract class Replica {
                    InetAddressAndPort peerConnectionAddress,
                    List<InetAddressAndPort> peerAddresses) throws IOException {
         this.name = name;
-
+        this.network = new Network();
         this.config = config;
         this.requestWaitingList = new RequestWaitingList(clock);
         this.clock = clock;
@@ -206,6 +207,10 @@ public abstract class Replica {
         clock.addClockSkew(duration);
     }
 
+    public void setClock(SystemClock clock) {
+        this.clock = clock;
+    }
+
     //Configures a handler to process a message.
     //Sends the response from the handler
     // as a separate message to the sender.
@@ -317,8 +322,16 @@ public abstract class Replica {
         network.dropMessagesAfter(n.getPeerConnectionAddress(), dropAfterNoOfMessages);
     }
 
-    public void addDelayForMessagesTo(Replica n, int noOfMessages) {
+    public void addDelayForMessagesTo(Replica r) {
+        addDelayForMessagesToAfterNMessages(r, 0);
+    }
+
+    public void addDelayForMessagesToAfterNMessages(Replica n, int noOfMessages) {
         network.addDelayForMessagesToAfterNMessages(n.getPeerConnectionAddress(), noOfMessages);
+    }
+
+    public void addDelayForMessagesOfType(Replica n, MessageId messageId) {
+        network.addDelayForMessagesOfType(n.getPeerConnectionAddress(), messageId);
     }
 
     public int quorum() {

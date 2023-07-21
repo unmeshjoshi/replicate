@@ -14,6 +14,7 @@ import replicate.wal.SetValueCommand;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.*;
@@ -21,9 +22,13 @@ import static org.junit.Assert.*;
 public class MultiPaxosTest extends ClusterTest<MultiPaxos> {
     @Before
     public void setUp() throws IOException {
-        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+        super.nodes = TestUtils.startCluster(nodeNames("athens", "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peers) -> new MultiPaxos(name, clock, config, clientConnectionAddress, peerConnectionAddress, peers));
 
+    }
+
+    private static List<String> nodeNames(String... names) {
+        return Arrays.asList(names);
     }
 
     @Test

@@ -4,4 +4,3 @@ between replicas. It also has test utilities to quickly form a cluster of replic
 introduce network failures and assert on the state of the replicas.
 This repo has example code for the distributed system workshop.
 
-For building, just run './gradlew clean test'

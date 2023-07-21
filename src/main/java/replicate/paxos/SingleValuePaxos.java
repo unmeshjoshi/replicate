@@ -58,6 +58,8 @@ import java.util.concurrent.CompletableFuture;
 public class SingleValuePaxos extends Replica {
     private static Logger logger = LogManager.getLogger(SingleValuePaxos.class);
     public PaxosState paxosState = new PaxosState();
+    //this has to be made durable.
+    //DurableKVStore to store paxos state.
 
     int maxKnownPaxosRoundId = 0;
     int serverId;
@@ -73,6 +75,7 @@ public class SingleValuePaxos extends Replica {
     @Override
     protected void registerHandlers() {
         //client rpc
+        //support executeCommand request just like we saw in TwoPhaseExecution.
         handlesRequestAsync(MessageId.SetValueRequest, this::handleSetValueRequest, SetValueRequest.class);
         handlesRequestAsync(MessageId.GetValueRequest, this::handleGetValueRequest, GetValueRequest.class);
 
@@ -189,7 +192,7 @@ public class SingleValuePaxos extends Replica {
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
         logger.debug("Picking up values from " + prepareResponses);
-        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
+        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedBallot.orElse(MonotonicId.empty()))).get();
     }
 
     private CompletableFuture<Boolean> sendCommitRequest(MonotonicId monotonicId, byte[] value) {

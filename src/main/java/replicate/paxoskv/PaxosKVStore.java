@@ -116,7 +116,7 @@ public class PaxosKVStore extends Replica {
 
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {
-        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedGeneration.orElse(MonotonicId.empty()))).get();
+        return prepareResponses.stream().max(Comparator.comparing(r -> r.acceptedBallot.orElse(MonotonicId.empty()))).get();
     }
 
     private CompletableFuture<Boolean> sendCommitRequest(String key, byte[] value, MonotonicId monotonicId) {

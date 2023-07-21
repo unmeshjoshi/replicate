@@ -72,4 +72,8 @@ public class MonotonicId implements Comparable<MonotonicId> {
     public boolean isEmpty() {
         return this.equals(empty());
     }
+
+    public boolean isBefore(MonotonicId title) {
+        return this.compareTo(title) < 0;
+    }
 }

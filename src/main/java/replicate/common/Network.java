@@ -1,7 +1,10 @@
 package replicate.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import replicate.net.InetAddressAndPort;
 import replicate.net.SocketClient;
+import replicate.quorum.QuorumKVStore;
 
 import java.io.IOException;
 import java.util.*;
@@ -10,26 +13,42 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 class Network {
+    private static Logger logger = LogManager.getLogger(Network.class);
+
     public static final int MESSAGE_DELAY = 1000;
 
     List<InetAddressAndPort> dropRequestsTo = new ArrayList<>();
     Map<InetAddressAndPort, Integer> noOfMessages = new HashMap<>();
     Map<InetAddressAndPort, Integer> dropAfter = new HashMap<>();
     Map<InetAddressAndPort, Integer> delayMessagesAfter = new HashMap<>();
+    Map<InetAddressAndPort, Set<MessageId>> delayMessageTypes =
+            new HashMap<>();
 
-    ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+    ScheduledExecutorService executor = Executors.newScheduledThreadPool(4);
     public void sendOneWay(InetAddressAndPort address, RequestOrResponse message) throws IOException {
         if (dropRequestsTo.contains(address) || noOfMessagesReachedLimit(address)) {
             removeExistingConnections(address);
             throw new IOException("Unable to connect to " + address);
         }
 
-        if (shouldDelayMessagesTo(address)) {
+        if (shouldDelayMessagesOfType(address, MessageId.valueOf(message.getRequestId()))) {
             sendAfterDelay(address, message, MESSAGE_DELAY);
             return;
         }
 
+        if (shouldDelayMessagesTo(address)) {
+            sendAfterDelay(address, message, MESSAGE_DELAY);
+            return;
+        }
+        logger.info("Sending " + MessageId.valueOf(message.getRequestId()) +
+                " to " + address);
         sendMessage(address, message);
+    }
+
+    private boolean shouldDelayMessagesOfType(InetAddressAndPort address, MessageId messageId) {
+        Set<MessageId> ids = delayMessageTypes.getOrDefault(address,
+                new HashSet<>());
+        return ids.contains(messageId);
     }
 
     private void removeExistingConnections(InetAddressAndPort address) {
@@ -39,10 +58,15 @@ class Network {
         }
     }
 
-    private void sendAfterDelay(InetAddressAndPort address, RequestOrResponse message, int delay) {
+    private void sendAfterDelay(InetAddressAndPort address,
+                                RequestOrResponse message,
+                                long delay) {
         executor.schedule(()->{
             try {
-                System.out.println("Sending delayed message to address = " + address);
+                logger.info("Sending delayed message "
+                                + MessageId.valueOf(message.getRequestId())
+                        + " to address = " +
+                                address);
                 sendMessage(address, message);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -115,6 +139,16 @@ class Network {
 
     public void addDelayForMessagesToAfterNMessages(InetAddressAndPort peerConnectionAddress, int noOfMessages) {
         delayMessagesAfter.put(peerConnectionAddress, noOfMessages);
+    }
+
+    public void addDelayForMessagesOfType(InetAddressAndPort peerConnectionAddress,
+                                          MessageId messageId) {
+        Set<MessageId> messageIds = delayMessageTypes.get(peerConnectionAddress);
+        if (messageIds == null) {
+            messageIds = new HashSet<>();
+        }
+        messageIds.add(messageId);
+        delayMessageTypes.put(peerConnectionAddress, messageIds);
     }
 
     public void closeAllConnections() {

@@ -31,7 +31,7 @@ public class PaxosLog extends Replica {
 
     //Paxos State
     //THIS HAS TO BE DURABLE.. Homework. Make paxosLog durable.
-    Map<Integer, PaxosState> paxosLog = new HashMap<>();
+    Map<Integer, PaxosState> paxosLog = new TreeMap<>();
 
     Map<String, String> kv = new HashMap<>();
 

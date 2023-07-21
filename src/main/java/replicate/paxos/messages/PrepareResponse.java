@@ -9,13 +9,13 @@ import java.util.Optional;
 public class PrepareResponse extends MessagePayload {
     public final boolean promised;
     public final  Optional<byte[]> acceptedValue;
-    public final  Optional<MonotonicId> acceptedGeneration;
+    public final  Optional<MonotonicId> acceptedBallot;
 
-    public PrepareResponse(boolean success, Optional<byte[]> acceptedValue, Optional<MonotonicId> acceptedGeneration) {
+    public PrepareResponse(boolean success, Optional<byte[]> acceptedValue, Optional<MonotonicId> acceptedBallot) {
         super(MessageId.Promise);
         this.promised = success;
         this.acceptedValue = acceptedValue;
-        this.acceptedGeneration = acceptedGeneration;
+        this.acceptedBallot = acceptedBallot;
     }
 
     public PrepareResponse(boolean success) {
@@ -27,7 +27,7 @@ public class PrepareResponse extends MessagePayload {
         return "PrepareResponse{" +
                 "promised=" + promised +
                 ", acceptedValue=" + acceptedValue +
-                ", acceptedBallot=" + acceptedGeneration +
+                ", acceptedBallot=" + acceptedBallot +
                 '}';
     }
 }

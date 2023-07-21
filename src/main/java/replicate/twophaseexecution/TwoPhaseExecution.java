@@ -57,12 +57,15 @@ import java.util.concurrent.CompletableFuture;
 
 public class TwoPhaseExecution extends Replica {
     Command acceptedCommand; //intermediate storage waiting for confirmation.
+    DurableKVStore kvStore; //final storage exposed to clients.
+
     // what to do with other requests?
     //if not accepting other requests..
     //how to repair nodes which missed commit requests..
     // What if commit requests are lost?
 
-    DurableKVStore kvStore; //final storage exposed to clients.
+
+
     private static Logger logger = LogManager.getLogger(TwoPhaseExecution.class);
 
     public TwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
@@ -88,6 +91,7 @@ public class TwoPhaseExecution extends Replica {
         handleResponse(proposeResponseMessage);
     }
 
+    //atomic operation... singularupdatequeue or locks.
     private void handleCommit(Message<CommitCommandRequest> message) {
         CommitCommandRequest t = message.messagePayload();
         Command command = getCommand(t.getCommand());
