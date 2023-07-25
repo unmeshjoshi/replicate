@@ -23,9 +23,10 @@ class ReadRepairer {
         this.isAsyncRepair = isAsyncRepair;
     }
 
-    public CompletableFuture readRepair() {
+    public CompletableFuture<GetValueResponse> readRepair() {
         StoredValue latestStoredValue = getLatestStoredValue();
-        return readRepair(latestStoredValue);
+        return readRepair(latestStoredValue)
+                .thenApply((storedValue) -> new GetValueResponse(storedValue));
     }
 
     boolean isAsyncRepair;

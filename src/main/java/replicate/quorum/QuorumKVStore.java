@@ -106,7 +106,7 @@ public class QuorumKVStore extends Replica {
     }
 
 
-    private CompletableFuture<StoredValue> handleClientGetValueRequest(GetValueRequest clientRequest) {
+    private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest clientRequest) {
         logger.info("Handling get request for " + clientRequest.getKey() + " in " + getName());
         GetValueRequest requestToReplicas = new GetValueRequest(clientRequest.getKey());
         AsyncQuorumCallback<GetValueResponse> quorumCallback = new AsyncQuorumCallback<GetValueResponse>(getNoOfReplicas());
