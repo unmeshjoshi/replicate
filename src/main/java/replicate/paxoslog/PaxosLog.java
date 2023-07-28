@@ -24,6 +24,7 @@ import replicate.wal.SetValueCommand;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class PaxosLog extends Replica {
@@ -34,7 +35,6 @@ public class PaxosLog extends Replica {
     Map<Integer, PaxosState> paxosLog = new TreeMap<>();
 
     Map<String, String> kv = new HashMap<>();
-
 
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     int serverId;
@@ -95,15 +95,15 @@ public class PaxosLog extends Replica {
 
 
 
-    int maxKnownPaxosRoundId = 1;
-    int logIndex = 0;
+    AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
+    AtomicInteger logIndex = new AtomicInteger(0);
 
     public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
         return appendFuture.thenCompose((result)->{
            if (result.value.stream().allMatch(v -> v != initialValue)) {
                logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
-               logIndex = logIndex + 1;
+               logIndex.incrementAndGet();
                return append(initialValue, callback);
            }
            return CompletableFuture.completedFuture(result);
@@ -114,8 +114,10 @@ public class PaxosLog extends Replica {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId++, serverId);
-            CompletableFuture<PaxosResult> result = doPaxos(monotonicId, logIndex, value, callback);
+            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(),
+                    serverId);
+            CompletableFuture<PaxosResult> result = doPaxos(monotonicId,
+                                            logIndex.get(), value, callback);
             return result;
         }, maxAttempts, singularUpdateQueueExecutor);
     }

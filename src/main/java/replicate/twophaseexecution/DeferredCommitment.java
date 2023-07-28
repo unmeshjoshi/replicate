@@ -55,7 +55,7 @@ import java.util.concurrent.CompletableFuture;
  * |<--------------------+
  */
 
-public class TwoPhaseExecution extends Replica {
+public class DeferredCommitment extends Replica {
     Command acceptedCommand; //intermediate storage waiting for confirmation.
     DurableKVStore kvStore; //final storage exposed to clients.
 
@@ -66,9 +66,9 @@ public class TwoPhaseExecution extends Replica {
 
 
 
-    private static Logger logger = LogManager.getLogger(TwoPhaseExecution.class);
+    private static Logger logger = LogManager.getLogger(DeferredCommitment.class);
 
-    public TwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+    public DeferredCommitment(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         this.kvStore = new DurableKVStore(config);
     }

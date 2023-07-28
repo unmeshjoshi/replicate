@@ -49,10 +49,10 @@ import java.util.stream.Collectors;
  *    |    result           ++
  *    ^---------------------+
  */
-public class NonBlockingTwoPhaseExecution extends TwoPhaseExecution {
-    private static Logger logger = LogManager.getLogger(NonBlockingTwoPhaseExecution.class);
+public class RecoverableDeferredCommitment extends DeferredCommitment {
+    private static Logger logger = LogManager.getLogger(RecoverableDeferredCommitment.class);
 
-    public NonBlockingTwoPhaseExecution(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+    public RecoverableDeferredCommitment(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
     }
 

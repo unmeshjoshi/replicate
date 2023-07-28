@@ -178,6 +178,17 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         athens.addDelayForMessagesOfType(cyrene,
                 MessageId.GetValueResponse);
 
+
+        //This is an approximate test, only for demonstration. Hoping that
+        // setValue is scheduled ahead
+        //of getValue request. If its scheduled later, the get will definitely
+        //get the Initial Value. But even if setValue is scheduled earlier,
+        // which most likely be the case, because the replication is delayed,
+        //the get request going to different nodes will get different values.
+        //If the get request is originated at cyrene, it will always get the
+        //initial value. If the get request goes to athens, it will get the
+        //updated value or initial value, depending on whether the set value
+        //is scheduled earlier.
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         var setValueF = executorService.submit(() -> {
             try {

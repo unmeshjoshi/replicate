@@ -13,17 +13,17 @@ import java.util.Optional;
 
 import static org.junit.Assert.*;
 
-public class NonBlockingTwoPhaseExecutionTest extends ClusterTest<NonBlockingTwoPhaseExecution> {
+public class RecoverableDeferredCommitmentTest extends ClusterTest<RecoverableDeferredCommitment> {
 
     //Write Unit test for lost propose.
 
     @Test
     public void executesIncompleteCommits() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"),
-                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new NonBlockingTwoPhaseExecution(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        TwoPhaseExecution athens = nodes.get("athens");
-        TwoPhaseExecution byzantium = nodes.get("byzantium");
-        TwoPhaseExecution cyrene = nodes.get("cyrene");
+                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new RecoverableDeferredCommitment(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        DeferredCommitment athens = nodes.get("athens");
+        DeferredCommitment byzantium = nodes.get("byzantium");
+        DeferredCommitment cyrene = nodes.get("cyrene");
 
         //athens could send proposals (propose requests) to all the nodes.
         //athens --> propose ->athens (success)

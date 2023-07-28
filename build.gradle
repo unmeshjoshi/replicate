@@ -35,7 +35,7 @@ dependencies {
     implementation 'io.grpc:grpc-netty:1.50.2'
     implementation 'io.grpc:grpc-protobuf:1.50.2'
     implementation 'io.grpc:grpc-stub:1.50.2'
-
+    implementation group: 'org.rocksdb', name: 'rocksdbjni', version: '6.4.6'
 }
 
 compileJava {

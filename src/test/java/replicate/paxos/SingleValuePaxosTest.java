@@ -46,7 +46,8 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
     @Test
     public void singleValueNullPaxosGetTest() throws IOException {
         var client = new NetworkClient();
-        var response = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class).getResult();
+        var response = client.sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class)
+                .getResult();
         assertEquals(Optional.empty(), response.value);
     }
 
