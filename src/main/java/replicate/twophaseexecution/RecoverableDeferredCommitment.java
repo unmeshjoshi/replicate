@@ -78,27 +78,40 @@ public class RecoverableDeferredCommitment extends DeferredCommitment {
         CompletionCallback<ExecuteCommandResponse> callback = new CompletionCallback();
         requestWaitingList.add(requestIdentifier(newCommand.command), callback);
         //phase 1
+        prepare().
+                thenCompose(r -> {
+                //phase 2
+                byte[] command = pickCommandToExecute(r.values().stream().toList(), newCommand.command);
+                return propose(command)
+                        //phase 3
+                        .thenCompose(a -> commit(command));
+        });
+        return callback.getFuture();
+    }
+
+    private CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> prepare() {
         AsyncQuorumCallback<PrepareResponse> prepareCallback = new AsyncQuorumCallback<>(getNoOfReplicas());
         PrepareRequest prepare = new PrepareRequest();
         sendMessageToReplicas(prepareCallback, prepare.getMessageId(), prepare);
 
         CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> quorumFuture = prepareCallback.getQuorumFuture();
-        quorumFuture.thenCompose(r -> {
-            //phase 2
-            byte[] command = pickCommandToExecute(r.values().stream().toList(), newCommand.command);
-            ProposeRequest proposal = new ProposeRequest(command);
-            AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
-            sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+        return quorumFuture;
+    }
 
-            return proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
-                //phase 3
-                AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
-                CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
-                sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getMessageId(), commitCommandRequest);
-                return commitQuorumCalback.getQuorumFuture();
-            });
-        });
-        return callback.getFuture();
+    private CompletableFuture<Map<InetAddressAndPort, CommitCommandResponse>> commit(byte[] command) {
+        //phase 3
+        AsyncQuorumCallback<CommitCommandResponse> commitQuorumCalback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
+        CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
+        sendMessageToReplicas(commitQuorumCalback, commitCommandRequest.getMessageId(), commitCommandRequest);
+        return commitQuorumCalback.getQuorumFuture();
+    }
+
+    private CompletableFuture<Map<InetAddressAndPort, ProposeResponse>> propose(byte[] command) {
+        ProposeRequest proposal = new ProposeRequest(command);
+        AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
+        sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+        var quorumFuture1 = proposeQuorumCallback.getQuorumFuture();
+        return quorumFuture1;
     }
 
     private byte[] pickCommandToExecute(List<PrepareResponse> prepareResponses, byte[] newCommand) {

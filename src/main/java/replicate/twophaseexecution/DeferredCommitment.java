@@ -13,8 +13,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
 
 /**
  * For every node to know if all other nodes have accepted a command, needs
@@ -125,19 +128,26 @@ public class DeferredCommitment extends Replica {
         return completionCallback.getFuture();
     }
 
-    private void executeTwoPhases(byte[] command) {
-        //phase 1 - propose
-        ProposeRequest proposal = new ProposeRequest(command);
-        AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
-        sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+    private CompletableFuture<Map<InetAddressAndPort, CommitCommandResponse>> executeTwoPhases(byte[] command) {
+        return proposePhase(command)
+                .thenCompose(commitPhase(command));
+    }
 
-        //phase 2 - commit
-        proposeQuorumCallback.getQuorumFuture().thenCompose(a -> {
+    private Function<Map<InetAddressAndPort, ProposeResponse>, CompletionStage<Map<InetAddressAndPort, CommitCommandResponse>>> commitPhase(byte[] command) {
+        return a -> {
             AsyncQuorumCallback<CommitCommandResponse> commitQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), c -> c.isCommitted());
             CommitCommandRequest commitCommandRequest = new CommitCommandRequest(command);
             sendMessageToReplicas(commitQuorumCallback, commitCommandRequest.getMessageId(), commitCommandRequest);
             return commitQuorumCallback.getQuorumFuture();
-        });
+        };
+    }
+
+    private CompletableFuture<Map<InetAddressAndPort, ProposeResponse>> proposePhase(byte[] command) {
+        //phase 1 - propose
+        ProposeRequest proposal = new ProposeRequest(command);
+        AsyncQuorumCallback<ProposeResponse> proposeQuorumCallback = new AsyncQuorumCallback<>(getNoOfReplicas(), p -> p.isAccepted());
+        sendMessageToReplicas(proposeQuorumCallback, proposal.getMessageId(), proposal);
+        return proposeQuorumCallback.getQuorumFuture();
     }
 
     protected static BigInteger requestIdentifier(byte[] bytes) {
