@@ -52,7 +52,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
         this.serverId = config.getServerId();
         requestWaitingList = new RequestWaitingList(clock);
-        becomeFollower(fullLogBallot);
+        becomeFollower(promisedGeneration);
         super.markHeartbeatReceived(); //
         setRandomElectionTimeout();
     }
@@ -103,15 +103,15 @@ public class MultiPaxosWithHeartbeats extends Replica {
     private void handleHeartbeatRequest(Message<HeartbeatRequest> message) {
         markHeartbeatReceived();
         MonotonicId requestBallot = message.messagePayload().ballot;
-        if (requestBallot.isAfter(this.fullLogBallot)) {
+        if (requestBallot.isAfter(this.promisedGeneration)) {
             becomeFollower(requestBallot);
-            HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
+            HeartbeatResponse request = new HeartbeatResponse(true, this.promisedGeneration);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (requestBallot.equals(this.fullLogBallot)) {
-            HeartbeatResponse request = new HeartbeatResponse(true, this.fullLogBallot);
+        } else if (requestBallot.equals(this.promisedGeneration)) {
+            HeartbeatResponse request = new HeartbeatResponse(true, this.promisedGeneration);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
-        } else if (this.fullLogBallot.isAfter(requestBallot)) {
-            HeartbeatResponse request = new HeartbeatResponse(false, this.fullLogBallot);
+        } else if (this.promisedGeneration.isAfter(requestBallot)) {
+            HeartbeatResponse request = new HeartbeatResponse(false, this.promisedGeneration);
             sendOneway(message.getFromAddress(), request, message.getCorrelationId());
         }
     }
@@ -122,7 +122,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     @Override
     public void sendHeartbeats() {
-        super.sendOnewayMessageToOtherReplicas(new HeartbeatRequest(fullLogBallot));
+        super.sendOnewayMessageToOtherReplicas(new HeartbeatRequest(promisedGeneration));
     }
 
     @Override
@@ -174,7 +174,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
 
     private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
-        return doPaxos(fullLogBallot, logIndex.getAndIncrement(), value, callback);
+        return doPaxos(promisedGeneration, logIndex.getAndIncrement(), value, callback);
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
@@ -219,11 +219,11 @@ public class MultiPaxosWithHeartbeats extends Replica {
             if (throwable != null) {
                 logger.error(getName() + " could not complete election");
                 logger.error(throwable);
-                becomeFollower(this.fullLogBallot); //become follower and expect leader to send heartbeats.
+                becomeFollower(this.promisedGeneration); //become follower and expect leader to send heartbeats.
                 return;
 
             }
-            if (role.equals(ServerRole.LookingForLeader) && this.fullLogBallot.equals(winningBallot)) {
+            if (role.equals(ServerRole.LookingForLeader) && this.promisedGeneration.equals(winningBallot)) {
                 becomeLeader(winningBallot);
             }
         }, singularUpdateQueueExecutor);
@@ -231,7 +231,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     private void becomeLeader(MonotonicId result) {
         this.isLeader = true;
-        this.fullLogBallot = result;
+        this.promisedGeneration = result;
         this.role = ServerRole.Leader;
         heartbeatChecker.stop();
         heartBeatScheduler.restart();
@@ -272,7 +272,8 @@ public class MultiPaxosWithHeartbeats extends Replica {
         for (Integer index : indexes) {
             PaxosState peerEntry = promise.uncommittedValues.get(index);
             PaxosState selfEntry = paxosLog.get(index);
-            if (selfEntry == null || isAfter(peerEntry.acceptedBallot(), selfEntry.acceptedBallot())) {
+            if (selfEntry == null || isAfter(peerEntry.acceptedGeneration(),
+                    selfEntry.acceptedGeneration())) {
                 paxosLog.put(index, peerEntry);
             }
         }
@@ -349,8 +350,8 @@ public class MultiPaxosWithHeartbeats extends Replica {
         ProposalRequest request = message.messagePayload();
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
-        if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
-            fullLogBallot = generation; //if its after the promisedBallot, update promisedBallot
+        if (generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration)) {
+            promisedGeneration = generation; //if its after the promisedBallot, update promisedBallot
             PaxosState acceptedPaxosState = paxosState.accept(request.generation, Optional.ofNullable(request.proposedValue));
             paxosLog.put(request.index, acceptedPaxosState);
             sendOneway(message.getFromAddress(), new ProposalResponse(true), message.getCorrelationId());
@@ -359,17 +360,17 @@ public class MultiPaxosWithHeartbeats extends Replica {
         sendOneway(message.getFromAddress(), new ProposalResponse(false), message.getCorrelationId());
     }
 
-    MonotonicId fullLogBallot = MonotonicId.empty();
+    MonotonicId promisedGeneration = MonotonicId.empty();
 
     private void handleFullLogPrepare(Message<PrepareRequest> message) {
-        MonotonicId ballot = message.messagePayload().monotonicId;
-        if (fullLogBallot.isAfter(ballot)) {
-            logger.info(getName() + " rejecting ballot " + ballot + " promisedBallot=" + fullLogBallot);
+        MonotonicId ballot = message.messagePayload().generation;
+        if (promisedGeneration.isAfter(ballot)) {
+            logger.info(getName() + " rejecting ballot " + ballot + " promisedBallot=" + promisedGeneration);
             sendOneway(message.getFromAddress(), new FullLogPrepareResponse(false, Collections.EMPTY_MAP), message.getCorrelationId());
             return;
         }
         logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
-        fullLogBallot = ballot;
+        promisedGeneration = ballot;
         if (!message.getFromAddress().equals(getPeerConnectionAddress())) {
             becomeFollower(ballot);
         }
@@ -378,7 +379,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     private void becomeFollower(MonotonicId ballot) {
         logger.info(getName() + " becoming follower for " + ballot);
-        fullLogBallot = ballot;
+        promisedGeneration = ballot;
         this.role = ServerRole.Follower;
         heartBeatScheduler.stop();
         heartbeatChecker.restart();

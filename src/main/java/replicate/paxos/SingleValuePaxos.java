@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Paxos operates in three phases
@@ -61,7 +62,7 @@ public class SingleValuePaxos extends Replica {
     //this has to be made durable.
     //DurableKVStore to store paxos state.
 
-    int maxKnownPaxosRoundId = 0;
+    AtomicInteger lastKnownGeneration = new AtomicInteger(0);
     int serverId;
 
     public SingleValuePaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
@@ -111,22 +112,20 @@ public class SingleValuePaxos extends Replica {
         var req = message.messagePayload();
         boolean committed = false;
         if (paxosState.canAccept(req.getGeneration())) {
-            logger.info("Accepting commit for " + req.getValue() + "promisedBallot=" + paxosState.promisedBallot() + " req generation=" + req.getGeneration());
+            logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + paxosState.promisedGeneration() + " req generation=" + req.getGeneration());
             this.paxosState = paxosState.commit(req.getGeneration(), Optional.ofNullable(req.getValue()));
             committed = true;
         }
         sendOneway(message.getFromAddress(), new CommitResponse(committed), message.getCorrelationId());
     }
 
-
-
     private CompletableFuture<Optional<String>> doPaxos(byte[] value) {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
-            maxKnownPaxosRoundId = maxKnownPaxosRoundId + 1;
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId, serverId);
-            return doPaxos(monotonicId, value);
+            MonotonicId newGeneration = new MonotonicId(lastKnownGeneration.incrementAndGet(),
+                    serverId);
+            return doPaxos(newGeneration, value);
         }, maxAttempts, singularUpdateQueueExecutor).thenApply(result -> result.value);
 
     }
@@ -145,13 +144,13 @@ public class SingleValuePaxos extends Replica {
         }
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, byte[] value) {
-        logger.info(getName() + ": Sending Prepare with " + monotonicId);
-        return prepare(monotonicId)
+    private CompletableFuture<PaxosResult> doPaxos(MonotonicId newGeneration, byte[] value) {
+        logger.info(getName() + ": Sending Prepare with " + newGeneration);
+        return prepare(newGeneration)
                 .thenCompose((result) ->
-                        proposeValue(monotonicId, value, result))
+                        proposeValue(newGeneration, value, result))
                 .thenCompose(acceptedValue ->
-                        commitValue(monotonicId, acceptedValue));
+                        commitValue(newGeneration, acceptedValue));
     }
 
     private CompletableFuture<PaxosResult> commitValue(MonotonicId monotonicId, byte[] acceptedValue) {
@@ -163,10 +162,10 @@ public class SingleValuePaxos extends Replica {
                 });
     }
 
-    private CompletableFuture<byte[]> proposeValue(MonotonicId monotonicId, byte[] value, Map<InetAddressAndPort, PrepareResponse> result) {
+    private CompletableFuture<byte[]> proposeValue(MonotonicId acceptedGeneration, byte[] value, Map<InetAddressAndPort, PrepareResponse> result) {
         byte[] proposedValue = getProposalValue(value, result.values());
-        logger.info(getName() + ": Proposing " + proposedValue + " for generation " + monotonicId);
-        return sendProposeRequest(proposedValue, monotonicId);
+        logger.info(getName() + ": Proposing " + proposedValue + " for generation " + acceptedGeneration);
+        return sendProposeRequest(proposedValue, acceptedGeneration);
     }
 
     private Map<String, String> kv = new HashMap<>();
@@ -178,12 +177,17 @@ public class SingleValuePaxos extends Replica {
 
         Command command = Command.deserialize(new ByteArrayInputStream(acceptedValue));
         if (command instanceof SetValueCommand setValueCommand) {
-            kv.put(setValueCommand.getKey(), setValueCommand.getValue());
-            return setValueCommand.getValue();
+            return handleSetValueCommand(setValueCommand);
+
         } else if (command instanceof CompareAndSwap compareAndSwap) {
             //execute cas.
         }
         throw new IllegalArgumentException("Unknown command to execute");
+    }
+
+    private String handleSetValueCommand(SetValueCommand setValueCommand) {
+        kv.put(setValueCommand.getKey(), setValueCommand.getValue());
+        return setValueCommand.getValue();
     }
 
 
@@ -230,11 +234,11 @@ public class SingleValuePaxos extends Replica {
     public void handlePrepare(Message<PrepareRequest> message) {
         var prepareRequest = message.messagePayload();
         MonotonicId generation = prepareRequest.monotonicId;
-        if (paxosState.promisedBallot().isAfter(generation)) {
-            sendOneway(message.getFromAddress(), new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
+        if (paxosState.promisedGeneration().isAfter(generation)) {
+            sendOneway(message.getFromAddress(), new PrepareResponse(false, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
         } else {
             paxosState = paxosState.promise(generation);
-            sendOneway(message.getFromAddress(), new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
+            sendOneway(message.getFromAddress(), new PrepareResponse(true, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
         }
     }
 }

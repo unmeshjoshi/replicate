@@ -11,15 +11,15 @@ import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 
-public class BallotVotingTest extends ClusterTest<BallotVoting> {
+public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
 
     @Test
     public void generateMonotonicNumbersWithQuorumVoting() throws IOException {
         super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses)
-                -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        BallotVoting athens = nodes.get("athens");
-        BallotVoting byzantium = nodes.get( "byzantium");
-        BallotVoting cyrene = nodes.get("cyrene");
+                -> new GenerationVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        GenerationVoting athens = nodes.get("athens");
+        GenerationVoting byzantium = nodes.get( "byzantium");
+        GenerationVoting cyrene = nodes.get("cyrene");
 
         NetworkClient client = new NetworkClient();
         Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
@@ -45,12 +45,12 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
 
     @Test //FIXME. Fails for numbers 6 and above.
     public void getsMonotonicNumbersWithFailures() throws IOException {
-        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "delphi", "ephesus"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new BallotVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
-        BallotVoting athens = nodes.get("athens");
-        BallotVoting byzantium = nodes.get( "byzantium");
-        BallotVoting cyrene = nodes.get("cyrene");
-        BallotVoting delphi = nodes.get("delphi");
-        BallotVoting ephesus = nodes.get("ephesus");
+        super.nodes = TestUtils.startCluster( Arrays.asList("athens", "byzantium", "cyrene", "delphi", "ephesus"), (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new GenerationVoting(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+        GenerationVoting athens = nodes.get("athens");
+        GenerationVoting byzantium = nodes.get( "byzantium");
+        GenerationVoting cyrene = nodes.get("cyrene");
+        GenerationVoting delphi = nodes.get("delphi");
+        GenerationVoting ephesus = nodes.get("ephesus");
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(ephesus);
@@ -96,9 +96,10 @@ public class BallotVotingTest extends ClusterTest<BallotVoting> {
         assertEquals(8, nextNumberConnectingTo(cyrene, client));
         assertEquals(9, nextNumberConnectingTo(ephesus, client));
         assertEquals(10, nextNumberConnectingTo(delphi, client));
+        assertEquals(11, nextNumberConnectingTo(ephesus, client));
     }
 
-    private static int nextNumberConnectingTo(BallotVoting byzantium, NetworkClient client) throws IOException {
+    private static int nextNumberConnectingTo(GenerationVoting byzantium, NetworkClient client) throws IOException {
         return client.sendAndReceive(new NextNumberRequest(), byzantium.getClientConnectionAddress(), Integer.class).getResult().intValue();
     }
 

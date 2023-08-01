@@ -77,8 +77,13 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<ExecuteCommandResponse> handleClientExecuteCommand(ExecuteCommandRequest t) {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
-
-        CompletableFuture<PaxosResult> appendFuture = append(t.command, commitCallback);
+        //tricky. Always start with index zero, because you might have
+        // incomplete runs at lower indexes. If the entries below the index
+        //at which we can commit the provided request are not committed,
+        //we won't be able to execute the request as high-watermark is not
+        // reached. Not very suitable in practice.
+        CompletableFuture<PaxosResult> appendFuture = append(0,
+                t.command, commitCallback);
 
         return appendFuture.thenCompose(f -> commitCallback.getFuture());
     }
@@ -86,7 +91,8 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<GetValueResponse> handleClientGetValueRequest(GetValueRequest request) {
         var commitCallback = new CompletionCallback<ExecuteCommandResponse>();
-        var appendFuture = append(NO_OP_COMMAND.serialize(), commitCallback);
+        var appendFuture = append(0, NO_OP_COMMAND.serialize(),
+                commitCallback);
         return appendFuture
                 .thenCompose(f ->
                         commitCallback.getFuture()
@@ -98,26 +104,25 @@ public class PaxosLog extends Replica {
     AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
     AtomicInteger logIndex = new AtomicInteger(0);
 
-    public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
-        CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
+    public CompletableFuture<PaxosResult> append(int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+        CompletableFuture<PaxosResult> appendFuture = doPaxos(index, initialValue, callback);
         return appendFuture.thenCompose((result)->{
            if (result.value.stream().allMatch(v -> v != initialValue)) {
                logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
-               logIndex.incrementAndGet();
-               return append(initialValue, callback);
+               return append(logIndex.incrementAndGet(), initialValue, callback);
            }
            return CompletableFuture.completedFuture(result);
         });
     }
 
-    private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
+    private CompletableFuture<PaxosResult> doPaxos(int index, byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
         int maxAttempts = 2;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
-            MonotonicId monotonicId = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(),
+            MonotonicId newGeneration = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(),
                     serverId);
-            CompletableFuture<PaxosResult> result = doPaxos(monotonicId,
-                                            logIndex.get(), value, callback);
+            CompletableFuture<PaxosResult> result = doPaxos(newGeneration,
+                    index, value, callback);
             return result;
         }, maxAttempts, singularUpdateQueueExecutor);
     }
@@ -130,7 +135,8 @@ public class PaxosLog extends Replica {
                     return sendProposeRequest(index, proposedValue, monotonicId);
 
                 }).thenCompose(proposedValue -> {
-                    //Once the index at which the command is committed reaches 'high-watemark', return the result.
+                    //Once the index at which the command is committed
+                    // reaches 'high-watermark', return the result.
                     if (proposedValue == initialValue) {
                         requestWaitingList.add(index, callback);
                     }
@@ -152,6 +158,7 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<Boolean> sendCommitRequest(int index, byte[] value, MonotonicId monotonicId) {
         AsyncQuorumCallback<CommitResponse> commitCallback = new AsyncQuorumCallback<CommitResponse>(getNoOfReplicas(), c -> c.success);
+        logger.info(getName() + " sending commit request for " + index);
         sendMessageToReplicas(commitCallback, MessageId.Commit, new CommitRequest(index, value, monotonicId));
         return commitCallback.getQuorumFuture().thenApply(result -> true);
     }
@@ -165,6 +172,7 @@ public class PaxosLog extends Replica {
 
     private CompletableFuture<Map<InetAddressAndPort, PrepareResponse>> sendPrepareRequest(int index, MonotonicId monotonicId) {
         var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+        logger.info(getName() + " sending prepare request for " + index);
         sendMessageToReplicas(callback, MessageId.Prepare, new PrepareRequest(index, monotonicId));
         return callback.getQuorumFuture();
     }
@@ -234,7 +242,7 @@ public class PaxosLog extends Replica {
             accepted = true;
         }
 
-        logger.info(getName() + (accepted?" accepting ":"rejecting ") + "proposal "  + request.generation + " as paxosState.promisedBallot=" + paxosState.promisedBallot());
+        logger.info(getName() + (accepted?" accepting ":"rejecting ") + "proposal "  + request.generation + " as paxosState.promisedGeneration=" + paxosState.promisedGeneration());
         sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
     }
 
@@ -243,12 +251,12 @@ public class PaxosLog extends Replica {
         var request = message.messagePayload();
         var paxosState = getOrCreatePaxosState(request.index);
         boolean promised = false;
-        if (paxosState.canPromise(request.monotonicId)) {
-            PaxosState promisedPaxosState = paxosState.promise(request.monotonicId);
+        if (paxosState.canPromise(request.generation)) {
+            PaxosState promisedPaxosState = paxosState.promise(request.generation);
             paxosLog.put(request.index, promisedPaxosState);
             promised = true;
         }
-        sendOneway(message.getFromAddress(), new PrepareResponse(promised, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
+        sendOneway(message.getFromAddress(), new PrepareResponse(promised, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
     }
 
     private PaxosState getOrCreatePaxosState(int index) {

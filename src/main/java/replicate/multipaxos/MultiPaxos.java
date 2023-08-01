@@ -34,11 +34,32 @@ public class MultiPaxos extends Replica {
     private static Logger logger = LogManager.getLogger(MultiPaxos.class);
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     //Paxos State
+    //Generation value to avoid concurrent updates
+    //Only the node with the highest generation will be
+    // able to coordinate replication. Can be called as
+    // 'the leader'. Because of failures, or message
+    // delays,if majority quorum has is a new leader
+    // with higher generation, all the requests from
+    // previous generation will be rejected.
+    MonotonicId promisedGeneration = MonotonicId.empty();
+    //The Generation value for the accepted requests is kept
+    //with each log entry.
+    //Because of failures, various cluster nodes can end
+    //up having accepted different values in each log entry.
+    //For repairing the cluster, the new leader
+    // will always choose the highest generation value
+    //if it receives different accepted values from
+    //different cluster nodes for a particular log entry.
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
+    AtomicInteger logIndex = new AtomicInteger(0);
 
-    Map<String, String> kv = new HashMap<>();
+    RequestWaitingList requestWaitingList;
+    AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
     final int serverId;
     ServerRole role;
+
+    //State exposed to clients. Committed after successful paxos rounds.
+    Map<String, String> kv = new HashMap<>();
 
     public MultiPaxos(String name, SystemClock clock, Config config, InetAddressAndPort clientAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peers) throws IOException {
         super(name, config, clock, clientAddress, peerConnectionAddress, peers);
@@ -117,10 +138,6 @@ public class MultiPaxos extends Replica {
                 }, singularUpdateQueueExecutor);
     }
 
-    RequestWaitingList requestWaitingList;
-
-    AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
-    AtomicInteger logIndex = new AtomicInteger(0);
 
     public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
         CompletableFuture<PaxosResult> appendFuture = doPaxos(initialValue, callback);
@@ -135,10 +152,11 @@ public class MultiPaxos extends Replica {
 
 
     private CompletableFuture<PaxosResult> doPaxos(byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
-        return doPaxos(fullLogBallot, logIndex.getAndIncrement(), value, callback);
+        return doPaxos(promisedGeneration, logIndex.getAndIncrement(), value, callback);
     }
 
     private CompletableFuture<PaxosResult> doPaxos(MonotonicId monotonicId, int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
+        //no prepare happening here.
         return sendProposeRequest(index, initialValue, monotonicId)
                 .thenCompose(proposedValue -> {
                     //Once the index at which the command is committed reaches 'high-watermark', return the result.
@@ -171,7 +189,7 @@ public class MultiPaxos extends Replica {
         //if future completes successfully, phase1 is complete and this node can be the leader.
         runElection().whenCompleteAsync((result, throwable) -> {
             if (throwable == null) {
-                logger.info(getName() + " is leader for " + fullLogBallot);
+                logger.info(getName() + " is leader for " + promisedGeneration);
                 this.isLeader = true;
                 this.role = ServerRole.Leader;
                 heartbeatChecker.stop();
@@ -182,8 +200,11 @@ public class MultiPaxos extends Replica {
 
     public CompletableFuture<Void> runElection() {
         logger.info(getName() + " triggering election.");
-        this.fullLogBallot = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
-        return sendFullLogPrepare(fullLogBallot).thenCompose(prepareResponse -> {
+
+        var newGeneration
+                = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
+
+        return sendFullLogPrepare(newGeneration).thenCompose(prepareResponse -> {
             List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
             for (FullLogPrepareResponse promise : promises) {
                 mergeLog(promise);
@@ -200,9 +221,9 @@ public class MultiPaxos extends Replica {
         for (Integer index : uncommitedValues.keySet()) {
             PaxosState logEntry = uncommitedValues.get(index);
             byte[] proposedValue = logEntry.acceptedValue().get();
-            var completeFuture = sendProposeRequest(index, proposedValue, fullLogBallot)
+            var completeFuture = sendProposeRequest(index, proposedValue, promisedGeneration)
                     .thenCompose(value -> {
-                        return sendCommitRequest(index, proposedValue, fullLogBallot);
+                        return sendCommitRequest(index, proposedValue, promisedGeneration);
                     });
             commitFutures.add(completeFuture);
         }
@@ -214,7 +235,7 @@ public class MultiPaxos extends Replica {
         for (Integer index : indexes) {
             PaxosState peerEntry = promise.uncommittedValues.get(index);
             PaxosState selfEntry = paxosLog.get(index);
-            if (selfEntry == null || isAfter(peerEntry.acceptedBallot(), selfEntry.acceptedBallot())) {
+            if (selfEntry == null || isAfter(peerEntry.acceptedGeneration(), selfEntry.acceptedGeneration())) {
                 paxosLog.put(index, peerEntry);
             }
         }
@@ -235,10 +256,17 @@ public class MultiPaxos extends Replica {
         return false;
     }
 
-    private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>> sendFullLogPrepare(MonotonicId fullLogPromisedGeneration) {
-        var prepareCallback = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r -> r.promised);
-        logger.info(getName() + " sending prepare request for " + fullLogPromisedGeneration);
-        sendMessageToReplicas(prepareCallback, MessageId.Prepare, new PrepareRequest(-1, fullLogPromisedGeneration));
+    private CompletableFuture<Map<InetAddressAndPort, FullLogPrepareResponse>>
+                sendFullLogPrepare(MonotonicId newGeneration) {
+        var prepareCallback
+                = new AsyncQuorumCallback<FullLogPrepareResponse>(getNoOfReplicas(), r -> r.promised);
+
+        logger.info(getName() + " sending prepare request for " + newGeneration);
+
+        sendMessageToReplicas(prepareCallback,
+                MessageId.Prepare,
+                new PrepareRequest(-1, newGeneration));
+
         return prepareCallback.getQuorumFuture();
     }
 
@@ -292,8 +320,8 @@ public class MultiPaxos extends Replica {
         var generation = request.generation;
         var paxosState = getOrCreatePaxosState(request.index);
         boolean accepted = false;
-        if (generation.equals(fullLogBallot) || generation.isAfter(fullLogBallot)) {
-            fullLogBallot = generation; //if its after the promisedBallot, update promisedBallot
+        if (generation.equals(promisedGeneration) || generation.isAfter(promisedGeneration)) {
+            promisedGeneration = generation; //if its after the promisedGeneration, update promisedGeneration
             PaxosState acceptedPaxosState = paxosState.accept(request.generation, Optional.ofNullable(request.proposedValue));
             paxosLog.put(request.index, acceptedPaxosState);
             accepted = true;
@@ -301,21 +329,24 @@ public class MultiPaxos extends Replica {
         sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
     }
 
-    MonotonicId fullLogBallot = MonotonicId.empty();
+
 
     private void handleFullLogPrepare(Message<PrepareRequest> message) {
         var request = message.messagePayload();
-        MonotonicId ballot = request.monotonicId;
-        if (fullLogBallot.isAfter(ballot)) {
-            sendOneway(message.getFromAddress(), new FullLogPrepareResponse(false, Collections.EMPTY_MAP), message.getCorrelationId());
+        MonotonicId ballot = request.generation;
+        if (promisedGeneration.isAfter(ballot)) {
+            sendOneway(message.getFromAddress(),
+                    FullLogPrepareResponse.rejected(), message.getCorrelationId());
             return;
         }
         logger.info(getName() + " accepting ballot " + ballot + ". Becoming follower.");
-        fullLogBallot = ballot;
+        promisedGeneration = ballot;
         this.role = ServerRole.Follower;
         heartBeatScheduler.stop();
         heartbeatChecker.start();
-        sendOneway(message.getFromAddress(), new FullLogPrepareResponse(true, getUncommitedValues()), message.getCorrelationId());
+        sendOneway(message.getFromAddress(),
+                FullLogPrepareResponse.accepted(getUncommitedValues()),
+                message.getCorrelationId());
     }
 
 

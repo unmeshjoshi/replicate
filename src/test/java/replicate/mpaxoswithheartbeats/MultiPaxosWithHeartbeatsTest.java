@@ -122,7 +122,7 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
         System.out.println("oldLeader = " + oldLeader.getName());
         assertEquals("Old leader should still thinks that its the leader", oldLeader.role, ServerRole.Leader);
         assertTrue("Old leader should still thinks that its the leader", oldLeader.isLeader());
-        assertTrue("New leader should have higher ballot than old leader", newLeader.fullLogBallot.isAfter(oldLeader.fullLogBallot));
+        assertTrue("New leader should have higher ballot than old leader", newLeader.promisedGeneration.isAfter(oldLeader.promisedGeneration));
 
         oldLeader.reconnectTo(follower1);
         follower1.reconnectTo(oldLeader);
@@ -131,6 +131,6 @@ public class MultiPaxosWithHeartbeatsTest extends ClusterTest<MultiPaxosWithHear
             return oldLeader.isFollower();
         }, "Old leader should step down", Duration.ofSeconds(2));
 
-        assertEquals(newLeader.fullLogBallot, oldLeader.fullLogBallot);
+        assertEquals(newLeader.promisedGeneration, oldLeader.promisedGeneration);
     }
 }

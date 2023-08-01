@@ -5,6 +5,7 @@ import replicate.common.MessageId;
 import replicate.multipaxos.PaxosState;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 
 
@@ -16,5 +17,14 @@ public class FullLogPrepareResponse extends MessagePayload {
         super(MessageId.Promise);
         this.promised = promised;
         this.uncommittedValues = uncommittedValues;
+    }
+
+    public static FullLogPrepareResponse rejected() {
+        return new FullLogPrepareResponse(false,
+                Collections.EMPTY_MAP);
+    }
+
+    public static FullLogPrepareResponse accepted(Map<Integer, PaxosState> uncommitedValues) {
+        return new FullLogPrepareResponse(true, uncommitedValues);
     }
 }

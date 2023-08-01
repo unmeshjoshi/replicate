@@ -8,11 +8,11 @@ import java.time.Duration;
 
 public class PrepareRequest extends MessagePayload {
     public final Integer index;
-    public final MonotonicId monotonicId;
+    public final MonotonicId generation;
     public Duration leaderLeaseDuration;
-    public PrepareRequest(Integer index, MonotonicId monotonicId) {
+    public PrepareRequest(Integer index, MonotonicId generation) {
         super(MessageId.Prepare);
         this.index = index;
-        this.monotonicId = monotonicId;
+        this.generation = generation;
     }
 }

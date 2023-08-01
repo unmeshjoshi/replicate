@@ -171,7 +171,7 @@ public class PaxosKVStore extends Replica {
             kv.put(request.key, paxosState);
             promised = true;
         }
-        sendOneway(message.getFromAddress(), new PrepareResponse(promised, paxosState.acceptedValue(), paxosState.acceptedBallot()), message.getCorrelationId());
+        sendOneway(message.getFromAddress(), new PrepareResponse(promised, paxosState.acceptedValue(), paxosState.acceptedGeneration()), message.getCorrelationId());
     }
 
     private PaxosState getOrCreatePaxosState(String key) {

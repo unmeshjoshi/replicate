@@ -285,8 +285,11 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         KVClient kvClient = new KVClient();
         athens.dropMessagesTo(cyrene); //byzantium wont have this value, but quorum is reached.
         athens.dropMessagesTo(byzantium); //cyrene wont have this value, but quorum is reached.
-        athens.setClock(new TestClock(200));//athens clock is ahead of everyone else.
-        byzantium.setClock(new TestClock(100));
+        athens.setClock(new TestClock(200));//athens clock is ahead of
+        // everyone else.    title=>Initial Value, 200
+                        //write title=>Updated Value, 100
+
+        byzantium.setClock(new TestClock(200));
         cyrene.setClock(new TestClock(100));
 
         var aliceResponse =

@@ -27,7 +27,7 @@ public class PrepareResponse extends MessagePayload {
         return "PrepareResponse{" +
                 "promised=" + promised +
                 ", acceptedValue=" + acceptedValue +
-                ", acceptedBallot=" + acceptedBallot +
+                ", acceptedGeneration=" + acceptedBallot +
                 '}';
     }
 }

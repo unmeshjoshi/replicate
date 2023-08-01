@@ -4,7 +4,7 @@ import replicate.common.MonotonicId;
 
 import java.util.Optional;
 
-public record PaxosState(Optional<MonotonicId> acceptedBallot,
+public record PaxosState(Optional<MonotonicId> acceptedGeneration,
                          Optional<byte[]> acceptedValue,
                          Optional<byte[]> committedValue,
                          Optional<MonotonicId> committedGeneration){

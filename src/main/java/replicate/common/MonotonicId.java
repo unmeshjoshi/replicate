@@ -6,8 +6,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class MonotonicId implements Comparable<MonotonicId> {
-    public int requestId;
-    int serverId;
+    public final int requestId;
+    public final int serverId;
 
     public MonotonicId(int requestId, int serverId) {
         this.serverId = serverId;
@@ -65,15 +65,15 @@ public class MonotonicId implements Comparable<MonotonicId> {
         return Integer.compare(this.serverId, o.serverId);
     }
 
-    //for jackson
-    private MonotonicId() {
-    }
-
     public boolean isEmpty() {
         return this.equals(empty());
     }
 
     public boolean isBefore(MonotonicId title) {
         return this.compareTo(title) < 0;
+    }
+
+    public MonotonicId nextId() {
+        return new MonotonicId(requestId + 1, serverId);
     }
 }

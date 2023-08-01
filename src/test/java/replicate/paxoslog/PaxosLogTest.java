@@ -5,6 +5,7 @@ import org.junit.Test;
 import replicate.common.ClusterTest;
 import replicate.common.NetworkClient;
 import replicate.common.TestUtils;
+import replicate.paxos.PaxosState;
 import replicate.paxos.messages.GetValueResponse;
 import replicate.quorum.messages.GetValueRequest;
 import replicate.twophaseexecution.CompareAndSwap;
@@ -94,7 +95,10 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertEquals(4, byzantium.paxosLog.size());
         assertEquals(4, cyrene.paxosLog.size());
 
-        var getValueResponse = networkClient.sendAndReceive(new GetValueRequest("title"), cyrene.getClientConnectionAddress(), GetValueResponse.class).getResult();
+        var getValueResponse =
+                networkClient.sendAndReceive(new GetValueRequest("title"),
+                        athens.getClientConnectionAddress(),
+                        GetValueResponse.class).getResult();
         assertEquals(Optional.of("Event Driven Microservices"), getValueResponse.value);
     }
 
@@ -112,6 +116,15 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
         assertTrue("Expect an exception, as quorum communication fails after multiple attempts", setValueResponse.isError());
+        assertEquals(1, athens.paxosLog.size());
+        assertEquals(0, byzantium.paxosLog.size());
+        assertEquals(0, cyrene.paxosLog.size());
+
+
+        //byzantium -> cyrene prepare success
+        //byzantium -> cyrene propose success
+        //byzantium -> cyrene commit fails. So cyrene does not know if the
+        // accepted value at index 1 is committed or not.
 
         byzantium.dropAfterNMessagesTo(cyrene, 2);
 
@@ -120,6 +133,7 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertTrue("Expect an exception, as quorum communication fails after multiple attempts", response1.isError());
         assertEquals(1, athens.paxosLog.size());
         assertEquals(1, byzantium.paxosLog.size());
+
         assertEquals(1, cyrene.paxosLog.size());
 
 
@@ -131,19 +145,22 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertEquals(1, byzantium.paxosLog.size());
         assertEquals(1, cyrene.paxosLog.size());
 
-
         byzantium.reconnectTo(cyrene);
-        command = new SetValueCommand("title", "Event Driven Microservices");
+        command = new SetValueCommand("title", "Patterns of distributed " +
+                "systems");
         var setValueResponse2 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
-        assertEquals(setValueResponse2.getResponse(), Optional.of("Event Driven Microservices"));
+        assertEquals(Optional.of("Patterns " +
+                        "of distributed systems"),
+                setValueResponse2.getResponse());
 
         assertEquals(2, athens.paxosLog.size());
         assertEquals(2, byzantium.paxosLog.size());
         assertEquals(2, cyrene.paxosLog.size());
 
-        assertEquals("Event Driven Microservices", athens.getValue("title"));
-        assertEquals("Event Driven Microservices", byzantium.getValue("title"));
-        assertEquals("Event Driven Microservices", cyrene.getValue("title"));
+        assertEquals("Patterns of distributed systems", athens.getValue(
+                "title"));
+        assertEquals("Patterns of distributed systems", byzantium.getValue("title"));
+        assertEquals("Patterns of distributed systems", cyrene.getValue("title"));
 
     }
 
@@ -178,5 +195,4 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertEquals(2, athens.paxosLog.size());
 
     }
-
 }

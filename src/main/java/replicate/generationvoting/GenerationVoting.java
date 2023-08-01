@@ -24,17 +24,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 //the ballot/number needs to be persisted on each replica
 //the execution needs to be thread safe.. done using SingularUpdateQueue
-public class BallotVoting extends Replica {
+public class GenerationVoting extends Replica {
     //epoch/term/generation
     //this is durable.
     int ballot = 0;
 
     DurableKVStore ballotStore;
 
-    private Logger logger = LogManager.getLogger(BallotVoting.class);
+    private Logger logger = LogManager.getLogger(GenerationVoting.class);
     private int maxAttmpts = 4;
 
-    public BallotVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
+    public GenerationVoting(String name, Config config, SystemClock clock, InetAddressAndPort clientConnectionAddress, InetAddressAndPort peerConnectionAddress, List<InetAddressAndPort> peerAddresses) throws IOException {
         super(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses);
         ballotStore = new DurableKVStore(config);
     }
@@ -58,21 +58,17 @@ public class BallotVoting extends Replica {
         int maxAttempts =   5;
         AtomicInteger proposal = new AtomicInteger(proposedNumber);
         return FutureUtils.retryWithRandomDelay(() -> {
-            var resultFuture = new CompletableFuture<Integer>();
             PrepareRequest nr = new PrepareRequest(proposal.incrementAndGet());
             var callback = new AsyncQuorumCallback<PrepareResponse>(getNoOfReplicas(), p -> p.promised);
+
             sendMessageToReplicas(callback, MessageId.Prepare, nr);
-            callback.getQuorumFuture().whenComplete((result, exception) -> {
-                if (exception != null) {
-                    resultFuture.completeExceptionally(exception);
-                } else {
 
-                    resultFuture.complete(proposal.intValue());
-                }
-            });
-            return resultFuture;
+            return callback.getQuorumFuture()
+                    .thenApply(result -> proposal.intValue())
+                    .exceptionally(ex -> {
+                        throw new RuntimeException("Exception occurred while processing the request.", ex);
+                    });
         }, maxAttempts, singularUpdateQueueExecutor);
-
     }
 
     private void handlePrepareRequest(Message<PrepareRequest> message) {

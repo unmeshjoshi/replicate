@@ -83,7 +83,8 @@ public class RequestWaitingList<Key, Response> {
     private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private Duration expirationDuration; //do not expire for now.
     public RequestWaitingList(SystemClock clock) {
-        this(clock, Duration.ofMillis(1000)); //TODO: Keeping this as 1 second occasionally expires some get requests and fails read-repair tests
+        this(clock, Duration.ofMillis(1000)); //TODO: Keeping this as 1
+        // second occasionally expires some get requests and fails read-repair tests
     }
     public RequestWaitingList(SystemClock clock, Duration duration) {
         this.expirationDuration = duration;
