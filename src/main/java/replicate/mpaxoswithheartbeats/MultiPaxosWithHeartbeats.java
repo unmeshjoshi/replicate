@@ -240,13 +240,13 @@ public class MultiPaxosWithHeartbeats extends Replica {
         //should always send with its own serverId.
         MonotonicId newGeneration = promisedGeneration.nextId(serverId);
         logger.info(getName() + " triggering election with ballot " + newGeneration);
-        return sendFullLogPrepare(newGeneration).thenCompose(prepareResponse -> {
+        return sendFullLogPrepare(newGeneration).thenComposeAsync(prepareResponse -> {
             List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
             for (FullLogPrepareResponse promise : promises) {
                 mergeLog(promise);
             }
             return sendProposalRequestsForUnCommittedEntries(newGeneration);
-        });
+        }, singularUpdateQueueExecutor);
     }
 
     boolean isLeader = false;
