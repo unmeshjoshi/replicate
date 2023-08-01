@@ -73,7 +73,7 @@ public class MonotonicId implements Comparable<MonotonicId> {
         return this.compareTo(title) < 0;
     }
 
-    public MonotonicId nextId() {
+    public MonotonicId nextId(int serverId) {
         return new MonotonicId(requestId + 1, serverId);
     }
 }

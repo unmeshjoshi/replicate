@@ -38,12 +38,11 @@ public class MultiPaxosWithHeartbeats extends Replica {
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
     Duration randomElectionTimeout;
     //Paxos State
+    MonotonicId promisedGeneration = MonotonicId.empty();
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
     Map<String, String> kv = new HashMap<>();
     final int serverId;
     ServerRole role;
-    Duration leaderLeaseDuration = Duration.ofMillis(500);
-    Duration oldLeaderLeaseDuration = Duration.ofMillis(0);
 
     //prepare response will send a oldLeaderRemainingDuration
     //New Leader waits for max Old leader remaining duration.
@@ -158,7 +157,6 @@ public class MultiPaxosWithHeartbeats extends Replica {
 
     RequestWaitingList requestWaitingList;
 
-    AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
     AtomicInteger logIndex = new AtomicInteger(0);
 
     public CompletableFuture<PaxosResult> append(byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
@@ -239,14 +237,15 @@ public class MultiPaxosWithHeartbeats extends Replica {
     }
 
     public CompletableFuture<MonotonicId> runElection() {
-        MonotonicId newBallot = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(), serverId);
-        logger.info(getName() + " triggering election with ballot " + newBallot);
-        return sendFullLogPrepare(newBallot).thenCompose(prepareResponse -> {
+        //should always send with its own serverId.
+        MonotonicId newGeneration = promisedGeneration.nextId(serverId);
+        logger.info(getName() + " triggering election with ballot " + newGeneration);
+        return sendFullLogPrepare(newGeneration).thenCompose(prepareResponse -> {
             List<FullLogPrepareResponse> promises = prepareResponse.values().stream().toList();
             for (FullLogPrepareResponse promise : promises) {
                 mergeLog(promise);
             }
-            return sendProposalRequestsForUnCommittedEntries(newBallot);
+            return sendProposalRequestsForUnCommittedEntries(newGeneration);
         });
     }
 
@@ -359,8 +358,6 @@ public class MultiPaxosWithHeartbeats extends Replica {
         }
         sendOneway(message.getFromAddress(), new ProposalResponse(false), message.getCorrelationId());
     }
-
-    MonotonicId promisedGeneration = MonotonicId.empty();
 
     private void handleFullLogPrepare(Message<PrepareRequest> message) {
         MonotonicId ballot = message.messagePayload().generation;
