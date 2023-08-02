@@ -38,17 +38,19 @@ public class RecoverableDeferredCommitmentTest extends ClusterTest<RecoverableDe
 
         NetworkClient client = new NetworkClient();
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
-        ExecuteCommandResponse response
-                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
+        var firstResponse
+                = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
+
+        assertFalse(firstResponse.isSuccess());
 
         athens.reconnectTo(byzantium);
         athens.reconnectTo(cyrene);
 
         casCommand = new CompareAndSwap("title", Optional.of("Microservices"), "Distributed Systems");
-        var response2
+        var secondResponse
                 = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 
-        assertFalse(response2.isSuccess());
+        assertFalse(secondResponse.isSuccess());
         //the request executed only the incomplete command from the previous runs.
 
 

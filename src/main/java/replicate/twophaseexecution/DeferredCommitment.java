@@ -104,6 +104,8 @@ public class DeferredCommitment extends Replica {
             Optional<String> existingValue = Optional.ofNullable(kvStore.get(cas.getKey()));
             boolean isCommitted = false;
             if (existingValue.equals(cas.getExistingValue())) {
+                logger.info("Setting value  " + cas.getNewValue() + " " +
+                        "existing value was " + existingValue);
                 kvStore.put(cas.getKey(), cas.getNewValue());
                 isCommitted = true;
             }

@@ -23,9 +23,11 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
     QuorumKVStore byzantium;
     QuorumKVStore cyrene;
 
+
     @Override
     public void setUp() throws IOException {
-        this.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+        this.nodes = TestUtils.startCluster(Arrays.asList("athens",
+                        "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
 
         athens = nodes.get("athens");
@@ -35,7 +37,8 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
 
     //Read Your Own Writes should give the same value written by me or a later value.
     //Try changing this test to have 5 replicas instead of three.
-    //It returns error because Quorum condition will not be met.
+    //Try adding more failures, It returns error because Quorum condition will
+    // not be met.
     @Test
     public void quorumReadWriteTest() throws IOException {
 

@@ -33,6 +33,7 @@ public class DurableKVStoreTest {
         //KV crashes.
         kv.close();
 
+
         //simulates process restart. A new instance is created at startup.
         DurableKVStore recoveredKvStore = new DurableKVStore(new Config(walDir.getAbsolutePath()));
 

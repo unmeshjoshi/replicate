@@ -39,6 +39,7 @@ public class MultiPaxosWithHeartbeats extends Replica {
     Duration randomElectionTimeout;
     //Paxos State
     MonotonicId promisedGeneration = MonotonicId.empty();
+    //make this durable. Possibly use DurableKVStore.
     Map<Integer, PaxosState> paxosLog = new HashMap<>();
     Map<String, String> kv = new HashMap<>();
     final int serverId;

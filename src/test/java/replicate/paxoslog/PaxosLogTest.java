@@ -112,8 +112,9 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
 
         athens.dropMessagesTo(byzantium);
         athens.dropMessagesTo(cyrene);
-        var command = new SetValueCommand("title", "Microservices");
+        var command = new SetValueCommand("title", "Initial Title");
 
+        //athens has incomplete run for "title", "Microservices"
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
         assertTrue("Expect an exception, as quorum communication fails after multiple attempts", setValueResponse.isError());
         assertEquals(1, athens.paxosLog.size());
@@ -125,42 +126,42 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         //byzantium -> cyrene propose success
         //byzantium -> cyrene commit fails. So cyrene does not know if the
         // accepted value at index 1 is committed or not.
-
+        //byzantium and cyrene both have title, distributed systems at index 1
+        //byzantium could successfully commit it but cyrene does not know
+        // about it.
         byzantium.dropAfterNMessagesTo(cyrene, 2);
 
-        command = new SetValueCommand("title", "Distributed Systems");
+        command = new SetValueCommand("title", "Updated Title");
         var response1 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class);
         assertTrue("Expect an exception, as quorum communication fails after multiple attempts", response1.isError());
         assertEquals(1, athens.paxosLog.size());
         assertEquals(1, byzantium.paxosLog.size());
-
         assertEquals(1, cyrene.paxosLog.size());
 
-
-        command = new SetValueCommand("title", "Event Driven Microservices");
-        var response2 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class);
-        assertTrue("Expect an exception, as quorum communication fails after multiple attempts", response2.isError());
-
-        assertEquals(1, athens.paxosLog.size());
-        assertEquals(1, byzantium.paxosLog.size());
-        assertEquals(1, cyrene.paxosLog.size());
-
+        athens.reconnectTo(cyrene);
         byzantium.reconnectTo(cyrene);
-        command = new SetValueCommand("title", "Patterns of distributed " +
-                "systems");
-        var setValueResponse2 = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
-        assertEquals(Optional.of("Patterns " +
-                        "of distributed systems"),
-                setValueResponse2.getResponse());
+
+        //this should go on index 2. Index 1 needs to be reconciled with
+        // Distributed Systems chosen over Microservices
+        var casCommand = new CompareAndSwap("title",
+                    Optional.of("Updated Title"), "CAS Title");
+        var casResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), cyrene.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
+
+        //cas returns existing value, which is modified by CAS.
+        assertEquals(Optional.of("Updated Title"),
+                casResponse.getResponse());
 
         assertEquals(2, athens.paxosLog.size());
         assertEquals(2, byzantium.paxosLog.size());
         assertEquals(2, cyrene.paxosLog.size());
 
-        assertEquals("Patterns of distributed systems", athens.getValue(
+        //So even if athens had different entry at index 0, it was reconciled
+        //and all the nodes have same entries in same order. The CAS command
+        //succeeds on all the nodes to have final value as CAS Title.
+        assertEquals("CAS Title", athens.getValue(
                 "title"));
-        assertEquals("Patterns of distributed systems", byzantium.getValue("title"));
-        assertEquals("Patterns of distributed systems", cyrene.getValue("title"));
+        assertEquals("CAS Title", byzantium.getValue("title"));
+        assertEquals("CAS Title", cyrene.getValue("title"));
 
     }
 
