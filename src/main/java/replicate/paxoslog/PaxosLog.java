@@ -184,12 +184,32 @@ public class PaxosLog extends Replica {
         var committedPaxosState = paxosState.commit(request.generation, Optional.ofNullable(request.committedValue));
         paxosLog.put(request.index, committedPaxosState);
 
-        addAndApplyIfAllThePreviousEntriesAreCommitted(request);
+        applyIfAllPreviousEntriesAreCommitted(request);
         sendOneway(message.getFromAddress(), new CommitResponse(true), message.getCorrelationId());
     }
 
-    private void addAndApplyIfAllThePreviousEntriesAreCommitted(CommitRequest commitRequest) {
+    private void applyIfAllPreviousEntriesAreCommitted(CommitRequest commitRequest) {
         //if all entries upto logIndex - 1 are committed, apply this entry.
+        if (allPreviousEntriesCommitted(commitRequest)) {
+            addAndApply(commitRequest.index, commitRequest.committedValue);
+        }
+
+        //see if there are entries above this logIndex which are commited, apply those entries.
+        applySubsequentEntries(commitRequest);
+    }
+
+    private void applySubsequentEntries(CommitRequest commitRequest) {
+        for(int commitIndex = commitRequest.index + 1; ; commitIndex++) {
+            var paxosState = paxosLog.get(commitIndex);
+            if (paxosState == null) {
+                break;
+            }
+            var committed = paxosState.committedValue().get();
+            addAndApply(commitIndex, committed);
+        }
+    }
+
+    private boolean allPreviousEntriesCommitted(CommitRequest commitRequest) {
         var previousIndexes = this.paxosLog.keySet().stream().filter(index -> index < commitRequest.index).collect(Collectors.toList());
         var allPreviousCommitted = true;
         for (Integer previousIndex : previousIndexes) {
@@ -198,19 +218,7 @@ public class PaxosLog extends Replica {
                 break;
             }
         }
-        if (allPreviousCommitted) {
-            addAndApply(commitRequest.index, commitRequest.committedValue);
-        }
-
-        //see if there are entries above this logIndex which are commited, apply those entries.
-        for(int startIndex = commitRequest.index + 1; ;startIndex++) {
-            var paxosState = paxosLog.get(startIndex);
-            if (paxosState == null) {
-                break;
-            }
-            var committed = paxosState.committedValue().get();
-            addAndApply(startIndex, committed);
-        }
+        return allPreviousCommitted;
     }
 
     private void addAndApply(int index, byte[] logEntry) {
