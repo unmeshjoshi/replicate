@@ -47,10 +47,42 @@ These building blocks are sufficient for implementing and testing any networked 
 ### Writing JUnit Tests
 
 Utilities are provided to create multiple `Replica` instances. These instances, being Java objects, are easy to inspect and test. Check out [QuorumKVStoreTest](src/test/java/replicate/quorum/QuorumKVStoreTest.java) for an example of how to write tests.
+The cluster can be formed by creating multiple instances of the Replica 
+implementations what you create. For example, a three node cluster
+with replicas named "athens", "byzantium" and "cyrene" is 
+created as following:
+
+```java
+class QuorumKVStoreTest {
+  QuorumKVStore athens;
+  QuorumKVStore byzantium;
+  QuorumKVStore cyrene;
+  
+  @Override
+  public void setUp() throws IOException {
+    //no. servers = no. of replicas.
+    this.nodes = TestUtils.startCluster(Arrays.asList("athens",
+                    "byzantium", "cyrene"),
+            (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+
+    athens = nodes.get("athens");
+    byzantium = nodes.get("byzantium");
+    cyrene = nodes.get("cyrene");
+  }
+}
+```
 
 ### Introducing Failures
 
 The `Replica` class allows you to introduce network failures to other nodes, with utility methods for dropping or delaying messages. Examples of testing with introduced network failures can be found in [QuorumKVStoreTest](src/test/java/replicate/quorum/QuorumKVStoreTest.java).
+For example, to drop messages from the node 'athens' to 'byzantium'
+```java
+ athens.dropMessagesTo(byzantium);
+```
+The connection can be restablished using 
+```java
+ athens.reconnectTo(cyrene);
+```
 
 ## Available Replication Algorithms
 
