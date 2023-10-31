@@ -13,9 +13,4 @@ public class GetValueRequest extends MessagePayload {
     public String getKey() {
         return key;
     }
-
-    //for jackson
-    private GetValueRequest() {
-        super(MessageId.GetValueRequest);
-    }
 }

@@ -32,15 +32,15 @@ class ReadRepairer {
     boolean isAsyncRepair;
 
     private CompletableFuture<StoredValue> readRepair(StoredValue latestStoredValue) {
-        var nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.getTimestamp());
+        var nodesHavingStaleValues = getNodesHavingStaleValues(latestStoredValue.timestamp);
         if (nodesHavingStaleValues.isEmpty()) {
             return CompletableFuture.completedFuture(latestStoredValue);
         }
         List<CompletableFuture<RequestOrResponse>> responseFutures = new ArrayList<>();
-        var writeRequest = createSetValueRequest(latestStoredValue.getKey(), latestStoredValue.getValue(), latestStoredValue.getTimestamp());
+        var writeRequest = createSetValueRequest(latestStoredValue.key, latestStoredValue.value, latestStoredValue.timestamp);
         for (InetAddressAndPort nodesHavingStaleValue : nodesHavingStaleValues) {
             var requestCallback = new CompletionCallback();
-            logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.getValue());
+            logger.info("Sending read repair request to " + nodesHavingStaleValue + ":" + latestStoredValue.value);
             responseFutures.add(requestCallback.getFuture());
             replica.sendMessageToReplica(requestCallback, nodesHavingStaleValue, writeRequest);
         }
@@ -63,11 +63,11 @@ class ReadRepairer {
     }
 
     private List<InetAddressAndPort> getNodesHavingStaleValues(long latestTimestamp) {
-        return this.nodesToValues.entrySet().stream().filter(e -> latestTimestamp > (e.getValue().getValue().getTimestamp())).map(e -> e.getKey()).collect(Collectors.toList());
+        return this.nodesToValues.entrySet().stream().filter(e -> latestTimestamp > (e.getValue().value.timestamp)).map(e -> e.getKey()).collect(Collectors.toList());
     }
 
     //TODO:assignment
     private StoredValue getLatestStoredValue() {
-        return this.nodesToValues.values().stream().map(r -> r.getValue()).max(Comparator.comparingLong(StoredValue::getTimestamp)).orElse(StoredValue.EMPTY);
+        return this.nodesToValues.values().stream().map(r -> r.value).max(Comparator.comparingLong(storedValue -> storedValue.timestamp)).orElse(StoredValue.EMPTY);
     }
 }

@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class GenerationVoting extends Replica {
     //epoch/term/generation
     //this is durable.
-    int ballot = 0;
+    //DurableKVStore
+    int generation = 0;
 
     DurableKVStore ballotStore;
 
@@ -51,7 +52,7 @@ public class GenerationVoting extends Replica {
     }
 
     CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
-       return proposeNumber(ballot);
+       return proposeNumber(generation);
     }
 
     private CompletableFuture<Integer> proposeNumber(int proposedNumber) {
@@ -75,12 +76,12 @@ public class GenerationVoting extends Replica {
         //no synchronized in here..
         var  prepareRequest = message.messagePayload();
         boolean promised = false;
-        if (prepareRequest.getProposedBallot() > ballot) { //accept only if 'strictly greater'
-            ballot = prepareRequest.getProposedBallot();
-            logger.info(getName() + " accepting " + ballot + " in " + getName());
+        if (prepareRequest.proposedBallot > generation) { //accept only if 'strictly greater'
+            generation = prepareRequest.proposedBallot;
+            logger.info(getName() + " accepting " + generation + " in " + getName());
             promised = true;
         }
-        logger.info(getName() + " rejecting " + ballot + " in " + getName());
+        logger.info(getName() + " rejecting " + generation + " in " + getName());
         sendOneway(message.getFromAddress(), new PrepareResponse(promised), message.getCorrelationId());
     }
 }

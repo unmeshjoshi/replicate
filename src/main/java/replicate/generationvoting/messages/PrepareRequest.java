@@ -10,8 +10,4 @@ public class PrepareRequest extends MessagePayload {
         super(MessageId.Prepare);
         this.proposedBallot = proposedBallot;
     }
-
-    public int getProposedBallot() {
-        return proposedBallot;
-    }
 }

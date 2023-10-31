@@ -34,7 +34,6 @@ public class DurableKVStore {
 
     private Long appendLog(String key, String value) {
         Long aLong = wal.writeEntry(new SetValueCommand(key, value).serialize());
-        wal.flush(); //heavy operation.
         return aLong;
     }
 

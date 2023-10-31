@@ -148,7 +148,7 @@ public class QuorumKVStore extends Replica {
     }
 
     public String getValue(String key) {
-        return get(key).getValue();
+        return get(key).value;
     }
 
     public Config getConfig() {
@@ -169,13 +169,13 @@ public class QuorumKVStore extends Replica {
 
     private void handleSetValueRequest(Message<VersionedSetValueRequest> message) {
         var setValueRequest = message.messagePayload();
-        StoredValue storedValue = get(setValueRequest.getKey());
+        StoredValue storedValue = get(setValueRequest.key);
 
-        if (storedValue.getTimestamp() < setValueRequest.getTimestamp()) { //set only if previous timestamp is less.
-            logger.info("Setting newer value " + setValueRequest.getValue());
-            put(setValueRequest.getKey(), new StoredValue(setValueRequest.getKey(), setValueRequest.getValue(), setValueRequest.getTimestamp(), 1));
+        if (storedValue.timestamp < setValueRequest.version) { //set only if previous timestamp is less.
+            logger.info("Setting newer value " + setValueRequest.value);
+            put(setValueRequest.key, new StoredValue(setValueRequest.key, setValueRequest.value, setValueRequest.version, 1));
         } else {
-            logger.info("Not setting value " + setValueRequest.getValue() + " because timestamp higher " + storedValue.getTimestamp() + " than request " + setValueRequest.getTimestamp());
+            logger.info("Not setting value " + setValueRequest.value + " because timestamp higher " + storedValue.timestamp + " than request " + setValueRequest.version);
 
         }
         sendOneway(message.getFromAddress(), new SetValueResponse("Success"), message.getCorrelationId());

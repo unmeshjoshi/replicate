@@ -24,23 +24,23 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
         NetworkClient client = new NetworkClient();
         Integer nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
         assertEquals(1, nextNumber.intValue());
-        assertEquals(1, athens.ballot);
-        assertEquals(1, byzantium.ballot);
-        assertEquals(1, cyrene.ballot);
+        assertEquals(1, athens.generation);
+        assertEquals(1, byzantium.generation);
+        assertEquals(1, cyrene.generation);
 
         nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
 
         assertEquals(2, nextNumber.intValue());
-        assertEquals(2, athens.ballot);
-        assertEquals(2, byzantium.ballot);
-        assertEquals(2, cyrene.ballot);
+        assertEquals(2, athens.generation);
+        assertEquals(2, byzantium.generation);
+        assertEquals(2, cyrene.generation);
 
         nextNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
 
         assertEquals(3, nextNumber.intValue());
-        assertEquals(3, athens.ballot);
-        assertEquals(3, byzantium.ballot);
-        assertEquals(3, cyrene.ballot);
+        assertEquals(3, athens.generation);
+        assertEquals(3, byzantium.generation);
+        assertEquals(3, cyrene.generation);
     }
 
     @Test //FIXME. Fails for numbers 6 and above.
@@ -59,11 +59,11 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
         Integer firstNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();
 
         assertEquals(1, firstNumber.intValue());
-        assertEquals(1, athens.ballot);
-        assertEquals(0, byzantium.ballot);
-        assertEquals(1, cyrene.ballot);
-        assertEquals(1, delphi.ballot);
-        assertEquals(0, ephesus.ballot);
+        assertEquals(1, athens.generation);
+        assertEquals(0, byzantium.generation);
+        assertEquals(1, cyrene.generation);
+        assertEquals(1, delphi.generation);
+        assertEquals(0, ephesus.generation);
 
 
         ephesus.dropMessagesTo(athens);
@@ -73,11 +73,11 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
 
 
         assertEquals(2, secondNumber.intValue());
-        assertEquals(1, athens.ballot);
-        assertEquals(2, byzantium.ballot);
-        assertEquals(1, cyrene.ballot);
-        assertEquals(2, delphi.ballot);
-        assertEquals(2, ephesus.ballot);
+        assertEquals(1, athens.generation);
+        assertEquals(2, byzantium.generation);
+        assertEquals(1, cyrene.generation);
+        assertEquals(2, delphi.generation);
+        assertEquals(2, ephesus.generation);
 
 
         Integer thirdNumber = client.sendAndReceive(new NextNumberRequest(), athens.getClientConnectionAddress(), Integer.class).getResult();

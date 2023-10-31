@@ -8,7 +8,6 @@ import replicate.common.TestUtils;
 import replicate.net.InetAddressAndPort;
 import replicate.net.requestwaitinglist.TestClock;
 import replicate.quorum.messages.GetValueResponse;
-import replicate.quorum.messages.SetValueResponse;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -26,6 +25,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
 
     @Override
     public void setUp() throws IOException {
+        //no. servers = no. of replicas.
         this.nodes = TestUtils.startCluster(Arrays.asList("athens",
                         "byzantium", "cyrene"),
                 (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new QuorumKVStore(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
@@ -94,7 +94,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
     }
 
     private static String valueFrom(NetworkClient.Response<GetValueResponse> titleResponse) {
-        return titleResponse.getResult().getValue().getValue();
+        return titleResponse.getResult().value.value;
     }
 
 
@@ -126,12 +126,14 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertEquals(nodes.length, expectedTitles.length);
 
         for (int i = 0; i < nodes.length; i++) {
-            assertEquals(expectedTitles[i], nodes[i].get("title").getValue());
+            StoredValue storedValue = nodes[i].get("title");
+            assertEquals(expectedTitles[i], storedValue.value);
         }
     }
 
     private void assertTitleEquals(QuorumKVStore quorumKVStore, String microservices) {
-        assertEquals(microservices, quorumKVStore.get("title").getValue());
+        StoredValue storedValue = quorumKVStore.get("title");
+        assertEquals(microservices, storedValue.value);
     }
 
     private static void assertResponseSuccess(NetworkClient.Response<?> response) {
@@ -293,7 +295,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
                         //write title=>Updated Value, 100
 
         byzantium.setClock(new TestClock(200));
-        cyrene.setClock(new TestClock(100));
+        cyrene.setClock(new TestClock(100)); //lagging behind
 
         var aliceResponse =
                 kvClient.setValue(athens.getClientConnectionAddress(),
@@ -321,8 +323,12 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertTitleEquals(athens, "Nicroservices");
 
         //problem. Older value has higher timestamp.
-        assertTrue(athens.get("title").getTimestamp() > cyrene.get("title").getTimestamp());
-        assertTrue(byzantium.get("title").getTimestamp() == cyrene.get("title").getTimestamp());
+        StoredValue storedValue2 = cyrene.get("title");
+        StoredValue storedValue3 = athens.get("title");
+        assertTrue(storedValue3.timestamp > storedValue2.timestamp);
+        StoredValue storedValue = cyrene.get("title");
+        StoredValue storedValue1 = byzantium.get("title");
+        assertTrue(storedValue1.timestamp == storedValue.timestamp);
 
         //all connections now restored.
         athens.reconnectTo(cyrene);
@@ -372,8 +378,12 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertTitleEquals(athens, "Nicroservices");
 
         //problem. Older value has higher timestamp.
-        assertTrue("Nicroservices", athens.get("title").getTimestamp() > cyrene.get("title").getTimestamp());
-        assertTrue("Nicroservices", byzantium.get("title").getTimestamp() > cyrene.get("title").getTimestamp());
+        StoredValue storedValue2 = cyrene.get("title");
+        StoredValue storedValue3 = athens.get("title");
+        assertTrue("Nicroservices", storedValue3.timestamp > storedValue2.timestamp);
+        StoredValue storedValue = cyrene.get("title");
+        StoredValue storedValue1 = byzantium.get("title");
+        assertTrue("Nicroservices", storedValue1.timestamp > storedValue.timestamp);
 
         //all connections now restored.
         athens.reconnectTo(cyrene);

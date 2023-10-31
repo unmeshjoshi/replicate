@@ -12,7 +12,7 @@ import java.util.Map;
 public class FullLogPrepareResponse extends MessagePayload {
     public final boolean promised;
     public final Map<Integer, PaxosState> uncommittedValues;
-    public Duration lastLeaderLeaseDurationLeft;
+
     public FullLogPrepareResponse(boolean promised, Map<Integer, PaxosState> uncommittedValues) {
         super(MessageId.Promise);
         this.promised = promised;

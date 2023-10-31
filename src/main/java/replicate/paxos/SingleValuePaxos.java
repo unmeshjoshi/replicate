@@ -111,9 +111,9 @@ public class SingleValuePaxos extends Replica {
     private void handleCommit(Message<CommitRequest> message) {
         var req = message.messagePayload();
         boolean committed = false;
-        if (paxosState.canAccept(req.getGeneration())) {
-            logger.info("Accepting commit for " + req.getValue() + "promisedGeneration=" + paxosState.promisedGeneration() + " req generation=" + req.getGeneration());
-            this.paxosState = paxosState.commit(req.getGeneration(), Optional.ofNullable(req.getValue()));
+        if (paxosState.canAccept(req.generation)) {
+            logger.info("Accepting commit for " + req.value + "promisedGeneration=" + paxosState.promisedGeneration() + " req generation=" + req.generation);
+            this.paxosState = paxosState.commit(req.generation, Optional.ofNullable(req.value));
             committed = true;
         }
         sendOneway(message.getFromAddress(), new CommitResponse(committed), message.getCorrelationId());
@@ -181,7 +181,7 @@ public class SingleValuePaxos extends Replica {
 
         } else if (command instanceof CompareAndSwap compareAndSwap) {
             //execute cas.
-        }
+        } //register lease // hold lock// transfer balance...
         throw new IllegalArgumentException("Unknown command to execute");
     }
 
@@ -222,10 +222,10 @@ public class SingleValuePaxos extends Replica {
 
     private void handleProposal(Message<ProposalRequest> message) {
         var request = message.messagePayload();
-        MonotonicId ballot = request.getMonotonicId();
+        MonotonicId ballot = request.monotonicId;
         boolean accepted =  false;
         if (paxosState.canAccept(ballot)) {
-            this.paxosState = paxosState.accept(ballot, Optional.ofNullable(request.getProposedValue()));
+            this.paxosState = paxosState.accept(ballot, Optional.ofNullable(request.proposedValue));
             accepted = true;
         }
         sendOneway(message.getFromAddress(), new ProposalResponse(accepted), message.getCorrelationId());
