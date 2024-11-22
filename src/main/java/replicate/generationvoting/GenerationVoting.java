@@ -28,7 +28,7 @@ public class GenerationVoting extends Replica {
     //epoch/term/generation
     //this is durable.
     //DurableKVStore
-    int generation = 0;
+    int generation = 0; //this needs to be durable.
 
     DurableKVStore ballotStore;
 
@@ -76,8 +76,9 @@ public class GenerationVoting extends Replica {
         //no synchronized in here..
         var  prepareRequest = message.messagePayload();
         boolean promised = false;
-        if (prepareRequest.proposedBallot > generation) { //accept only if 'strictly greater'
-            generation = prepareRequest.proposedBallot;
+        if (prepareRequest.proposedGeneration > generation) { //accept only if 'strictly
+            // greater'
+            generation = prepareRequest.proposedGeneration;
             logger.info(getName() + " accepting " + generation + " in " + getName());
             promised = true;
         }

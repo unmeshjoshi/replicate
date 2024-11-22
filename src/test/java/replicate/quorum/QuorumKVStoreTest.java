@@ -23,6 +23,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
     QuorumKVStore cyrene;
 
 
+
     @Override
     public void setUp() throws IOException {
         //no. servers = no. of replicas.
@@ -33,6 +34,7 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         athens = nodes.get("athens");
         byzantium = nodes.get("byzantium");
         cyrene = nodes.get("cyrene");
+
     }
 
     //Read Your Own Writes should give the same value written by me or a later value.
@@ -44,6 +46,8 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
 
         athens.dropMessagesTo(byzantium);
 
+
+
         InetAddressAndPort athensAddress = athens.getClientConnectionAddress();
         KVClient kvClient = new KVClient();
         var setValueResponse = kvClient.setValue(athensAddress, "title",
@@ -51,13 +55,17 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertResponseSuccess(setValueResponse);
 
         //how to make sure replicas are in sync?
+        athens.reconnectTo(byzantium);
+        athens.dropMessagesTo(cyrene);
 
+        //This get is synchronously repairing value on byzantium
         var getValueResponse = kvClient.getValue(athensAddress, "title");
 
         assertResponseValue(getValueResponse, "Microservices");
 
         QuorumKVStore[] nodes = {athens, byzantium, cyrene};
-        String[] expectedTitles = {"Microservices", "", "Microservices"};
+        String[] expectedTitles = {"Microservices", "Microservices",
+                "Microservices"};
         assertTitleValues(nodes, expectedTitles);
     }
 
@@ -83,9 +91,11 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertTitleValues(nodes, initialExpectedTitles);
 
         //response from cyrene and byzantium.
+
         var titleResponse =
                 kvClient.getValue(cyrene.getClientConnectionAddress(),
                         "title");
+
         assertResponseValue(titleResponse, "Updated title");
 
         String[] expectedTitles
@@ -246,6 +256,8 @@ public class QuorumKVStoreTest extends ClusterTest<QuorumKVStore> {
         assertTitleEquals(cyrene, "Nicroservices");
 
         athens.reconnectTo(cyrene);
+        //athen -read-> cyrene
+        //athens -write(repair)-> cyrene //delayed
         athens.addDelayForMessagesToAfterNMessages(cyrene, 1);
 
         //concurrent read

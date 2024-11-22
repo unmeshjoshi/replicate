@@ -63,9 +63,6 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         var setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Microservices"), setValueResponse.getResponse());
 
-
-
-
         command = new SetValueCommand("title2", "Distributed Systems");
         setValueResponse = networkClient.sendAndReceive(new ExecuteCommandRequest(command.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
         assertEquals(Optional.of("Distributed Systems"), setValueResponse.getResponse());
@@ -95,11 +92,23 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         assertEquals(4, byzantium.paxosLog.size());
         assertEquals(4, cyrene.paxosLog.size());
 
+        casCommand = new CompareAndSwap("title", Optional.of("Event Driven " +
+                "Microservices"), "Testing Paxos ");
+        casResponse
+                = networkClient.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), byzantium.getClientConnectionAddress(), ExecuteCommandResponse.class).getResult();
+
+        assertEquals(true, casResponse.isCommitted());
+        assertEquals(Optional.of("Event Driven Microservices"), casResponse.getResponse());
+
+        assertEquals(5, athens.paxosLog.size());
+        assertEquals(5, byzantium.paxosLog.size());
+        assertEquals(5, cyrene.paxosLog.size());
+
         var getValueResponse =
                 networkClient.sendAndReceive(new GetValueRequest("title"),
                         athens.getClientConnectionAddress(),
                         GetValueResponse.class).getResult();
-        assertEquals(Optional.of("Event Driven Microservices"), getValueResponse.value);
+        assertEquals(Optional.of("Testing Paxos "), getValueResponse.value);
     }
 
 

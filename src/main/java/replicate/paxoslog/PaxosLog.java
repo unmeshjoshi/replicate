@@ -33,8 +33,9 @@ public class PaxosLog extends Replica {
     //Paxos State
     //THIS HAS TO BE DURABLE.. Homework. Make paxosLog durable.
     //Solution: Use DurableKVStore instead of a TreeMap
-    Map<Integer, PaxosState> paxosLog = new TreeMap<>();
+    Map<Integer, PaxosState> paxosLog = new TreeMap<>(); //RocksDB
 
+    //This is the final state for Key-value store.
     Map<String, String> kv = new HashMap<>();
 
     private final SetValueCommand NO_OP_COMMAND = new SetValueCommand("", "");
@@ -105,12 +106,12 @@ public class PaxosLog extends Replica {
     AtomicInteger maxKnownPaxosRoundId = new AtomicInteger(1);
     AtomicInteger logIndex = new AtomicInteger(0);
 
-    public CompletableFuture<PaxosResult> append(int index, byte[] initialValue, CompletionCallback<ExecuteCommandResponse> callback) {
-        CompletableFuture<PaxosResult> appendFuture = doPaxos(index, initialValue, callback);
+    public CompletableFuture<PaxosResult> append(int index, byte[] clientRequest, CompletionCallback<ExecuteCommandResponse> callback) {
+        CompletableFuture<PaxosResult> appendFuture = doPaxos(index, clientRequest, callback);
         return appendFuture.thenCompose((result)->{
-           if (result.value.stream().allMatch(v -> v != initialValue)) {
+           if (result.value.stream().allMatch(v -> v != clientRequest)) {
                logger.info("Could not append proposed value to " + logIndex + ". Trying next index");
-               return append(logIndex.incrementAndGet(), initialValue, callback);
+               return append(logIndex.incrementAndGet(), clientRequest, callback);
            }
            return CompletableFuture.completedFuture(result);
         });

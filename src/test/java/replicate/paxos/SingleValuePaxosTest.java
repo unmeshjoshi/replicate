@@ -35,6 +35,7 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
     @Test
     public void singleValuePaxosTest() throws IOException {
+        //CompareAndSwap
         var response = setValue(new SetValueRequest("title", "Microservices"), athens.getClientConnectionAddress());
         assertTrue(response.isSuccess());
         Assert.assertEquals("Microservices", response.getResult().result);
@@ -124,6 +125,10 @@ public class SingleValuePaxosTest extends ClusterTest<SingleValuePaxos> {
 
         var getValueResponse = new NetworkClient().sendAndReceive(new GetValueRequest("title"), athens.getClientConnectionAddress(), GetValueResponse.class).getResult();
         assertEquals(Optional.of("Distributed Systems"), getValueResponse.value);
+
+        assertEquals(cyrene.getAcceptedCommand().getValue(), "Distributed Systems");
+        assertEquals(athens.getAcceptedCommand().getValue(), "Distributed Systems");
+        assertEquals(byzantium.getAcceptedCommand().getValue(), "Distributed Systems");
     }
 
     private NetworkClient.Response<SetValueResponse> setValue(SetValueRequest request, InetAddressAndPort clientConnectionAddress) throws IOException {

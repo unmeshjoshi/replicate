@@ -134,7 +134,7 @@ public class ViewStampedReplication extends Replica {
         logger.info(getName() + " Received DoViewChange from " + message.getFromAddress() + " for view " + doViewChange.viewNumber);
         doViewChangeCounter++;
         doViewChangeMessages.add(doViewChange);
-        if (doViewChangeCounter == quorum()) {
+        if (doViewChangeCounter == majorityQuorum()) {
             logger.info("");
             DoViewChange selectedViewChange = pickViewChangeMessageWithHighestNormalViewnumber(doViewChangeMessages);
             this.log = selectedViewChange.log;
@@ -146,7 +146,6 @@ public class ViewStampedReplication extends Replica {
             heartbeatChecker.stop();
             heartBeatScheduler.start();
             logger.info(getName() + " DoViewChange quorum reached. Starting view " + this.viewNumber);
-
             sendOnewayMessageToOtherReplicas(new StartView(this.log, this.opNumber, this.commitNumber));
         }
     }
@@ -166,7 +165,7 @@ public class ViewStampedReplication extends Replica {
             transitionToViewChange();
         }
         startViewChangeCounter++;
-        if (startViewChangeCounter == quorum()) {
+        if (startViewChangeCounter == majorityQuorum()) {
             InetAddressAndPort primaryForView = configuration.getPrimaryForView(viewNumber);
             logger.info(getName() + " StartViewChange quorum reached." + primaryForView + " is the new primary." + " Sending DoViewChange");
             sendOneway(primaryForView, new DoViewChange(viewNumber, log, normalStatusViewNumber, opNumber, commitNumber), message.getCorrelationId());
@@ -197,7 +196,7 @@ public class ViewStampedReplication extends Replica {
         //from last commit number to the entry which is quorum accepted.
         for (int i = commitNumber + 1; i <= log.size(); i++) {
             LogEntry logEntry = log.get(i);
-            if (logEntry == null || !logEntry.isQuorumAccepted(quorum())) {
+            if (logEntry == null || !logEntry.isQuorumAccepted(majorityQuorum())) {
                 break;
             }
             commitNumber = i;
@@ -261,6 +260,8 @@ public class ViewStampedReplication extends Replica {
         return callback.getFuture();
     }
 
+    //if viewchange is higher than the node.
+    // Then
     public void handlePrepare(Message<Prepare> message) {
         Prepare prepare = message.messagePayload();
         if (this.viewNumber == prepare.viewNumber) {

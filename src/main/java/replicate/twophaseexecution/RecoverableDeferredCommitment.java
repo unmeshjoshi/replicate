@@ -78,7 +78,7 @@ public class RecoverableDeferredCommitment extends DeferredCommitment {
         CompletionCallback<ExecuteCommandResponse> callback = new CompletionCallback();
         requestWaitingList.add(requestIdentifier(newCommand.command), callback);
         //phase 1
-        prepare().
+        prepare(). //check if there are any pending requests..
                 thenCompose(r -> {
                 //phase 2
                 byte[] command = pickCommandToExecute(r.values().stream().toList(), newCommand.command);

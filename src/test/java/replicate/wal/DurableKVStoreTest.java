@@ -16,6 +16,9 @@ public class DurableKVStoreTest {
         File walDir = TestUtils.tempDir("distrib/patterns/wal");
         DurableKVStore kv = new DurableKVStore(new Config(walDir.getAbsolutePath()));
         kv.put("title", "Microservices");
+
+
+
         //crash..
         //client got success;
         //client is sure that key1 is saved

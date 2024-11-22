@@ -67,6 +67,7 @@ public class DurableKVStore {
         return Command.deserialize(new ByteArrayInputStream(walEntry.getData()));
     }
 
+    //simulates crash.
     public void close() {
         wal.close();
         kv.clear();

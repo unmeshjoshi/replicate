@@ -100,6 +100,7 @@ public class SingleValuePaxos extends Replica {
         handleResponse(promise);
     }
 
+    //TODO: handle execute request.
     private CompletableFuture<SetValueResponse> handleSetValueRequest(SetValueRequest setValueRequest) {
         return doPaxos(new SetValueCommand(setValueRequest.getKey(), setValueRequest.getValue()).serialize()).thenApply(value -> new SetValueResponse(value.orElse("")));
     }

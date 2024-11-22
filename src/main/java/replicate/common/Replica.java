@@ -334,7 +334,7 @@ public abstract class Replica {
         network.addDelayForMessagesOfType(n.getPeerConnectionAddress(), messageId);
     }
 
-    public int quorum() {
+    public int majorityQuorum() {
         return getNoOfReplicas() / 2 + 1;
     }
 

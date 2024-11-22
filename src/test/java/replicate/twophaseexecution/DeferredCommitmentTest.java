@@ -30,6 +30,7 @@ public class DeferredCommitmentTest extends ClusterTest<DeferredCommitment> {
         athens.dropMessagesTo(cyrene);
 
         NetworkClient client = new NetworkClient();
+        //TransferFunds.
         CompareAndSwap casCommand = new CompareAndSwap("title", Optional.empty(), "Microservices");
         NetworkClient.Response<ExecuteCommandResponse> response = client.sendAndReceive(new ExecuteCommandRequest(casCommand.serialize()), athens.getClientConnectionAddress(), ExecuteCommandResponse.class);
 

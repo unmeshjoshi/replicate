@@ -20,6 +20,20 @@ import static org.junit.Assert.assertEquals;
 
 public class ViewStampedReplicationTest extends ClusterTest<ViewStampedReplication> {
 
+//    @Test
+//    public void commitedEntriesCanHaveDifferentViewNumberOnDifferentServers() throws IOException, InterruptedException {
+//        super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),
+//                (name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses) -> new ViewStampedReplication(name, config, clock, clientConnectionAddress, peerConnectionAddress, peerAddresses));
+//
+//        var athens = nodes.get("athens");
+//        var byzantium = nodes.get("byzantium");
+//        var cyrene = nodes.get("cyrene");
+//
+//        athens.
+//
+//
+//    }
+
     @Test
     public void testNormalOperationWithoutFailures() throws IOException, InterruptedException {
         super.nodes = TestUtils.startCluster(Arrays.asList("athens", "byzantium", "cyrene"),

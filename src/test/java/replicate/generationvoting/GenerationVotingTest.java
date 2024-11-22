@@ -97,6 +97,7 @@ public class GenerationVotingTest extends ClusterTest<GenerationVoting> {
         assertEquals(9, nextNumberConnectingTo(ephesus, client));
         assertEquals(10, nextNumberConnectingTo(delphi, client));
         assertEquals(11, nextNumberConnectingTo(ephesus, client));
+        assertEquals(12, nextNumberConnectingTo(byzantium, client));
     }
 
     private static int nextNumberConnectingTo(GenerationVoting byzantium, NetworkClient client) throws IOException {
