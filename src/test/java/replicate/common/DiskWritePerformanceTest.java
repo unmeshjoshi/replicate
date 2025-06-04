@@ -9,7 +9,7 @@ public class DiskWritePerformanceTest {
     private static final String FILE_NAME = "testfile.bin";
     private static final int WRITE_SIZE = 1024; // Size of each write in bytes
     // (1 KB)
-    private static final int DURATION_IN_SECONDS = 20; // Duration of the test in seconds
+    private static final int DURATION_IN_SECONDS = 10; // Duration of the test in seconds
 
     public static void main(String[] args) throws IOException {
         byte[] data = createData(WRITE_SIZE);
@@ -54,7 +54,7 @@ public class DiskWritePerformanceTest {
                      new FileOutputStream(file);
         while (Instant.now().isBefore(endTime)) {
             os.write(data);
-//            os.getFD().sync();
+            os.getFD().sync();
             numberOfWrites++;
         }
         return numberOfWrites;

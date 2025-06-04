@@ -56,7 +56,20 @@ public enum MessageId {
     ExcuteCommandResponse(49),
     SetValue(50),
     PrepareOK(51),
-    PrepareNAK(52), StartViewChange(53), DoViewChange(54), StartView(55);
+    PrepareNAK(52), 
+    StartViewChange(53), 
+    DoViewChange(54), 
+    StartView(55),
+    
+    // Chain Replication Messages
+    ChainOperation(60),
+    ChainWrite(61),
+    ChainWriteAck(62),
+    ChainRead(58),
+    ChainReadResponse(59),
+    Recovery(63),
+    RecoveryResponse(64),
+    CleanVersion(54);
 
     public static MessageId valueOf(Integer id) {
         return map.get(id);

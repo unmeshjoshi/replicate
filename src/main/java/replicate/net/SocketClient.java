@@ -13,7 +13,7 @@ import java.net.Socket;
 
 public class SocketClient<T> implements Closeable {
     private static Logger logger = LogManager.getLogger(SocketClient.class.getName());
-    private final int readTimeoutMs = 5000;
+    private final int readTimeoutMs = 15000;
 
     Socket clientSocket;
 

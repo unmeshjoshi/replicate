@@ -167,7 +167,7 @@ public abstract class Replica {
         var messageHandler = handlers.get(message.getMessageId());
         var deserializedRequest = deserialize(message.messagePayload(), messageHandler.requestClass);
         singularUpdateQueueExecutor.submit(()->{
-            markHeartbeatReceived(); //TODO: Mark heartbeats in message handlings explcitily. As this can be user request as well.
+            markHeartbeatReceived(); //TODO: Mark heartbeats in message handling explicitly. As this can be user request as well.
             RequestOrResponse request = message.messagePayload();
             MessageId key = MessageId.valueOf(request.getRequestId());
             messageHandler.handler.apply(new Message<>(deserializedRequest, message.header));

@@ -192,10 +192,10 @@ public class SingleValuePaxos extends Replica {
     }
 
 
-    private byte[] getProposalValue(byte[] initialValue, Collection<PrepareResponse> promises) {
+    private byte[] getProposalValue(byte[] clientRequest, Collection<PrepareResponse> promises) {
         PrepareResponse mostRecentAcceptedValue = getMostRecentAcceptedValue(promises);
         logger.debug("Most Recent promise " + mostRecentAcceptedValue);
-        return mostRecentAcceptedValue.acceptedValue.orElse(initialValue);
+        return mostRecentAcceptedValue.acceptedValue.orElse(clientRequest);
     }
 
     private PrepareResponse getMostRecentAcceptedValue(Collection<PrepareResponse> prepareResponses) {

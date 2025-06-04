@@ -6,6 +6,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Configuration for chain replication nodes
+ */
 public class Config {
     private String walDir;
     //TODO:Set sensible defaults. Max value was set to make sure logs are not cleaned during tests.
@@ -13,18 +16,24 @@ public class Config {
     private Long logMaxDurationMs = Long.MAX_VALUE;
     private List<Peer> servers;
     private Integer serverId;
-    private Long electionTimeoutMs = 2000l;
+    private int heartbeatIntervalMs = 1000;
+    private int electionTimeoutMs = 5000;
+    private int operationTimeoutMs = 10000;
     private long heartBeatIntervalMs = 100;
     private long followerTimeoutMs = 5000l;
     private boolean supportLogGroup = false;
     private boolean doAsyncRepair = false;
+
+    public Config() {
+        // Default constructor
+    }
 
     public Config(String walDir) {
         this.walDir = walDir;
     }
 
     public Config withElectionTimeoutMs(Long electionTimeoutMs) {
-        this.electionTimeoutMs = electionTimeoutMs;
+        this.electionTimeoutMs = electionTimeoutMs.intValue();
         return this;
     }
 
@@ -98,12 +107,12 @@ public class Config {
         return serverId;
     }
 
-    public Long getElectionTimeoutMs() {
+    public int getElectionTimeoutMs() {
         return electionTimeoutMs;
     }
 
-    public int getHeartBeatIntervalMs() {
-        return (int) heartBeatIntervalMs;
+    public int getHeartbeatIntervalMs() {
+        return heartbeatIntervalMs;
     }
 
     public Peer getServer(int leaderId) {
@@ -154,5 +163,13 @@ public class Config {
 
     public void setServerId(Integer serverId) {
         this.serverId = serverId;
+    }
+
+    public int getOperationTimeoutMs() {
+        return operationTimeoutMs;
+    }
+
+    public void setOperationTimeoutMs(int operationTimeoutMs) {
+        this.operationTimeoutMs = operationTimeoutMs;
     }
 }

@@ -57,7 +57,7 @@ public class SocketListener extends Thread implements Logging {
 
     //<codeFragment name="readTimeout">
     private void setReadTimeout(Socket clientSocket) throws SocketException {
-        clientSocket.setSoTimeout(config.getHeartBeatIntervalMs() * 10);
+        clientSocket.setSoTimeout(config.getHeartbeatIntervalMs() * 10);
     }
     //</codeFragment>
 

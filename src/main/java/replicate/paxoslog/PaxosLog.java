@@ -118,7 +118,7 @@ public class PaxosLog extends Replica {
     }
 
     private CompletableFuture<PaxosResult> doPaxos(int index, byte[] value, CompletionCallback<ExecuteCommandResponse> callback) {
-        int maxAttempts = 2;
+        int maxAttempts = 5;
         return FutureUtils.retryWithRandomDelay(() -> {
             //Each retry with higher generation/epoch
             MonotonicId newGeneration = new MonotonicId(maxKnownPaxosRoundId.incrementAndGet(),

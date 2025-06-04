@@ -100,6 +100,7 @@ public class DeferredCommitment extends Replica {
         Command command = getCommand(t.getCommand());
         acceptedCommand = command;
 //      //if command instanceof TransferFunds
+        //IncrementCounter. //HOld a Lease// Grab a Lock.
         if (command instanceof CompareAndSwap) {
             CompareAndSwap cas = (CompareAndSwap) command;
             Optional<String> existingValue = Optional.ofNullable(kvStore.get(cas.getKey()));
