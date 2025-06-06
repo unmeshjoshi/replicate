@@ -52,10 +52,22 @@ public class GenerationVoting extends Replica {
     }
 
     CompletableFuture<Integer> handleNextNumberRequest(NextNumberRequest request) {
-       return proposeNumber(generation);
+       return runElection();
     }
 
-    private CompletableFuture<Integer> proposeNumber(int proposedNumber) {
+    /**
+     * Initiates a leader election process for this node.
+     * The node will attempt to become leader by proposing a generation number
+     * higher than any it has seen before.
+     * 
+     * @return CompletableFuture with the generation number this node was elected with
+     */
+    public CompletableFuture<Integer> runElection() {
+        return proposeNumber(generation);
+    }
+
+    // Package-private for testing
+    CompletableFuture<Integer> proposeNumber(int proposedNumber) {
         int maxAttempts =   5;
         AtomicInteger proposal = new AtomicInteger(proposedNumber);
         return FutureUtils.retryWithRandomDelay(() -> {
