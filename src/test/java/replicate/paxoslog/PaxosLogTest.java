@@ -120,12 +120,14 @@ public class PaxosLogTest extends ClusterTest<PaxosLog> {
         verifyLogConsistencyAcrossCluster(2, "After two basic commands");
         
         // STEP 3: Failed CAS operation (existing value doesn't match)
-        CompareAndSwapResult cas1 = executeCompareAndSwap("title", null, "Microservices", athens);
+        CompareAndSwapResult cas1 = executeCompareAndSwap("title", null,
+                "Microservices", athens);
         assertFalse("CAS should fail when expected value doesn't match", cas1.succeeded);
         assertEquals("CAS should return existing value", "Microservices", cas1.returnedValue);
         
         // STEP 4: Successful CAS operation (existing value matches)
-        CompareAndSwapResult cas2 = executeCompareAndSwap("title", "Microservices", "Event Driven Microservices", byzantium);
+        CompareAndSwapResult cas2 = executeCompareAndSwap("title", "Microservices",
+                "Event Driven Microservices", byzantium);
         assertTrue("CAS should succeed when expected value matches", cas2.succeeded);
         assertEquals("CAS should return previous value", "Microservices", cas2.returnedValue);
         

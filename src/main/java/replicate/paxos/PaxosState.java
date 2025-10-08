@@ -4,6 +4,7 @@ import replicate.common.MonotonicId;
 
 import java.util.Optional;
 
+//this needs to be persisted.
 public record PaxosState(
         //Generation value to avoid concurrent updates
         //Only the node with the highest generation will be
